@@ -1,16 +1,33 @@
+// Updated src/components/PrayerTrackerView.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyPrayerLog, PrayerName } from '../types';
 import { PRAYER_DEFINITIONS, PRAYER_ORDER } from '../constants';
-import { loadPrayerLogsFromLocalStorage, savePrayerLogsToLocalStorage } from '../services/localStorageService';
+import * as firebaseService from '../services/firebaseService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons/NavIcons';
 
 const formatDateToYYYYMMDD = (date: Date): string => date.toISOString().split('T')[0];
 
 const PrayerTrackerView: React.FC = () => {
-  const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>(loadPrayerLogsFromLocalStorage);
+  const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [currentLog, setCurrentLog] = useState<DailyPrayerLog | null>(null);
   const [notes, setNotes] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+
+  // Load prayer logs on component mount
+  useEffect(() => {
+    const loadLogs = async () => {
+      try {
+        const logs = await firebaseService.loadPrayerLogs();
+        setPrayerLogs(logs);
+      } catch (error) {
+        console.error('Error loading prayer logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLogs();
+  }, []);
 
   useEffect(() => {
     const dateString = formatDateToYYYYMMDD(currentDate);
@@ -37,9 +54,9 @@ const PrayerTrackerView: React.FC = () => {
     if (!currentLog) return;
     
     const updatedLog = { ...currentLog };
-    updatedLog.prayers = { ...updatedLog.prayers }; // Ensure deep copy for prayers object
+    updatedLog.prayers = { ...updatedLog.prayers };
     
-    if (!updatedLog.prayers[prayerName]) { // Initialize if prayer not yet in log for some reason
+    if (!updatedLog.prayers[prayerName]) {
         updatedLog.prayers[prayerName] = {};
     }
     (updatedLog.prayers[prayerName] as any)[type] = checked;
@@ -52,15 +69,15 @@ const PrayerTrackerView: React.FC = () => {
     setNotes(e.target.value);
   };
   
-  const saveNotes = () => {
+  const saveNotes = async () => {
      if (!currentLog) return;
      const updatedLog = { ...currentLog, notes: notes };
      setCurrentLog(updatedLog);
-     updateLocalStorage(updatedLog);
+     await updateLocalStorage(updatedLog);
      alert("Notes saved!");
   }
 
-  const updateLocalStorage = useCallback((logToSave: DailyPrayerLog) => {
+  const updateLocalStorage = useCallback(async (logToSave: DailyPrayerLog) => {
     setPrayerLogs(prevLogs => {
       const existingLogIndex = prevLogs.findIndex(log => log.date === logToSave.date);
       let newLogs;
@@ -70,11 +87,15 @@ const PrayerTrackerView: React.FC = () => {
       } else {
         newLogs = [...prevLogs, logToSave];
       }
-      savePrayerLogsToLocalStorage(newLogs);
+      
+      // Save to Firebase
+      firebaseService.savePrayerLogs(newLogs).catch(error => {
+        console.error('Error saving prayer logs:', error);
+      });
+      
       return newLogs;
     });
   }, []);
-
 
   const changeDate = (offset: number) => {
     setCurrentDate(prevDate => {
@@ -87,6 +108,17 @@ const PrayerTrackerView: React.FC = () => {
   const goToToday = () => {
     setCurrentDate(new Date());
   };
+
+  if (loading) {
+    return (
+      <div className="animate-fadeIn flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading prayer logs...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fadeIn">
@@ -142,13 +174,12 @@ const PrayerTrackerView: React.FC = () => {
                       <span className="text-slate-700 dark:text-slate-300">Sunnah ({definition.sunnahCount} Raka'at)</span>
                     </label>
                   )}
-                  {/* Special case for Tahajjud or prayers without standard Fardh/Sunnah counts like above */}
                   {definition.fardhCount === undefined && definition.sunnahCount === undefined && (
                      <label className="flex items-center space-x-3 cursor-pointer">
                       <input
                         type="checkbox"
                         className="form-checkbox h-5 w-5 text-secondary rounded focus:ring-secondary-dark"
-                        checked={logEntry?.fardh || false} // Using 'fardh' as the general completion flag for Tahajjud
+                        checked={logEntry?.fardh || false}
                         onChange={(e) => handlePrayerChange(prayerName, 'fardh', e.target.checked)}
                       />
                       <span className="text-slate-700 dark:text-slate-300">Prayed</span>

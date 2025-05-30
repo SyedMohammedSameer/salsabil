@@ -1,12 +1,13 @@
+// Updated src/components/QuranLogView.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyQuranLog } from '../types';
-import { loadQuranLogsFromLocalStorage, saveQuranLogsToLocalStorage } from '../services/localStorageService';
+import * as firebaseService from '../services/firebaseService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons/NavIcons';
 
 const formatDateToYYYYMMDD = (date: Date): string => date.toISOString().split('T')[0];
 
 const QuranLogView: React.FC = () => {
-  const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>(loadQuranLogsFromLocalStorage);
+  const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [currentLog, setCurrentLog] = useState<DailyQuranLog>({
     date: formatDateToYYYYMMDD(new Date()),
@@ -14,6 +15,22 @@ const QuranLogView: React.FC = () => {
     pagesRead: 0,
     notes: ''
   });
+  const [loading, setLoading] = useState(true);
+
+  // Load Quran logs on component mount
+  useEffect(() => {
+    const loadLogs = async () => {
+      try {
+        const logs = await firebaseService.loadQuranLogs();
+        setQuranLogs(logs);
+      } catch (error) {
+        console.error('Error loading Quran logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLogs();
+  }, []);
 
   useEffect(() => {
     const dateString = formatDateToYYYYMMDD(currentDate);
@@ -45,7 +62,7 @@ const QuranLogView: React.FC = () => {
     });
   };
   
-  const handleSaveChanges = useCallback(() => {
+  const handleSaveChanges = useCallback(async () => {
     setQuranLogs(prevLogs => {
       const existingLogIndex = prevLogs.findIndex(log => log.date === currentLog.date);
       let newLogs;
@@ -55,12 +72,18 @@ const QuranLogView: React.FC = () => {
       } else {
         newLogs = [...prevLogs, currentLog];
       }
-      saveQuranLogsToLocalStorage(newLogs);
-      alert("Log saved!");
+      
+      // Save to Firebase
+      firebaseService.saveQuranLogs(newLogs).then(() => {
+        alert("Log saved!");
+      }).catch(error => {
+        console.error('Error saving Quran logs:', error);
+        alert("Failed to save log. Please try again.");
+      });
+      
       return newLogs;
     });
   }, [currentLog]);
-
 
   const changeDate = (offset: number) => {
     setCurrentDate(prevDate => {
@@ -73,6 +96,17 @@ const QuranLogView: React.FC = () => {
   const goToToday = () => {
     setCurrentDate(new Date());
   };
+
+  if (loading) {
+    return (
+      <div className="animate-fadeIn flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading Quran logs...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fadeIn">

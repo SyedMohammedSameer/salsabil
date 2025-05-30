@@ -1,17 +1,32 @@
+// Updated src/components/PomodoroView.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { PomodoroMode, PomodoroSettings } from '../types';
-import { PlayIcon, PauseIcon, ResetIcon, SkipIcon, SaveIcon, EditIcon, CloseIcon } from './icons/NavIcons'; // Added CloseIcon
-import { loadPomodoroSettingsFromLocalStorage, savePomodoroSettingsToLocalStorage } from '../services/localStorageService';
+import { PlayIcon, PauseIcon, ResetIcon, SkipIcon, SaveIcon, EditIcon, CloseIcon } from './icons/NavIcons';
+import * as firebaseService from '../services/firebaseService';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 
 const PomodoroView: React.FC = () => {
-  const [settings, setSettings] = useState<PomodoroSettings>(loadPomodoroSettingsFromLocalStorage());
+  const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [mode, setMode] = useState<PomodoroMode>(PomodoroMode.Work);
-  const [timeLeft, setTimeLeft] = useState(settings.workDuration * 60);
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_POMODORO_SETTINGS.workDuration * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
   const [isSettingsMode, setIsSettingsMode] = useState(false);
-  const [editableSettings, setEditableSettings] = useState<PomodoroSettings>(settings);
+  const [editableSettings, setEditableSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
+
+  // Load settings on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const loadedSettings = await firebaseService.loadPomodoroSettings();
+        setSettings(loadedSettings);
+        setEditableSettings(loadedSettings);
+      } catch (error) {
+        console.error('Error loading pomodoro settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const getDuration = useCallback((currentMode: PomodoroMode, currentSettings: PomodoroSettings) => {
     switch (currentMode) {
@@ -36,7 +51,7 @@ const PomodoroView: React.FC = () => {
   // Effect for timer logic
   useEffect(() => {
     if (!isRunning || timeLeft <= 0) {
-      if (timeLeft <= 0 && isRunning) { // ensure it was running before switching
+      if (timeLeft <= 0 && isRunning) {
         if (mode === PomodoroMode.Work) {
           setPomodorosCompleted(prev => prev + 1);
           if ((pomodorosCompleted + 1) % settings.pomodorosBeforeLongBreak === 0) {
@@ -90,18 +105,23 @@ const PomodoroView: React.FC = () => {
     setEditableSettings(prev => ({ ...prev, [name]: parseInt(value, 10) || 0 }));
   };
 
-  const saveSettings = () => {
-    // Add validation for settings if needed (e.g., min/max values)
+  const saveSettings = async () => {
     if (editableSettings.workDuration < 1 || editableSettings.shortBreakDuration < 1 || editableSettings.longBreakDuration < 1 || editableSettings.pomodorosBeforeLongBreak < 1) {
         alert("Durations must be at least 1 minute and pomodoros count at least 1.");
         return;
     }
-    setSettings(editableSettings);
-    savePomodoroSettingsToLocalStorage(editableSettings);
-    setIsSettingsMode(false);
-    // If current mode's duration changed, update timeLeft (if not running)
-    if (!isRunning) {
-        setTimeLeft(getDuration(mode, editableSettings));
+    
+    try {
+      setSettings(editableSettings);
+      await firebaseService.savePomodoroSettings(editableSettings);
+      setIsSettingsMode(false);
+      
+      if (!isRunning) {
+          setTimeLeft(getDuration(mode, editableSettings));
+      }
+    } catch (error) {
+      console.error('Error saving pomodoro settings:', error);
+      alert('Failed to save settings. Please try again.');
     }
   };
 
@@ -128,7 +148,7 @@ const PomodoroView: React.FC = () => {
       <div className="flex justify-between items-center w-full max-w-md mb-4">
         <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Pomodoro Timer</h1>
         <button 
-            onClick={() => { setIsSettingsMode(s => !s); if(isSettingsMode) setEditableSettings(settings); /* Reset changes if canceling */}}
+            onClick={() => { setIsSettingsMode(s => !s); if(isSettingsMode) setEditableSettings(settings); }}
             className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             title={isSettingsMode ? "Back to Timer" : "Edit Settings"}
         >
