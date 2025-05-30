@@ -1,19 +1,35 @@
-// src/lib/firebase.ts
+// lib/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
-// Your web app's Firebase configuration
+// Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyA2MMH56_72oL0gTJ4fhPU9m0xtMI-O67M",
-  authDomain: "focusflow-71a55.firebaseapp.com",
-  projectId: "focusflow-71a55",
-  storageBucket: "focusflow-71a55.firebasestorage.app",
-  messagingSenderId: "979654187250",
-  appId: "1:979654187250:web:b747752305909efa41586b",
-  measurementId: "G-MLQWTGX9S7"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+// Validate that all required config values are present
+const requiredEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!import.meta.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -24,7 +40,7 @@ export const auth = getAuth(app);
 // Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
 
-// Initialize Analytics (optional)
-export const analytics = getAnalytics(app);
+// Initialize Analytics (optional, only in production)
+export const analytics = typeof window !== 'undefined' && import.meta.env.PROD ? getAnalytics(app) : null;
 
 export default app;
