@@ -20,10 +20,25 @@ import { Task, DailyPrayerLog, DailyQuranLog, PomodoroSettings, Theme } from '..
 export async function saveTask(userId: string, task: Task): Promise<void> {
   try {
     const taskRef = doc(db, 'users', userId, 'tasks', task.id);
-    await setDoc(taskRef, {
-      ...task,
+    
+    // Clean the task data to remove undefined values
+    const cleanedTask: any = {
+      id: task.id,
+      title: task.title,
+      date: task.date,
+      priority: task.priority,
+      completed: task.completed || false,
+      completedSubtasks: task.completedSubtasks || 0,
+      subtasks: task.subtasks || [],
       updatedAt: serverTimestamp()
-    });
+    };
+    
+    // Only add optional fields if they have values
+    if (task.description) cleanedTask.description = task.description;
+    if (task.startTime) cleanedTask.startTime = task.startTime;
+    if (task.endTime) cleanedTask.endTime = task.endTime;
+    
+    await setDoc(taskRef, cleanedTask);
   } catch (error) {
     console.error('Error saving task:', error);
     throw error;
@@ -103,9 +118,34 @@ export async function getUserSettings(userId: string): Promise<{
 // Prayer Logs
 export async function savePrayerLogs(userId: string, logs: DailyPrayerLog[]): Promise<void> {
   try {
+    // Clean the logs data
+    const cleanedLogs = logs.map(log => {
+      const cleanedLog: any = {
+        date: log.date,
+        prayers: {}
+      };
+      
+      // Clean prayer entries
+      Object.entries(log.prayers).forEach(([prayerName, prayerData]) => {
+        if (prayerData) {
+          cleanedLog.prayers[prayerName] = {};
+          if (prayerData.fardh !== undefined) {
+            cleanedLog.prayers[prayerName].fardh = prayerData.fardh;
+          }
+          if (prayerData.sunnah !== undefined) {
+            cleanedLog.prayers[prayerName].sunnah = prayerData.sunnah;
+          }
+        }
+      });
+      
+      if (log.notes) cleanedLog.notes = log.notes;
+      
+      return cleanedLog;
+    });
+    
     const logsRef = doc(db, 'users', userId, 'settings', 'prayerLogs');
     await setDoc(logsRef, {
-      logs,
+      logs: cleanedLogs,
       updatedAt: serverTimestamp()
     });
   } catch (error) {

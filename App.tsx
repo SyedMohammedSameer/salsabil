@@ -38,13 +38,26 @@ const AppContent: React.FC = () => {
         const userTheme = await firebaseService.loadTheme();
         setTheme(userTheme);
         
-        // Load tasks
-        const userTasks = await firebaseService.loadTasks();
-        if (userTasks.length === 0 && !currentUser) {
-          // If no user and no tasks, show sample tasks for demo
-          setTasks(SAMPLE_TASKS);
-        } else {
-          setTasks(userTasks);
+        // Load tasks with better error handling
+        try {
+          const userTasks = await firebaseService.loadTasks();
+          if (userTasks.length === 0 && !currentUser) {
+            // If no user and no tasks, show sample tasks for demo
+            setTasks(SAMPLE_TASKS);
+          } else {
+            // Validate tasks before setting them
+            const validatedTasks = userTasks.map(task => ({
+              ...task,
+              subtasks: task.subtasks || [],
+              completedSubtasks: task.completedSubtasks || 0,
+              completed: task.completed || false
+            }));
+            setTasks(validatedTasks);
+          }
+        } catch (taskError) {
+          console.error('Error loading tasks:', taskError);
+          // If there's an error loading tasks, start with empty array
+          setTasks(currentUser ? [] : SAMPLE_TASKS);
         }
       } catch (error) {
         console.error('Error loading user data:', error);

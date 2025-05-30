@@ -43,12 +43,13 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, in
       alert("Title is required.");
       return;
     }
+    
     const taskData = {
       title,
-      description,
+      description: description || undefined, // Use undefined instead of empty string
       date,
-      startTime: startTime || undefined,
-      endTime: endTime || undefined,
+      startTime: startTime || undefined, // Use undefined instead of empty string
+      endTime: endTime || undefined, // Use undefined instead of empty string
       priority,
     };
 

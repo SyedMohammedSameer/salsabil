@@ -30,8 +30,32 @@ const getDayInCurrentWeek = (dayOffset: number) => { // 0 for today, 1 for tomor
 
 
 export const SAMPLE_TASKS: Task[] = [
-  { id: '1', title: 'Morning Standup Meeting', date: getDayInCurrentWeek(0), priority: Priority.Medium, startTime: '09:00', endTime: '09:30', subtasks: [], completedSubtasks: 0, completed: false },
-  { id: '2', title: 'Develop new feature', date: getDayInCurrentWeek(0), priority: Priority.High, description: "Implement the user authentication module.", subtasks: [{id: 's1', text: 'Design DB schema', completed: true}, {id: 's2', text: 'Implement API endpoints', completed: false}], completedSubtasks: 1, completed: false },
+  { 
+    id: '1', 
+    title: 'Morning Standup Meeting', 
+    date: getDayInCurrentWeek(0), 
+    priority: Priority.Medium, 
+    startTime: '09:00', 
+    endTime: '09:30', 
+    subtasks: [], 
+    completedSubtasks: 0, 
+    completed: false 
+  },
+  { 
+    id: '2', 
+    title: 'Develop new feature', 
+    date: getDayInCurrentWeek(0), 
+    priority: Priority.High, 
+    description: "Implement the user authentication module.", 
+    subtasks: [
+      {id: 's1', text: 'Design DB schema', completed: true}, 
+      {id: 's2', text: 'Implement API endpoints', completed: false}
+    ], 
+    completedSubtasks: 1, 
+    completed: false,
+    startTime: undefined, // Explicitly set to undefined
+    endTime: undefined
+  },
   { id: '3', title: 'Client call', date: getDayInCurrentWeek(1), priority: Priority.High, startTime: '14:00', endTime: '15:00', subtasks: [], completedSubtasks: 0, completed: false },
   { id: '4', title: 'Gym session', date: getDayInCurrentWeek(1), priority: Priority.Low, subtasks: [], completedSubtasks: 0, completed: true },
   { id: '5', title: 'Read documentation for new API', date: getDayInCurrentWeek(2), priority: Priority.Medium, subtasks: [], completedSubtasks: 0, completed: false },

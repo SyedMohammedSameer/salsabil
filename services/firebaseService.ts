@@ -4,8 +4,12 @@ import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
 
+
 // Hybrid service that uses Firebase when user is logged in, localStorage as fallback
 let currentUserId: string | null = null;
+let saveTimeout: NodeJS.Timeout | null = null;
+let prayerLogSaveTimeout: NodeJS.Timeout | null = null;
+
 
 export function setCurrentUser(userId: string | null) {
   currentUserId = userId;
@@ -24,16 +28,24 @@ export const loadTasks = async (): Promise<Task[]> => {
 };
 
 export const saveTasks = async (tasks: Task[]): Promise<void> => {
-  if (currentUserId) {
-    try {
-      // Save each task individually to Firebase
-      await Promise.all(tasks.map(task => firestore.saveTask(currentUserId!, task)));
-      return;
-    } catch (error) {
-      console.error('Error saving tasks to Firebase, falling back to localStorage:', error);
-    }
+  // Clear any existing timeout
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
   }
-  localStorage.saveTasksToLocalStorage(tasks);
+  
+  // Set a new timeout
+  saveTimeout = setTimeout(async () => {
+    if (currentUserId) {
+      try {
+        // Save each task individually to Firebase
+        await Promise.all(tasks.map(task => firestore.saveTask(currentUserId!, task)));
+        return;
+      } catch (error) {
+        console.error('Error saving tasks to Firebase, falling back to localStorage:', error);
+      }
+    }
+    localStorage.saveTasksToLocalStorage(tasks);
+  }, 1000); // 1 second debounce
 };
 
 export const saveTask = async (task: Task): Promise<void> => {
@@ -136,14 +148,22 @@ export const loadPrayerLogs = async (): Promise<DailyPrayerLog[]> => {
 };
 
 export const savePrayerLogs = async (logs: DailyPrayerLog[]): Promise<void> => {
-  if (currentUserId) {
-    try {
-      await firestore.savePrayerLogs(currentUserId, logs);
-    } catch (error) {
-      console.error('Error saving prayer logs to Firebase:', error);
-    }
+  // Clear any existing timeout
+  if (prayerLogSaveTimeout) {
+    clearTimeout(prayerLogSaveTimeout);
   }
-  localStorage.savePrayerLogsToLocalStorage(logs);
+  
+  // Set a new timeout
+  prayerLogSaveTimeout = setTimeout(async () => {
+    if (currentUserId) {
+      try {
+        await firestore.savePrayerLogs(currentUserId, logs);
+      } catch (error) {
+        console.error('Error saving prayer logs to Firebase:', error);
+      }
+    }
+    localStorage.savePrayerLogsToLocalStorage(logs);
+  }, 1000); // 1 second debounce
 };
 
 // Quran Logs
