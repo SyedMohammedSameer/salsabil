@@ -13,6 +13,7 @@ const PomodoroView: React.FC = () => {
   const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
   const [isSettingsMode, setIsSettingsMode] = useState(false);
   const [editableSettings, setEditableSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
+  const [hasBeenStarted, setHasBeenStarted] = useState(false); // Track if timer has been started
 
   // Load settings on component mount
   useEffect(() => {
@@ -41,17 +42,18 @@ const PomodoroView: React.FC = () => {
     }
   }, []);
 
-  // Update timeLeft when mode or settings change (and timer is not running)
+  // Update timeLeft when mode or settings change (only if timer hasn't been started or is reset)
   useEffect(() => {
-    if (!isRunning) {
+    if (!hasBeenStarted) {
       setTimeLeft(getDuration(mode, settings));
     }
-  }, [mode, settings, isRunning, getDuration]);
+  }, [mode, settings, hasBeenStarted, getDuration]);
   
   // Effect for timer logic
   useEffect(() => {
     if (!isRunning || timeLeft <= 0) {
       if (timeLeft <= 0 && isRunning) {
+        // Timer completed naturally
         if (mode === PomodoroMode.Work) {
           setPomodorosCompleted(prev => prev + 1);
           if ((pomodorosCompleted + 1) % settings.pomodorosBeforeLongBreak === 0) {
@@ -62,7 +64,8 @@ const PomodoroView: React.FC = () => {
         } else { 
           setMode(PomodoroMode.Work);
         }
-        setIsRunning(false); 
+        setIsRunning(false);
+        setHasBeenStarted(false); // Reset the started flag when session completes
       }
       return;
     }
@@ -72,22 +75,28 @@ const PomodoroView: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [isRunning, timeLeft, mode, pomodorosCompleted, settings, getDuration]);
+  }, [isRunning, timeLeft, mode, pomodorosCompleted, settings]);
 
   const toggleTimer = () => {
-    if (timeLeft <=0 && !isRunning) { 
-        setTimeLeft(getDuration(mode, settings));
+    if (!isRunning) {
+      // Starting the timer
+      setHasBeenStarted(true);
+      setIsRunning(true);
+    } else {
+      // Pausing the timer - don't reset anything
+      setIsRunning(false);
     }
-    setIsRunning(prev => !prev);
   };
 
   const resetTimer = () => {
     setIsRunning(false);
+    setHasBeenStarted(false);
     setTimeLeft(getDuration(mode, settings));
   };
 
   const skipSession = () => {
     setIsRunning(false);
+    setHasBeenStarted(false);
     if (mode === PomodoroMode.Work) {
       setPomodorosCompleted(prev => prev + 1);
       if ((pomodorosCompleted + 1) % settings.pomodorosBeforeLongBreak === 0) {
@@ -116,7 +125,8 @@ const PomodoroView: React.FC = () => {
       await firebaseService.savePomodoroSettings(editableSettings);
       setIsSettingsMode(false);
       
-      if (!isRunning) {
+      // Only reset time if timer hasn't been started
+      if (!hasBeenStarted) {
           setTimeLeft(getDuration(mode, editableSettings));
       }
     } catch (error) {
