@@ -21,8 +21,13 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.Planner);
   const [theme, setTheme] = useState<Theme>(Theme.Light);
   const [loading, setLoading] = useState(true);
-  const [apiKey] = useState<string>(() => (typeof process !== 'undefined' && process.env && process.env.API_KEY) || '');
-
+  const [apiKey] = useState<string>(() => {
+    // Try multiple possible environment variable names for backward compatibility
+    return import.meta.env.VITE_GEMINI_API_KEY || 
+          import.meta.env.VITE_API_KEY || 
+          import.meta.env.GEMINI_API_KEY || 
+          '';
+  });
   // Set current user in Firebase service when user changes
   useEffect(() => {
     firebaseService.setCurrentUser(currentUser?.uid || null);
