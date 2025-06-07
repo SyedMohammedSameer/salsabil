@@ -180,14 +180,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
             <div className={`flex space-x-1 transition-all duration-300 ${isHovered || task.completed ? 'opacity-100' : 'opacity-0'}`}>
               <button 
                 onClick={handleEditClick}
-                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110"
+                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10"
                 title="Edit Task"
               >
                 <EditIcon className="w-3 h-3" />
               </button>
               <button 
                 onClick={handleDeleteClick}
-                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-red-100 dark:hover:bg-red-900/50 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110"
+                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-red-100 dark:hover:bg-red-900/50 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10"
                 title="Delete Task"
               >
                 <TrashIcon className="w-3 h-3" />
@@ -198,7 +198,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
 
         {/* Completion Overlay */}
         {task.completed && (
-          <div className="absolute inset-0 bg-emerald-500/10 dark:bg-emerald-400/10 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
+          <div className="absolute inset-0 bg-emerald-500/10 dark:bg-emerald-400/10 backdrop-blur-[1px] flex items-center justify-center rounded-2xl pointer-events-none">
             <div className="bg-emerald-500 text-white p-2 rounded-full shadow-lg">
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
