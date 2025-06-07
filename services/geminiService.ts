@@ -1,12 +1,7 @@
-
+// Enhanced services/geminiService.ts with comprehensive context handling
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Task } from '../types';
 import { GEMINI_TEXT_MODEL, MOCK_AI_RESPONSES } from '../constants';
-
-// Ensure that process.env.API_KEY is accessed correctly.
-// For client-side, this would typically be injected by a build tool or handled by a backend proxy.
-// As per instructions, assume process.env.API_KEY is available.
-// If not, we'll use a passed apiKey or fall back to mock data.
 
 let ai: GoogleGenAI | null = null;
 let currentApiKey: string | null = null;
@@ -35,109 +30,321 @@ const generateMockResponse = async (message: string): Promise<string> => {
   return new Promise(resolve => setTimeout(() => resolve(message), 500));
 };
 
+// Enhanced system prompt for Noor
+const NOOR_SYSTEM_PROMPT = `
+You are Noor, an intelligent AI assistant for the FocusFlow productivity and spiritual growth app. Your name means "light" in Arabic, representing guidance and enlightenment.
 
-export const getAiChatResponse = async (prompt: string, tasks: Task[], history: {role: string, parts: {text: string}[]}[], apiKey: string): Promise<string> => {
+CORE PERSONALITY:
+- Wise, encouraging, and supportive
+- Culturally sensitive and spiritually aware
+- Practical and action-oriented
+- Warm but professional tone
+- Use Islamic greetings appropriately when relevant
+
+CAPABILITIES:
+- Comprehensive analysis of productivity patterns
+- Spiritual growth guidance and insights
+- Task management and prioritization assistance
+- Prayer and Quran reading encouragement
+- Work-life-spiritual balance optimization
+- Personalized recommendations based on user data
+
+GUIDELINES:
+- Keep responses concise and to the point (10-60 words)
+- Focus on actionable insights and clear next steps
+- Use plain text formatting only - no markdown, stars, or special characters
+- For lists, use simple numbers or dashes without formatting
+- Be specific but brief in your advice
+- Respect Islamic principles when giving spiritual advice
+- Use emojis sparingly but effectively for warmth
+
+RESPONSE STRUCTURE:
+1. Brief acknowledgment of the user's situation
+2. 1-2 key insights or recommendations
+3. One clear next step or action item
+
+FORMATTING RULES:
+- Use plain text only
+- No markdown formatting
+- No asterisks or stars
+- No bold or italic text
+- Use simple dashes (-) for lists
+- Keep line breaks minimal
+
+Remember: You have access to comprehensive user data including tasks, prayer logs, Quran reading, and productivity patterns. Use this data to provide focused, actionable assistance.
+`;
+
+// Enhanced AI response function with comprehensive context
+export const getEnhancedAiResponse = async (
+  prompt: string, 
+  userContext: string,
+  history: {role: string, parts: {text: string}[]}[], 
+  apiKey: string
+): Promise<string> => {
   const client = initializeAiClient(apiKey);
   if (!client) {
-    return generateMockResponse(MOCK_AI_RESPONSES.NO_KEY + " (Mocked: " + prompt + ")");
+    return generateMockResponse(
+      `${MOCK_AI_RESPONSES.NO_KEY}\n\n*Noor (Mock Mode):* ${generateContextualMockResponse(prompt)}`
+    );
   }
 
-  const taskContext = tasks.length > 0 ? `\n\nCurrent tasks:\n${tasks.map(t => `- ${t.title} (Priority: ${t.priority}, Due: ${t.date || 'N/A'})`).join('\n')}` : "";
-  const fullPrompt = `${prompt}${taskContext}`;
+  const fullPrompt = `
+USER CONTEXT:
+${userContext}
+
+USER REQUEST: ${prompt}
+
+Please provide a personalized response based on the comprehensive user data above.
+`;
   
   try {
-     const chat = client.chats.create({
+    const chat = client.chats.create({
       model: GEMINI_TEXT_MODEL,
       history: history,
       config: {
-        systemInstruction: "You are a helpful productivity assistant for the FocusFlow app. Be concise and actionable. Use the provided task list for context if relevant.",
+        systemInstruction: NOOR_SYSTEM_PROMPT,
+        temperature: 0.7,
+        topP: 0.9,
+        maxOutputTokens: 3000,
       }
     });
-    const result: GenerateContentResponse = await chat.sendMessage({ message: fullPrompt });
-    return result.text;
+    
+    const result: GenerateContentResponse = await chat.sendMessage({ 
+      message: fullPrompt 
+    });
+    
+    return result.text || "I apologize, but I couldn't generate a response. Please try again.";
   } catch (error) {
-    console.error("Error calling Gemini API (getAiChatResponse):", error);
-    return MOCK_AI_RESPONSES.ERROR;
+    console.error("Error calling Gemini API (getEnhancedAiResponse):", error);
+    return "I'm experiencing some technical difficulties right now. Please try again in a moment, and I'll do my best to help you! 🌟";
   }
 };
 
+// Legacy function for backward compatibility
+export const getAiChatResponse = async (
+  prompt: string, 
+  tasks: Task[], 
+  history: {role: string, parts: {text: string}[]}[], 
+  apiKey: string
+): Promise<string> => {
+  const taskContext = tasks.length > 0 ? 
+    `Current tasks:\n${tasks.map(t => `- ${t.title} (Priority: ${t.priority}, Due: ${t.date || 'N/A'}, Status: ${t.completed ? 'Completed' : 'Pending'})`).join('\n')}` : 
+    "No tasks currently available.";
+  
+  return getEnhancedAiResponse(prompt, taskContext, history, apiKey);
+};
+
+// Enhanced specialized functions
 export const summarizeWeeklyProgress = async (tasks: Task[], apiKey: string): Promise<string> => {
   const client = initializeAiClient(apiKey);
   if (!client) {
-    return generateMockResponse(MOCK_AI_RESPONSES.NO_KEY + " (Mocked Summary)");
+    return generateMockResponse(
+      "📊 **Weekly Summary (Mock Mode)**\n\nYou've made solid progress this week! Focus on completing those high-priority tasks, and don't forget your spiritual practices. Every small step counts toward your growth! ✨"
+    );
   }
 
   if (tasks.length === 0) {
-    return "No tasks to summarize for the week.";
+    return "It looks like you haven't added any tasks yet this week. Would you like help setting up some goals and tasks to work toward? I'm here to guide you! 🎯";
   }
 
   const completedTasks = tasks.filter(t => t.completed).length;
   const pendingTasks = tasks.length - completedTasks;
-  const prompt = `Summarize the user's progress based on these tasks. Completed: ${completedTasks}, Pending: ${pendingTasks}. Tasks: ${JSON.stringify(tasks.map(t => ({title: t.title, status: t.completed? 'completed':'pending', priority: t.priority, date: t.date})))}.`;
+  const highPriorityPending = tasks.filter(t => t.priority === 'High' && !t.completed).length;
+  
+  const prompt = `Provide a comprehensive weekly progress summary with insights and encouragement. 
+  
+  Data:
+  - Total tasks: ${tasks.length}
+  - Completed: ${completedTasks}
+  - Pending: ${pendingTasks}
+  - High priority pending: ${highPriorityPending}
+  
+  Task details: ${JSON.stringify(tasks.map(t => ({
+    title: t.title, 
+    status: t.completed ? 'completed' : 'pending', 
+    priority: t.priority, 
+    date: t.date
+  })))}`;
 
   try {
     const response: GenerateContentResponse = await client.models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
       config: {
-        systemInstruction: "You are a helpful productivity assistant. Summarize the user's weekly progress based on their task list. Be encouraging and brief.",
+        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nFocus on providing a weekly progress summary with specific insights and actionable encouragement.",
+        temperature: 0.7,
+        maxOutputTokens: 600,
       }
     });
-    return response.text;
+    return response.text || "I'd love to help you review your progress, but I'm having trouble accessing that information right now. How do you feel your week has gone so far?";
   } catch (error) {
     console.error("Error calling Gemini API (summarizeWeeklyProgress):", error);
-    return MOCK_AI_RESPONSES.ERROR;
+    return "I'm having trouble generating your summary right now, but I can see you're working hard! Keep up the great momentum! 💪";
   }
 };
 
 export const suggestNextSteps = async (tasks: Task[], apiKey: string): Promise<string> => {
   const client = initializeAiClient(apiKey);
   if (!client) {
-    return generateMockResponse(MOCK_AI_RESPONSES.NO_KEY + " (Mocked Next Steps)");
+    return generateMockResponse(
+      "🎯 **Next Steps (Mock Mode)**\n\n1. Focus on your highest priority incomplete tasks\n2. Break large tasks into smaller, manageable steps\n3. Schedule specific times for important work\n4. Take breaks and maintain balance\n\nYou've got this! 🌟"
+    );
   }
+  
   if (tasks.length === 0) {
-    return "No tasks to suggest steps for. Add some tasks first!";
+    return "Let's start by adding some tasks to work on! What are your main goals or priorities right now? I can help you break them down into manageable steps. 📝";
   }
-  const highPriorityTasks = tasks.filter(t => t.priority === 'High' && !t.completed).map(t => t.title).join(', ');
-  const prompt = `Given the following tasks, suggest 2-3 actionable next steps for the user. Focus on incomplete tasks, especially high priority ones. Tasks: ${JSON.stringify(tasks.map(t => ({title: t.title, completed: t.completed, priority: t.priority, date: t.date})))}. High priority incomplete tasks: ${highPriorityTasks || 'None'}.`;
+  
+  const incompleteTasks = tasks.filter(t => !t.completed);
+  const highPriorityTasks = incompleteTasks.filter(t => t.priority === 'High');
+  const overdueTasks = incompleteTasks.filter(t => new Date(t.date) < new Date());
+  
+  const prompt = `Provide 3-4 specific, actionable next steps based on the user's task data.
+  
+  Context:
+  - Total incomplete tasks: ${incompleteTasks.length}
+  - High priority tasks: ${highPriorityTasks.length}
+  - Overdue tasks: ${overdueTasks.length}
+  
+  Task details: ${JSON.stringify(incompleteTasks.map(t => ({
+    title: t.title, 
+    priority: t.priority, 
+    date: t.date,
+    description: t.description
+  })))}
+  
+  Focus on urgent items, high priorities, and maintaining momentum.`;
 
   try {
     const response: GenerateContentResponse = await client.models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
       config: {
-        systemInstruction: "You are a helpful productivity assistant. Provide actionable next steps based on the user's task list. Be specific and encouraging.",
+        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide specific, actionable next steps prioritized by urgency and importance.",
+        temperature: 0.8,
+        maxOutputTokens: 500,
       }
     });
-    return response.text;
+    return response.text || "Focus on your highest priority tasks first, and remember to take breaks! What feels most important to tackle right now?";
   } catch (error) {
     console.error("Error calling Gemini API (suggestNextSteps):", error);
-    return MOCK_AI_RESPONSES.ERROR;
+    return "I recommend focusing on your highest priority tasks first. Break them into smaller steps and celebrate small wins along the way! 🎯";
   }
 };
 
 export const getFocusSuggestion = async (tasks: Task[], apiKey: string): Promise<string> => {
   const client = initializeAiClient(apiKey);
   if (!client) {
-    return generateMockResponse(MOCK_AI_RESPONSES.NO_KEY + " (Mocked Focus Suggestion)");
+    return generateMockResponse(
+      "🎯 **Focus Suggestion (Mock Mode)**\n\nFor tomorrow, I suggest prioritizing your most important incomplete task. Start with something achievable to build momentum, then tackle the bigger challenges. Remember to balance work with spiritual practices! 🌙"
+    );
   }
+  
   const incompleteTasks = tasks.filter(t => !t.completed);
   if (incompleteTasks.length === 0) {
-    return "You've completed all your tasks! Great job. Maybe plan for tomorrow or relax.";
+    return "Subhan'Allah! You've completed all your tasks! 🎉 This is a perfect time to reflect on your achievements, plan for tomorrow, or spend extra time in spiritual reflection. What would feel most beneficial right now?";
   }
-  const prompt = `Based on these incomplete tasks, what should the user focus on next or tomorrow? Prioritize tasks that are due soon or have high priority. Tasks: ${JSON.stringify(incompleteTasks.map(t => ({title: t.title, date: t.date, priority: t.priority})))}.`;
+  
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowString = tomorrow.toISOString().split('T')[0];
+  
+  const tomorrowTasks = incompleteTasks.filter(t => t.date === tomorrowString);
+  const urgentTasks = incompleteTasks.filter(t => new Date(t.date) <= tomorrow);
+  
+  const prompt = `Suggest what the user should focus on next or tomorrow based on their incomplete tasks.
+  
+  Context:
+  - Tomorrow's tasks: ${tomorrowTasks.length}
+  - Urgent tasks (due soon): ${urgentTasks.length}
+  - All incomplete tasks: ${incompleteTasks.length}
+  
+  Task details: ${JSON.stringify(incompleteTasks.map(t => ({
+    title: t.title,
+    date: t.date,
+    priority: t.priority,
+    description: t.description
+  })))}
+  
+  Provide a focused recommendation for what to prioritize next.`;
 
   try {
     const response: GenerateContentResponse = await client.models.generateContent({
       model: GEMINI_TEXT_MODEL,
       contents: prompt,
       config: {
-        systemInstruction: "You are a helpful productivity assistant. Help the user decide what to focus on next. Be specific.",
+        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide focused guidance on what to prioritize next, considering deadlines and importance.",
+        temperature: 0.7,
+        maxOutputTokens: 400,
       }
     });
-    return response.text;
+    return response.text || "Focus on your most urgent tasks first, and don't forget to maintain balance in your day. What feels most important to you right now?";
   } catch (error) {
     console.error("Error calling Gemini API (getFocusSuggestion):", error);
-    return MOCK_AI_RESPONSES.ERROR;
+    return "Tomorrow, start with your highest priority task to build momentum. Remember to begin with Bismillah and keep your intentions pure! 🌟";
+  }
+};
+
+// Helper function to generate contextual mock responses
+const generateContextualMockResponse = (prompt: string): string => {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  if (lowerPrompt.includes('prayer') || lowerPrompt.includes('salah')) {
+    return "Your prayer consistency is the foundation of spiritual growth. Try setting gentle reminders and creating a peaceful prayer space. May Allah make it easy for you! 🤲";
+  }
+  
+  if (lowerPrompt.includes('quran') || lowerPrompt.includes('reading')) {
+    return "Consistent Quran reading, even a few verses daily, brings immense barakah. Start small and build gradually. The key is consistency over quantity! 📖✨";
+  }
+  
+  if (lowerPrompt.includes('task') || lowerPrompt.includes('productivity')) {
+    return "Break your tasks into smaller steps and celebrate small wins. Remember to balance hustle with rest - Allah loves consistent deeds even if they're small! ⚡";
+  }
+  
+  if (lowerPrompt.includes('balance') || lowerPrompt.includes('stress')) {
+    return "True balance comes from prioritizing what matters most. Make time for prayer, family, and personal growth alongside your worldly responsibilities. You're doing better than you think! ⚖️";
+  }
+  
+  if (lowerPrompt.includes('goal') || lowerPrompt.includes('plan')) {
+    return "Set intentions that align with your values. Break big goals into weekly milestones, and remember that progress isn't always linear. Trust the process! 🎯";
+  }
+  
+  return "I'm here to help you grow in both productivity and spirituality. Even in mock mode, remember that every small step forward is progress worth celebrating! 🌟";
+};
+
+// Spiritual guidance specialized function
+export const getSpiritualGuidance = async (
+  prayerData: any, 
+  quranData: any, 
+  apiKey: string
+): Promise<string> => {
+  const client = initializeAiClient(apiKey);
+  if (!client) {
+    return generateMockResponse(
+      "🤲 **Spiritual Guidance (Mock Mode)**\n\nFocus on consistency over perfection. Start each day with intention, maintain regular prayer times, and read Quran daily even if just a few verses. Small, consistent acts of worship are beloved to Allah. May your spiritual journey be filled with peace and growth! ✨"
+    );
+  }
+
+  const prompt = `Provide personalized spiritual guidance based on the user's prayer and Quran reading data.
+  
+  Prayer Data: ${JSON.stringify(prayerData)}
+  Quran Data: ${JSON.stringify(quranData)}
+  
+  Offer gentle, encouraging advice for spiritual growth while being respectful of Islamic principles.`;
+
+  try {
+    const response: GenerateContentResponse = await client.models.generateContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: prompt,
+      config: {
+        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide gentle, encouraging spiritual guidance rooted in Islamic principles. Be supportive and practical.",
+        temperature: 0.8,
+        maxOutputTokens: 600,
+      }
+    });
+    return response.text || "Remember that spiritual growth is a journey, not a destination. Be patient with yourself and trust in Allah's timing. Every sincere effort is blessed! 🤲";
+  } catch (error) {
+    console.error("Error calling Gemini API (getSpiritualGuidance):", error);
+    return "Your spiritual journey is unique and beautiful. Focus on consistency, seek knowledge, and remember that Allah is always there to guide you. Keep moving forward with hope! 🌙";
   }
 };

@@ -1,15 +1,14 @@
-// src/services/firebaseService.ts
-import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog } from '../types';
+// Updated services/firebaseService.ts with chat history support
+import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
-
 
 // Hybrid service that uses Firebase when user is logged in, localStorage as fallback
 let currentUserId: string | null = null;
 let saveTimeout: NodeJS.Timeout | null = null;
 let prayerLogSaveTimeout: NodeJS.Timeout | null = null;
-
+let chatSaveTimeout: NodeJS.Timeout | null = null;
 
 export function setCurrentUser(userId: string | null) {
   currentUserId = userId;
@@ -28,16 +27,13 @@ export const loadTasks = async (): Promise<Task[]> => {
 };
 
 export const saveTasks = async (tasks: Task[]): Promise<void> => {
-  // Clear any existing timeout
   if (saveTimeout) {
     clearTimeout(saveTimeout);
   }
   
-  // Set a new timeout
   saveTimeout = setTimeout(async () => {
     if (currentUserId) {
       try {
-        // Save each task individually to Firebase
         await Promise.all(tasks.map(task => firestore.saveTask(currentUserId!, task)));
         return;
       } catch (error) {
@@ -45,7 +41,7 @@ export const saveTasks = async (tasks: Task[]): Promise<void> => {
       }
     }
     localStorage.saveTasksToLocalStorage(tasks);
-  }, 1000); // 1 second debounce
+  }, 1000);
 };
 
 export const saveTask = async (task: Task): Promise<void> => {
@@ -57,7 +53,6 @@ export const saveTask = async (task: Task): Promise<void> => {
       console.error('Error saving task to Firebase:', error);
     }
   }
-  // For localStorage fallback, we need to load all tasks, update, and save
   const tasks = localStorage.loadTasksFromLocalStorage() || [];
   const existingIndex = tasks.findIndex(t => t.id === task.id);
   if (existingIndex >= 0) {
@@ -77,7 +72,6 @@ export const deleteTask = async (taskId: string): Promise<void> => {
       console.error('Error deleting task from Firebase:', error);
     }
   }
-  // For localStorage fallback
   const tasks = localStorage.loadTasksFromLocalStorage() || [];
   const filteredTasks = tasks.filter(t => t.id !== taskId);
   localStorage.saveTasksToLocalStorage(filteredTasks);
@@ -148,12 +142,10 @@ export const loadPrayerLogs = async (): Promise<DailyPrayerLog[]> => {
 };
 
 export const savePrayerLogs = async (logs: DailyPrayerLog[]): Promise<void> => {
-  // Clear any existing timeout
   if (prayerLogSaveTimeout) {
     clearTimeout(prayerLogSaveTimeout);
   }
   
-  // Set a new timeout
   prayerLogSaveTimeout = setTimeout(async () => {
     if (currentUserId) {
       try {
@@ -163,7 +155,7 @@ export const savePrayerLogs = async (logs: DailyPrayerLog[]): Promise<void> => {
       }
     }
     localStorage.savePrayerLogsToLocalStorage(logs);
-  }, 1000); // 1 second debounce
+  }, 1000);
 };
 
 // Quran Logs
@@ -187,4 +179,44 @@ export const saveQuranLogs = async (logs: DailyQuranLog[]): Promise<void> => {
     }
   }
   localStorage.saveQuranLogsToLocalStorage(logs);
+};
+
+// Chat History (New)
+export const loadChatHistory = async (): Promise<ChatMessage[]> => {
+  if (currentUserId) {
+    try {
+      return await firestore.getChatHistory(currentUserId);
+    } catch (error) {
+      console.error('Error loading chat history from Firebase:', error);
+    }
+  }
+  return localStorage.loadChatHistoryFromLocalStorage();
+};
+
+export const saveChatHistory = async (messages: ChatMessage[]): Promise<void> => {
+  if (chatSaveTimeout) {
+    clearTimeout(chatSaveTimeout);
+  }
+  
+  chatSaveTimeout = setTimeout(async () => {
+    if (currentUserId) {
+      try {
+        await firestore.saveChatHistory(currentUserId, messages);
+      } catch (error) {
+        console.error('Error saving chat history to Firebase:', error);
+      }
+    }
+    localStorage.saveChatHistoryToLocalStorage(messages);
+  }, 2000); // Longer timeout for chat to avoid too frequent saves
+};
+
+export const clearChatHistory = async (): Promise<void> => {
+  if (currentUserId) {
+    try {
+      await firestore.clearChatHistory(currentUserId);
+    } catch (error) {
+      console.error('Error clearing chat history from Firebase:', error);
+    }
+  }
+  localStorage.clearChatHistoryFromLocalStorage();
 };

@@ -195,3 +195,80 @@ export async function getQuranLogs(userId: string): Promise<DailyQuranLog[]> {
     return [];
   }
 }
+
+// Enhanced Firebase service for chat history - Add to lib/firestore.ts
+
+import { ChatMessage } from '../types';
+
+// Chat History Functions
+export async function saveChatHistory(userId: string, messages: ChatMessage[]): Promise<void> {
+  try {
+    // Keep only the last 100 messages to avoid storage bloat
+    const recentMessages = messages.slice(-100);
+    
+    const chatRef = doc(db, 'users', userId, 'ai-assistant', 'chatHistory');
+    await setDoc(chatRef, {
+      messages: recentMessages.map(msg => ({
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: msg.timestamp.toISOString() // Convert to string for Firestore
+      })),
+      updatedAt: serverTimestamp(),
+      messageCount: recentMessages.length
+    });
+  } catch (error) {
+    console.error('Error saving chat history:', error);
+    throw error;
+  }
+}
+
+export async function getChatHistory(userId: string): Promise<ChatMessage[]> {
+  try {
+    const chatRef = doc(db, 'users', userId, 'ai-assistant', 'chatHistory');
+    const docSnap = await getDoc(chatRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return (data.messages || []).map((msg: any) => ({
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender,
+        timestamp: new Date(msg.timestamp) // Convert back to Date
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error getting chat history:', error);
+    return [];
+  }
+}
+
+export async function clearChatHistory(userId: string): Promise<void> {
+  try {
+    const chatRef = doc(db, 'users', userId, 'ai-assistant', 'chatHistory');
+    await deleteDoc(chatRef);
+  } catch (error) {
+    console.error('Error clearing chat history:', error);
+    throw error;
+  }
+}
+
+// AI Assistant Analytics (optional - for insights)
+export async function saveAIInteraction(userId: string, interaction: {
+  prompt: string;
+  response: string;
+  category: string;
+  timestamp: Date;
+}): Promise<void> {
+  try {
+    const analyticsRef = collection(db, 'users', userId, 'ai-analytics');
+    await addDoc(analyticsRef, {
+      ...interaction,
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error saving AI interaction:', error);
+    // Don't throw - analytics shouldn't break the main flow
+  }
+}

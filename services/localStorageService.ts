@@ -1,4 +1,5 @@
-import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog } from '../types';
+// Updated services/localStorageService.ts with chat history support
+import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 
 const TASKS_STORAGE_KEY = 'focusFlowTasks';
@@ -6,7 +7,7 @@ const THEME_STORAGE_KEY = 'focusFlowTheme';
 const POMODORO_SETTINGS_KEY = 'focusFlowPomodoroSettings';
 const PRAYER_LOGS_KEY = 'focusFlowPrayerLogs';
 const QURAN_LOGS_KEY = 'focusFlowQuranLogs';
-
+const CHAT_HISTORY_KEY = 'focusFlowChatHistory';
 
 // Tasks
 export const loadTasksFromLocalStorage = (): Task[] | null => {
@@ -120,7 +121,50 @@ export const saveQuranLogsToLocalStorage = (logs: DailyQuranLog[]): void => {
   try {
     const serializedLogs = JSON.stringify(logs);
     localStorage.setItem(QURAN_LOGS_KEY, serializedLogs);
-  } catch (error)    {
+  } catch (error) {
     console.error("Could not save Quran logs to local storage", error);
+  }
+};
+
+// Chat History (New)
+export const loadChatHistoryFromLocalStorage = (): ChatMessage[] => {
+  try {
+    const serializedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
+    if (serializedHistory === null) {
+      return [];
+    }
+    const parsed = JSON.parse(serializedHistory);
+    // Convert timestamp strings back to Date objects
+    return parsed.map((msg: any) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp)
+    }));
+  } catch (error) {
+    console.error("Could not load chat history from local storage", error);
+    return [];
+  }
+};
+
+export const saveChatHistoryToLocalStorage = (messages: ChatMessage[]): void => {
+  try {
+    // Keep only the last 50 messages in localStorage to avoid bloat
+    const recentMessages = messages.slice(-50);
+    // Convert Date objects to strings for storage
+    const serialized = recentMessages.map(msg => ({
+      ...msg,
+      timestamp: msg.timestamp.toISOString()
+    }));
+    const serializedHistory = JSON.stringify(serialized);
+    localStorage.setItem(CHAT_HISTORY_KEY, serializedHistory);
+  } catch (error) {
+    console.error("Could not save chat history to local storage", error);
+  }
+};
+
+export const clearChatHistoryFromLocalStorage = (): void => {
+  try {
+    localStorage.removeItem(CHAT_HISTORY_KEY);
+  } catch (error) {
+    console.error("Could not clear chat history from local storage", error);
   }
 };
