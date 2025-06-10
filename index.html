@@ -2,10 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/salsabil-icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/salsabil-icon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/salsabil-icon-180.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FocusFlow - Productivity & Spiritual Growth</title>
-  <meta name="description" content="A modern productivity web app combining task management, spiritual tracking, and AI-powered insights for holistic personal growth." />
+  <title>Salsabil - A Spring of Productivity & Spiritual Growth</title>
+  <meta name="description" content="Salsabil beautifully combines task management, spiritual tracking, and AI-powered insights for holistic personal growth. Named after the blessed spring in Jannah." />
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://salsabil.app/" />
+  <meta property="og:title" content="Salsabil - A Spring of Productivity & Spiritual Growth" />
+  <meta property="og:description" content="Salsabil beautifully combines task management, spiritual tracking, and AI-powered insights for holistic personal growth." />
+  <meta property="og:image" content="/salsabil-og-image.jpg" />
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://salsabil.app/" />
+  <meta property="twitter:title" content="Salsabil - A Spring of Productivity & Spiritual Growth" />
+  <meta property="twitter:description" content="Salsabil beautifully combines task management, spiritual tracking, and AI-powered insights for holistic personal growth." />
+  <meta property="twitter:image" content="/salsabil-og-image.jpg" />
+  
+  <!-- Additional SEO -->
+  <meta name="keywords" content="productivity, Islamic, spiritual, tasks, prayer tracker, Quran log, AI assistant, Pomodoro, focus, growth" />
+  <meta name="author" content="Salsabil Team" />
+  <meta name="robots" content="index, follow" />
   
   <!-- Preload critical fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -87,6 +109,10 @@
             bounce: {
               '0%, 100%': { transform: 'translateY(-25%)', animationTimingFunction: 'cubic-bezier(0.8,0,1,1)' },
               '50%': { transform: 'none', animationTimingFunction: 'cubic-bezier(0,0,0.2,1)' }
+            },
+            ripple: {
+              '0%': { transform: 'scale(0)', opacity: '1' },
+              '100%': { transform: 'scale(4)', opacity: '0' }
             }
           },
           animation: {
@@ -100,6 +126,7 @@
             shimmer: 'shimmer 2s linear infinite',
             'gradient-x': 'gradientX 3s ease infinite',
             'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            ripple: 'ripple 0.6s linear',
           },
           backgroundImage: {
             'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -211,7 +238,7 @@
       width: 13px;
       height: 13px;
       border-radius: 50%;
-      background: #3b82f6;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
       animation-timing-function: cubic-bezier(0, 1, 1, 0);
     }
 
@@ -252,7 +279,7 @@
 
     /* Gradient text effect */
     .gradient-text {
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6, #10b981);
+      background: linear-gradient(135deg, #3b82f6, #06b6d4, #10b981);
       background-size: 200% 200%;
       background-clip: text;
       -webkit-background-clip: text;
@@ -319,6 +346,30 @@
     .btn-hover:hover::before {
       left: 100%;
     }
+
+    /* Water ripple effect for spring theme */
+    .water-ripple {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .water-ripple::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+
+    .water-ripple:hover::before {
+      width: 300px;
+      height: 300px;
+    }
   </style>
   
   <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
@@ -337,16 +388,28 @@
   <div id="root"></div>
   
   <!-- Loading screen that shows before React mounts -->
-  <div id="initial-loading" class="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 flex items-center justify-center z-50">
+  <div id="initial-loading" class="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 flex items-center justify-center z-50">
     <div class="text-center">
-      <div class="loading-dots mb-6">
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
+      <div class="mb-8 relative">
+        <!-- Water spring icon placeholder - replace with your actual icon -->
+        <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 via-cyan-500 to-emerald-400 flex items-center justify-center shadow-2xl">
+          <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
+              <circle cx="12" cy="14" r="4" opacity="0.6"/>
+            </svg>
+          </div>
+        </div>
+        <div class="loading-dots mb-6">
+          <div></div>
+          <div></div>
+          <div></div>
+          <div></div>
+        </div>
       </div>
-      <h1 class="text-2xl font-bold gradient-text mb-2">FocusFlow</h1>
-      <p class="text-slate-600 dark:text-slate-400">Loading your productivity space...</p>
+      <h1 class="text-3xl font-bold gradient-text mb-2">Salsabil</h1>
+      <p class="text-slate-600 dark:text-slate-400 text-lg mb-2">A Spring of Productivity & Spiritual Growth</p>
+      <p class="text-slate-500 dark:text-slate-500 text-sm italic">Loading your journey...</p>
     </div>
   </div>
   
@@ -366,8 +429,8 @@
     });
 
     // Dark mode detection
-    if (localStorage.getItem('focusFlowTheme') === 'dark' || 
-        (!localStorage.getItem('focusFlowTheme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    if (localStorage.getItem('salsabilTheme') === 'dark' || 
+        (!localStorage.getItem('salsabilTheme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
     }
   </script>

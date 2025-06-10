@@ -1,12 +1,25 @@
 {
-  "name": "focusflow",
+  "name": "salsabil",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "A modern web application that beautifully combines productivity management with spiritual growth tracking",
+  "keywords": ["productivity", "spiritual", "islamic", "tasks", "prayer", "quran", "ai", "pomodoro"],
+  "author": "Salsabil Team",
+  "homepage": "https://salsabil.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/salsabil.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/salsabil/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.2.0",
@@ -18,5 +31,21 @@
     "@types/node": "^22.14.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

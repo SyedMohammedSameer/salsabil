@@ -1,4 +1,4 @@
-// Enhanced App.tsx with modern sidebar and better layout
+// Enhanced App.tsx with Salsabil branding and modern sidebar
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
@@ -152,11 +152,11 @@ const AppContent: React.FC = () => {
       [View.Calendar]: 'Calendar',
       [View.AIAssistant]: 'AI Assistant', 
       [View.Dashboard]: 'Dashboard',
-      [View.Pomodoro]: 'Pomodoro Timer',
+      [View.Pomodoro]: 'Focus Timer',
       [View.PrayerTracker]: 'Prayer Tracker',
       [View.QuranLog]: 'Quran Reading Log'
     };
-    return titles[view] || 'FocusFlow';
+    return titles[view] || 'Salsabil';
   };
 
   const renderView = () => {
@@ -164,14 +164,21 @@ const AppContent: React.FC = () => {
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
-            <div className="relative">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto mb-6"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-6 h-6 bg-primary rounded-full animate-pulse"></div>
+            <div className="relative mb-8">
+              {/* Salsabil spring loading animation */}
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-cyan-200 dark:border-cyan-800 border-t-cyan-500 dark:border-t-cyan-400 mx-auto mb-6"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
+                </div>
+              </div>
+              {/* Water ripple effect */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-20 h-20 border-2 border-cyan-300 dark:border-cyan-600 rounded-full animate-ping opacity-20"></div>
               </div>
             </div>
-            <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Loading FocusFlow</h3>
-            <p className="text-slate-600 dark:text-slate-400">Preparing your productivity space...</p>
+            <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Loading Salsabil</h3>
+            <p className="text-slate-600 dark:text-slate-400">Preparing your spring of productivity...</p>
           </div>
         </div>
       );
@@ -203,26 +210,31 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 text-slate-800 dark:text-slate-200 transition-all duration-500">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500">
       
-      {/* Enhanced Sidebar Navigation */}
+      {/* Enhanced Sidebar Navigation with Salsabil Branding */}
       <nav className={`relative flex flex-col bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 shadow-2xl transition-all duration-300 ease-in-out z-10
                       ${sidebarCollapsed ? 'w-20' : 'w-72'} 
                       md:${sidebarCollapsed ? 'w-20' : 'w-80'}`}>
         
-        {/* Sidebar Header */}
+        {/* Sidebar Header with Salsabil Logo */}
         <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
           <div className="flex items-center justify-between">
             {!sidebarCollapsed && (
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-lg">FF</span>
+                {/* Water spring icon - replace with your actual icon */}
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
+                  <img 
+                    src="/salsabil-original.jpg" 
+                    alt="Salsabil" 
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
-                    FocusFlow
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+                    Salsabil
                   </h1>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Productivity & Spirituality</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">A Spring of Growth</p>
                 </div>
               </div>
             )}
@@ -243,9 +255,9 @@ const AppContent: React.FC = () => {
 
         {/* User Info */}
         {!sidebarCollapsed && currentUser && (
-          <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20 mx-4 mt-4 rounded-xl">
+          <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                 {currentUser.email?.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -253,7 +265,7 @@ const AppContent: React.FC = () => {
                   {currentUser.email}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Premium User
+                  Blessed User
                 </p>
               </div>
             </div>
@@ -282,7 +294,7 @@ const AppContent: React.FC = () => {
           />
           <NavItem 
             icon={<PomodoroIcon />} 
-            label="Pomodoro" 
+            label="Focus Timer" 
             isActive={currentView === View.Pomodoro} 
             onClick={() => setCurrentView(View.Pomodoro)} 
           />
@@ -291,7 +303,7 @@ const AppContent: React.FC = () => {
           {!sidebarCollapsed && (
             <div className="pt-4">
               <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                Spiritual
+                🌙 Spiritual Journey
               </p>
             </div>
           )}
@@ -313,7 +325,7 @@ const AppContent: React.FC = () => {
           {!sidebarCollapsed && (
             <div className="pt-4">
               <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                AI Assistant
+                🤖 AI Guidance
               </p>
             </div>
           )}
@@ -346,7 +358,7 @@ const AppContent: React.FC = () => {
         </div>
         
         {/* Sidebar glow effect */}
-        <div className="absolute inset-y-0 -right-px w-px bg-gradient-to-b from-transparent via-primary/20 to-transparent"></div>
+        <div className="absolute inset-y-0 -right-px w-px bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent"></div>
       </nav>
 
       {/* Main Content Area */}
@@ -358,7 +370,7 @@ const AppContent: React.FC = () => {
               {getViewTitle(currentView)}
             </h2>
             <div className="flex items-center space-x-4">
-              {/* Quick stats or notifications could go here */}
+              {/* Islamic date could go here */}
               <div className="text-sm text-slate-600 dark:text-slate-400">
                 {new Date().toLocaleDateString(undefined, { 
                   weekday: 'long', 

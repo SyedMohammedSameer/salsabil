@@ -1,6 +1,6 @@
 import { Task, Priority, PrayerName, PrayerDetail, PomodoroSettings } from './types';
 
-export const APP_NAME = "FocusFlow";
+export const APP_NAME = "Salsabil";
 
 export const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-04-17';
 

@@ -13,7 +13,7 @@ export interface FocusSession {
 }
 
 const TASKS_STORAGE_KEY = 'focusFlowTasks';
-const THEME_STORAGE_KEY = 'focusFlowTheme';
+const THEME_STORAGE_KEY = 'salsabilTheme';
 const POMODORO_SETTINGS_KEY = 'focusFlowPomodoroSettings';
 const POMODORO_SESSIONS_KEY = 'focusFlowPomodoroSessions';
 const PRAYER_LOGS_KEY = 'focusFlowPrayerLogs';
