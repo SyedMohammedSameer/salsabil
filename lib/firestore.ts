@@ -1,4 +1,4 @@
-// src/lib/firestore.ts
+// Updated src/lib/firestore.ts with Pomodoro session support
 import { 
   collection, 
   doc, 
@@ -11,10 +11,21 @@ import {
   query, 
   where, 
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Task, DailyPrayerLog, DailyQuranLog, PomodoroSettings, Theme } from '../types';
+import { Task, DailyPrayerLog, DailyQuranLog, PomodoroSettings, Theme, ChatMessage, PomodoroMode } from '../types';
+
+// Pomodoro Session interface
+export interface FocusSession {
+  id: string;
+  type: PomodoroMode;
+  duration: number;
+  completedAt: Date;
+  interrupted: boolean;
+  actualTimeSpent: number;
+}
 
 // Tasks
 export async function saveTask(userId: string, task: Task): Promise<void> {
@@ -115,6 +126,62 @@ export async function getUserSettings(userId: string): Promise<{
   }
 }
 
+// Pomodoro Sessions (New)
+export async function savePomodoroSession(userId: string, session: FocusSession): Promise<void> {
+  try {
+    const sessionRef = doc(db, 'users', userId, 'pomodoroSessions', session.id);
+    await setDoc(sessionRef, {
+      id: session.id,
+      type: session.type,
+      duration: session.duration,
+      completedAt: session.completedAt,
+      interrupted: session.interrupted,
+      actualTimeSpent: session.actualTimeSpent,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error saving pomodoro session:', error);
+    throw error;
+  }
+}
+
+export async function getPomodoroSessions(userId: string): Promise<FocusSession[]> {
+  try {
+    const sessionsRef = collection(db, 'users', userId, 'pomodoroSessions');
+    const q = query(sessionsRef, orderBy('completedAt', 'desc'), limit(100));
+    const querySnapshot = await getDocs(q);
+    
+    const sessions: FocusSession[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      sessions.push({
+        id: data.id,
+        type: data.type,
+        duration: data.duration,
+        completedAt: data.completedAt.toDate ? data.completedAt.toDate() : new Date(data.completedAt),
+        interrupted: data.interrupted,
+        actualTimeSpent: data.actualTimeSpent
+      });
+    });
+    return sessions;
+  } catch (error) {
+    console.error('Error getting pomodoro sessions:', error);
+    throw error;
+  }
+}
+
+export async function savePomodoroSessions(userId: string, sessions: FocusSession[]): Promise<void> {
+  try {
+    // Save multiple sessions - typically used for batch operations
+    for (const session of sessions) {
+      await savePomodoroSession(userId, session);
+    }
+  } catch (error) {
+    console.error('Error saving pomodoro sessions:', error);
+    throw error;
+  }
+}
+
 // Prayer Logs
 export async function savePrayerLogs(userId: string, logs: DailyPrayerLog[]): Promise<void> {
   try {
@@ -195,10 +262,6 @@ export async function getQuranLogs(userId: string): Promise<DailyQuranLog[]> {
     return [];
   }
 }
-
-// Enhanced Firebase service for chat history - Add to lib/firestore.ts
-
-import { ChatMessage } from '../types';
 
 // Chat History Functions
 export async function saveChatHistory(userId: string, messages: ChatMessage[]): Promise<void> {

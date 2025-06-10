@@ -1,8 +1,18 @@
-// Updated services/firebaseService.ts with chat history support
-import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage } from '../types';
+// Updated services/firebaseService.ts with Pomodoro session support
+import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage, PomodoroMode } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
+
+// Add FocusSession interface
+export interface FocusSession {
+  id: string;
+  type: PomodoroMode;
+  duration: number;
+  completedAt: Date;
+  interrupted: boolean;
+  actualTimeSpent: number;
+}
 
 // Hybrid service that uses Firebase when user is logged in, localStorage as fallback
 let currentUserId: string | null = null;
@@ -129,6 +139,40 @@ export const savePomodoroSettings = async (settings: PomodoroSettings): Promise<
   localStorage.savePomodoroSettingsToLocalStorage(settings);
 };
 
+// Pomodoro Sessions (New)
+export const loadPomodoroSessions = async (): Promise<FocusSession[]> => {
+  if (currentUserId) {
+    try {
+      return await firestore.getPomodoroSessions(currentUserId);
+    } catch (error) {
+      console.error('Error loading pomodoro sessions from Firebase:', error);
+    }
+  }
+  return localStorage.loadPomodoroSessionsFromLocalStorage();
+};
+
+export const savePomodoroSession = async (session: FocusSession): Promise<void> => {
+  if (currentUserId) {
+    try {
+      await firestore.savePomodoroSession(currentUserId, session);
+    } catch (error) {
+      console.error('Error saving pomodoro session to Firebase:', error);
+    }
+  }
+  localStorage.savePomodoroSessionToLocalStorage(session);
+};
+
+export const savePomodoroSessions = async (sessions: FocusSession[]): Promise<void> => {
+  if (currentUserId) {
+    try {
+      await firestore.savePomodoroSessions(currentUserId, sessions);
+    } catch (error) {
+      console.error('Error saving pomodoro sessions to Firebase:', error);
+    }
+  }
+  localStorage.savePomodoroSessionsToLocalStorage(sessions);
+};
+
 // Prayer Logs
 export const loadPrayerLogs = async (): Promise<DailyPrayerLog[]> => {
   if (currentUserId) {
@@ -181,7 +225,7 @@ export const saveQuranLogs = async (logs: DailyQuranLog[]): Promise<void> => {
   localStorage.saveQuranLogsToLocalStorage(logs);
 };
 
-// Chat History (New)
+// Chat History
 export const loadChatHistory = async (): Promise<ChatMessage[]> => {
   if (currentUserId) {
     try {
@@ -207,7 +251,7 @@ export const saveChatHistory = async (messages: ChatMessage[]): Promise<void> =>
       }
     }
     localStorage.saveChatHistoryToLocalStorage(messages);
-  }, 2000); // Longer timeout for chat to avoid too frequent saves
+  }, 2000);
 };
 
 export const clearChatHistory = async (): Promise<void> => {

@@ -1,10 +1,21 @@
-// Updated services/localStorageService.ts with chat history support
-import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage } from '../types';
+// Updated services/localStorageService.ts with Pomodoro session support
+import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage, PomodoroMode } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
+
+// Add FocusSession interface
+export interface FocusSession {
+  id: string;
+  type: PomodoroMode;
+  duration: number;
+  completedAt: Date;
+  interrupted: boolean;
+  actualTimeSpent: number;
+}
 
 const TASKS_STORAGE_KEY = 'focusFlowTasks';
 const THEME_STORAGE_KEY = 'focusFlowTheme';
 const POMODORO_SETTINGS_KEY = 'focusFlowPomodoroSettings';
+const POMODORO_SESSIONS_KEY = 'focusFlowPomodoroSessions';
 const PRAYER_LOGS_KEY = 'focusFlowPrayerLogs';
 const QURAN_LOGS_KEY = 'focusFlowQuranLogs';
 const CHAT_HISTORY_KEY = 'focusFlowChatHistory';
@@ -80,6 +91,51 @@ export const savePomodoroSettingsToLocalStorage = (settings: PomodoroSettings): 
   }
 };
 
+// Pomodoro Sessions (New)
+export const loadPomodoroSessionsFromLocalStorage = (): FocusSession[] => {
+  try {
+    const serializedSessions = localStorage.getItem(POMODORO_SESSIONS_KEY);
+    if (serializedSessions === null) {
+      return [];
+    }
+    const parsed = JSON.parse(serializedSessions);
+    // Convert timestamp strings back to Date objects
+    return parsed.map((session: any) => ({
+      ...session,
+      completedAt: new Date(session.completedAt)
+    }));
+  } catch (error) {
+    console.error("Could not load pomodoro sessions from local storage", error);
+    return [];
+  }
+};
+
+export const savePomodoroSessionsToLocalStorage = (sessions: FocusSession[]): void => {
+  try {
+    // Keep only the last 100 sessions in localStorage to avoid bloat
+    const recentSessions = sessions.slice(-100);
+    // Convert Date objects to strings for storage
+    const serialized = recentSessions.map(session => ({
+      ...session,
+      completedAt: session.completedAt.toISOString()
+    }));
+    const serializedSessions = JSON.stringify(serialized);
+    localStorage.setItem(POMODORO_SESSIONS_KEY, serializedSessions);
+  } catch (error) {
+    console.error("Could not save pomodoro sessions to local storage", error);
+  }
+};
+
+export const savePomodoroSessionToLocalStorage = (session: FocusSession): void => {
+  try {
+    const existingSessions = loadPomodoroSessionsFromLocalStorage();
+    const updatedSessions = [session, ...existingSessions].slice(0, 100); // Keep only last 100
+    savePomodoroSessionsToLocalStorage(updatedSessions);
+  } catch (error) {
+    console.error("Could not save pomodoro session to local storage", error);
+  }
+};
+
 // Prayer Logs
 export const loadPrayerLogsFromLocalStorage = (): DailyPrayerLog[] => {
   try {
@@ -126,7 +182,7 @@ export const saveQuranLogsToLocalStorage = (logs: DailyQuranLog[]): void => {
   }
 };
 
-// Chat History (New)
+// Chat History
 export const loadChatHistoryFromLocalStorage = (): ChatMessage[] => {
   try {
     const serializedHistory = localStorage.getItem(CHAT_HISTORY_KEY);

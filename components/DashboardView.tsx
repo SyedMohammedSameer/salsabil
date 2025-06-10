@@ -1,11 +1,20 @@
-// Enhanced Dashboard View with modern charts and better layout
+// Enhanced Dashboard View with Pomodoro statistics
 import React, { useMemo, useEffect, useState } from 'react';
-import { Task, Priority, DailyPrayerLog, DailyQuranLog } from '../types';
+import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../types';
 import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
 
 interface DashboardViewProps {
   tasks: Task[];
+}
+
+interface FocusSession {
+  id: string;
+  type: PomodoroMode;
+  duration: number;
+  completedAt: Date;
+  interrupted: boolean;
+  actualTimeSpent: number;
 }
 
 // Enhanced Chart Components
@@ -132,10 +141,10 @@ const WeeklyHeatmap: React.FC<{ weeklyData: { day: string; value: number; max: n
         return (
           <div key={index} className="text-center">
             <div 
-              className={`w-12 h-12 mx-auto rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${opacityClass} transition-all duration-300 hover:scale-110 flex items-center justify-center mb-2`}
+              className={`w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${opacityClass} transition-all duration-300 hover:scale-110 flex items-center justify-center mb-2`}
               title={`${day.day}: ${day.value}`}
             >
-              <span className="text-white text-sm font-bold">{day.value}</span>
+              <span className="text-white text-xs font-bold">{day.value}</span>
             </div>
             <span className="text-xs text-slate-600 dark:text-slate-400">{day.day}</span>
           </div>
@@ -154,24 +163,24 @@ const StatCard: React.FC<{
   suffix?: string;
 }> = ({ title, value, icon, trend, color = 'from-blue-500 to-indigo-600', suffix = '' }) => {
   return (
-    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center`}>
+    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300">
+      <div className="flex items-center justify-between mb-2">
+        <div className={`w-8 h-8 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center`}>
           {icon}
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center text-sm font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            <svg className={`w-4 h-4 mr-1 ${trend >= 0 ? 'rotate-0' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 24 24">
+          <div className={`flex items-center text-xs font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <svg className={`w-3 h-3 mr-1 ${trend >= 0 ? 'rotate-0' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 4l8 8h-6v8h-4v-8H4l8-8z"/>
             </svg>
             {Math.abs(trend)}%
           </div>
         )}
       </div>
-      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
+      <h3 className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
         {title}
       </h3>
-      <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
         <AnimatedCounter end={value} suffix={suffix} />
       </p>
     </div>
@@ -181,18 +190,21 @@ const StatCard: React.FC<{
 const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
+  const [pomodoroSessions, setPomodoroSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load all data
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [prayers, quran] = await Promise.all([
+        const [prayers, quran, sessions] = await Promise.all([
           firebaseService.loadPrayerLogs(),
-          firebaseService.loadQuranLogs()
+          firebaseService.loadQuranLogs(),
+          firebaseService.loadPomodoroSessions()
         ]);
         setPrayerLogs(prayers);
         setQuranLogs(quran);
+        setPomodoroSessions(sessions);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -247,6 +259,44 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
 
     const totalQuranPages = quranReadingData.reduce((sum, pages) => sum + pages, 0);
     const quranStreak = calculateQuranStreak();
+
+    // Pomodoro statistics (New)
+    const todayPomodoros = pomodoroSessions.filter(s => 
+      s.completedAt.toDateString() === new Date().toDateString() && 
+      s.type === PomodoroMode.Work && 
+      !s.interrupted
+    ).length;
+
+    const weeklyFocusTime = pomodoroSessions
+      .filter(s => {
+        const sessionDate = s.completedAt.toDateString();
+        return last7Days.some(date => new Date(date).toDateString() === sessionDate) &&
+               s.type === PomodoroMode.Work;
+      })
+      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
+
+    const totalPomodoros = pomodoroSessions.filter(s => 
+      s.type === PomodoroMode.Work && !s.interrupted
+    ).length;
+
+    const pomodoroHeatmapData = last7Days.map(date => {
+      const dayPomodoros = pomodoroSessions.filter(s => 
+        s.completedAt.toDateString() === new Date(date).toDateString() &&
+        s.type === PomodoroMode.Work &&
+        !s.interrupted
+      ).length;
+      return {
+        day: new Date(date).toLocaleDateString(undefined, { weekday: 'short' }),
+        value: dayPomodoros,
+        max: Math.max(...last7Days.map(d => {
+          return pomodoroSessions.filter(s => 
+            s.completedAt.toDateString() === new Date(d).toDateString() &&
+            s.type === PomodoroMode.Work &&
+            !s.interrupted
+          ).length;
+        }), 1)
+      };
+    });
 
     // Today's data
     const today = new Date().toISOString().split('T')[0];
@@ -311,9 +361,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       overdueTasks,
       todayTasks,
       todayCompletedTasks,
-      last7Days
+      last7Days,
+      // Pomodoro stats
+      todayPomodoros,
+      weeklyFocusTime,
+      totalPomodoros,
+      pomodoroHeatmapData
     };
-  }, [tasks, prayerLogs, quranLogs]);
+  }, [tasks, prayerLogs, quranLogs, pomodoroSessions]);
 
   if (loading) {
     return (
@@ -329,64 +384,70 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   return (
     <div className="animate-fadeIn min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 p-4">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mr-4">
+      <div className="mb-6">
+        <div className="flex items-center mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mr-3">
             <DashboardIcon />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Dashboard
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">Your productivity and spiritual journey at a glance</p>
+            <p className="text-slate-600 dark:text-slate-400">Your productivity and spiritual journey at a glance</p>
           </div>
         </div>
       </div>
 
       {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <StatCard 
-          title="Total Tasks" 
+          title="Tasks" 
           value={stats.totalTasks} 
-          icon={<ListIcon className="w-6 h-6 text-white" />}
+          icon={<ListIcon className="w-5 h-5 text-white" />}
           color="from-blue-500 to-blue-600"
         />
         <StatCard 
-          title="Completed Today" 
+          title="Today" 
           value={stats.todayCompletedTasks} 
-          icon={<CheckCircleIcon className="w-6 h-6 text-white" />}
+          icon={<CheckCircleIcon className="w-5 h-5 text-white" />}
           color="from-emerald-500 to-emerald-600"
           trend={stats.todayCompletedTasks > 0 ? 15 : -5}
         />
         <StatCard 
-          title="Prayer Streak" 
+          title="Prayers" 
           value={stats.todayPrayerCount} 
-          icon={<PrayerTrackerIcon className="w-6 h-6 text-white" />}
+          icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
           color="from-purple-500 to-purple-600"
           suffix="/5"
         />
         <StatCard 
-          title="Quran Streak" 
+          title="Streak" 
           value={stats.quranStreak} 
-          icon={<QuranLogIcon className="w-6 h-6 text-white" />}
+          icon={<QuranLogIcon className="w-5 h-5 text-white" />}
           color="from-teal-500 to-teal-600"
-          suffix=" days"
+          suffix="d"
+        />
+        <StatCard 
+          title="Focus" 
+          value={stats.todayPomodoros} 
+          icon={<PomodoroIcon className="w-5 h-5 text-white" />}
+          color="from-orange-500 to-red-600"
         />
       </div>
 
       {/* Main Analytics Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+      <div className="mb-6">
         {/* Task Completion Overview */}
-        <div className="lg:col-span-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-6">Task Completion Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Task Completion Overview</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="text-center">
               <ProgressRing 
                 percentage={stats.completionPercentage} 
-                size={140}
+                size={120}
                 color="#10b981"
               />
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">Overall Completion</p>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Overall Completion</p>
             </div>
             <div className="space-y-4">
               <div>
@@ -399,7 +460,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
                   ]}
                 />
               </div>
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-600">
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-600">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Overdue Tasks</span>
                   <span className="font-bold text-red-600">{stats.overdueTasks}</span>
@@ -408,50 +469,37 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Today's Focus */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-6">Today's Focus</h3>
-          <div className="space-y-6">
-            <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
-              <div className="text-3xl font-bold">{stats.todayTasks}</div>
-              <div className="text-blue-100 text-sm">Tasks Planned</div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <span className="text-emerald-700 dark:text-emerald-300 text-sm font-medium">Prayers</span>
-                <span className="text-emerald-800 dark:text-emerald-200 font-bold">{stats.todayPrayerCount}/5</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-                <span className="text-teal-700 dark:text-teal-300 text-sm font-medium">Quran Pages</span>
-                <span className="text-teal-800 dark:text-teal-200 font-bold">{stats.todayQuranPages}</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <span className="text-purple-700 dark:text-purple-300 text-sm font-medium">Completion Rate</span>
-                <span className="text-purple-800 dark:text-purple-200 font-bold">
-                  {stats.todayTasks > 0 ? Math.round((stats.todayCompletedTasks / stats.todayTasks) * 100) : 0}%
-                </span>
-              </div>
-            </div>
+      {/* Weekly Trends */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Task Completion Heatmap */}
+        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Weekly Task Activity</h3>
+          <WeeklyHeatmap weeklyData={stats.weeklyTaskData} />
+        </div>
+
+        {/* Pomodoro Focus Heatmap */}
+        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center">
+            <PomodoroIcon className="w-4 h-4 mr-2" />
+            Focus Sessions
+          </h3>
+          <WeeklyHeatmap weeklyData={stats.pomodoroHeatmapData} />
+          <div className="mt-4 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {stats.weeklyFocusTime} minutes this week
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Weekly Trends */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Task Completion Heatmap */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-6">Weekly Task Activity</h3>
-          <WeeklyHeatmap weeklyData={stats.weeklyTaskData} />
-        </div>
-
+      {/* Spiritual Progress Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Spiritual Progress */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/20">
-          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-6">Spiritual Progress</h3>
-          <div className="space-y-6">
+        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Spiritual Progress</h3>
+          <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Prayer Completion (7 days avg)</span>
@@ -492,33 +540,77 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
             </div>
           </div>
         </div>
+
+        {/* Today's Focus */}
+        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Today's Focus</h3>
+          <div className="space-y-4">
+            <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
+              <div className="text-2xl font-bold">{stats.todayTasks}</div>
+              <div className="text-blue-100 text-sm">Tasks Planned</div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                <span className="text-emerald-700 dark:text-emerald-300 text-sm font-medium">Prayers</span>
+                <span className="text-emerald-800 dark:text-emerald-200 font-bold">{stats.todayPrayerCount}/5</span>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
+                <span className="text-teal-700 dark:text-teal-300 text-sm font-medium">Quran Pages</span>
+                <span className="text-teal-800 dark:text-teal-200 font-bold">{stats.todayQuranPages}</span>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">Focus Sessions</span>
+                <span className="text-orange-800 dark:text-orange-200 font-bold">{stats.todayPomodoros}</span>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <span className="text-purple-700 dark:text-purple-300 text-sm font-medium">Completion Rate</span>
+                <span className="text-purple-800 dark:text-purple-200 font-bold">
+                  {stats.todayTasks > 0 ? Math.round((stats.todayCompletedTasks / stats.todayTasks) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Insights Panel */}
-      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-8 text-white shadow-xl">
-        <h3 className="text-2xl font-bold mb-6">Weekly Insights</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6">
-            <h4 className="font-bold text-lg mb-2">📋 Productivity</h4>
-            <p className="text-indigo-100">
+      {/* Enhanced Insights Panel with Pomodoro */}
+      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl p-6 text-white shadow-xl">
+        <h3 className="text-xl font-bold mb-4">Weekly Insights</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+            <h4 className="font-bold text-base mb-2">📋 Productivity</h4>
+            <p className="text-indigo-100 text-sm">
               {stats.completionPercentage > 80 ? "Outstanding progress! You're crushing your goals! 🚀" : 
                stats.completionPercentage > 60 ? "Great momentum! Keep the energy going! ⚡" : 
                "Room for growth. Try breaking tasks into smaller steps! 💪"}
             </p>
           </div>
           
-          <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6">
-            <h4 className="font-bold text-lg mb-2">🤲 Prayers</h4>
-            <p className="text-purple-100">
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+            <h4 className="font-bold text-base mb-2">🍅 Focus</h4>
+            <p className="text-purple-100 text-sm">
+              {stats.weeklyFocusTime > 120 ? "Excellent focus this week! Your concentration is on point! 🎯" :
+               stats.weeklyFocusTime > 60 ? "Good focus sessions! Keep building that habit! ⏰" :
+               "Try using the Pomodoro timer to improve your focus! 🍅"}
+            </p>
+          </div>
+          
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+            <h4 className="font-bold text-base mb-2">🤲 Prayers</h4>
+            <p className="text-purple-100 text-sm">
               {stats.avgPrayerCompletion > 80 ? "Mashallah! Your spiritual routine is excellent! ✨" : 
                stats.avgPrayerCompletion > 50 ? "Good progress! Consistency is key! 🌟" : 
                "Consider setting prayer reminders to build consistency! ⏰"}
             </p>
           </div>
           
-          <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6">
-            <h4 className="font-bold text-lg mb-2">📖 Quran</h4>
-            <p className="text-pink-100">
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+            <h4 className="font-bold text-base mb-2">📖 Quran</h4>
+            <p className="text-pink-100 text-sm">
               {stats.quranStreak > 7 ? "Amazing streak! Your dedication is inspiring! 🌙" : 
                stats.quranStreak > 0 ? "Great start! Keep building that habit! 📚" : 
                "Every verse matters. Start with just one page today! 🌱"}
