@@ -1,4 +1,4 @@
-// Updated services/firebaseService.ts with Pomodoro session support
+// Optimized services/firebaseService.ts - reduced logging and optimized requests
 import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage, PomodoroMode } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
@@ -20,8 +20,17 @@ let saveTimeout: NodeJS.Timeout | null = null;
 let prayerLogSaveTimeout: NodeJS.Timeout | null = null;
 let chatSaveTimeout: NodeJS.Timeout | null = null;
 
+// Cache to prevent unnecessary Firebase reads
+let settingsCache: { theme?: Theme; pomodoroSettings?: PomodoroSettings } | null = null;
+let sessionsCacheExpiry: number = 0;
+let sessionsCache: FocusSession[] = [];
+
 export function setCurrentUser(userId: string | null) {
   currentUserId = userId;
+  // Clear cache when user changes
+  settingsCache = null;
+  sessionsCache = [];
+  sessionsCacheExpiry = 0;
 }
 
 // Tasks
@@ -87,13 +96,15 @@ export const deleteTask = async (taskId: string): Promise<void> => {
   localStorage.saveTasksToLocalStorage(filteredTasks);
 };
 
-// Theme
+// Theme - with caching
 export const loadTheme = async (): Promise<Theme> => {
   if (currentUserId) {
     try {
-      const settings = await firestore.getUserSettings(currentUserId);
-      if (settings?.theme) {
-        return settings.theme;
+      if (!settingsCache) {
+        settingsCache = await firestore.getUserSettings(currentUserId);
+      }
+      if (settingsCache?.theme) {
+        return settingsCache.theme;
       }
     } catch (error) {
       console.error('Error loading theme from Firebase:', error);
@@ -103,6 +114,13 @@ export const loadTheme = async (): Promise<Theme> => {
 };
 
 export const saveTheme = async (theme: Theme): Promise<void> => {
+  // Update cache immediately
+  if (settingsCache) {
+    settingsCache.theme = theme;
+  } else {
+    settingsCache = { theme };
+  }
+
   if (currentUserId) {
     try {
       await firestore.saveUserSettings(currentUserId, { theme });
@@ -113,13 +131,15 @@ export const saveTheme = async (theme: Theme): Promise<void> => {
   localStorage.saveThemeToLocalStorage(theme);
 };
 
-// Pomodoro Settings
+// Pomodoro Settings - with caching and reduced requests
 export const loadPomodoroSettings = async (): Promise<PomodoroSettings> => {
   if (currentUserId) {
     try {
-      const settings = await firestore.getUserSettings(currentUserId);
-      if (settings?.pomodoroSettings) {
-        return { ...DEFAULT_POMODORO_SETTINGS, ...settings.pomodoroSettings };
+      if (!settingsCache) {
+        settingsCache = await firestore.getUserSettings(currentUserId);
+      }
+      if (settingsCache?.pomodoroSettings) {
+        return { ...DEFAULT_POMODORO_SETTINGS, ...settingsCache.pomodoroSettings };
       }
     } catch (error) {
       console.error('Error loading pomodoro settings from Firebase:', error);
@@ -129,6 +149,13 @@ export const loadPomodoroSettings = async (): Promise<PomodoroSettings> => {
 };
 
 export const savePomodoroSettings = async (settings: PomodoroSettings): Promise<void> => {
+  // Update cache immediately
+  if (settingsCache) {
+    settingsCache.pomodoroSettings = settings;
+  } else {
+    settingsCache = { pomodoroSettings: settings };
+  }
+
   if (currentUserId) {
     try {
       await firestore.saveUserSettings(currentUserId, { pomodoroSettings: settings });
@@ -139,26 +166,47 @@ export const savePomodoroSettings = async (settings: PomodoroSettings): Promise<
   localStorage.savePomodoroSettingsToLocalStorage(settings);
 };
 
-// Pomodoro Sessions (New)
+// Pomodoro Sessions - optimized with caching and batch operations
 export const loadPomodoroSessions = async (): Promise<FocusSession[]> => {
+  const now = Date.now();
+  
+  // Return cached data if still valid (5 minutes cache)
+  if (sessionsCache.length > 0 && now < sessionsCacheExpiry) {
+    return sessionsCache;
+  }
+
   if (currentUserId) {
     try {
-      return await firestore.getPomodoroSessions(currentUserId);
+      const sessions = await firestore.getPomodoroSessions(currentUserId);
+      sessionsCache = sessions;
+      sessionsCacheExpiry = now + (5 * 60 * 1000); // Cache for 5 minutes
+      return sessions;
     } catch (error) {
       console.error('Error loading pomodoro sessions from Firebase:', error);
     }
   }
-  return localStorage.loadPomodoroSessionsFromLocalStorage();
+  
+  const localSessions = localStorage.loadPomodoroSessionsFromLocalStorage();
+  sessionsCache = localSessions;
+  sessionsCacheExpiry = now + (5 * 60 * 1000);
+  return localSessions;
 };
 
 export const savePomodoroSession = async (session: FocusSession): Promise<void> => {
+  // Update cache immediately
+  sessionsCache = [session, ...sessionsCache].slice(0, 100);
+  
+  // Save to Firebase with error handling but no excessive logging
   if (currentUserId) {
     try {
       await firestore.savePomodoroSession(currentUserId, session);
     } catch (error) {
-      console.error('Error saving pomodoro session to Firebase:', error);
+      console.error('Failed to save session to Firebase:', error);
+      // Don't fall back to localStorage here as it's already updated in the cache
     }
   }
+  
+  // Always save to localStorage as backup
   localStorage.savePomodoroSessionToLocalStorage(session);
 };
 

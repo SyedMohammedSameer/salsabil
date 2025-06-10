@@ -1,4 +1,4 @@
-// Fixed src/components/PomodoroView.tsx with proper FocusFlow styling
+// Fixed src/components/PomodoroView.tsx with optimized Firebase usage and better time tracking
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PomodoroMode, PomodoroSettings } from '../types';
 import { PlayIcon, PauseIcon, SkipIcon, EditIcon, CloseIcon } from './icons/NavIcons';
@@ -27,7 +27,6 @@ const CircularProgress: React.FC<{ percentage: number; size?: number; strokeWidt
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90 absolute">
-        {/* Background circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -37,7 +36,6 @@ const CircularProgress: React.FC<{ percentage: number; size?: number; strokeWidt
           fill="transparent"
           className="text-slate-200 dark:text-slate-700"
         />
-        {/* Progress circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -61,6 +59,37 @@ const StopIcon: React.FC<{ className?: string }> = ({ className = "w-6 h-6" }) =
   </svg>
 );
 
+// Sound notification function
+const playNotificationSound = (type: 'complete' | 'break') => {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    if (type === 'complete') {
+      // Higher pitch for session completion
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+    } else {
+      // Lower pitch for break
+      oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(300, audioContext.currentTime + 0.15);
+    }
+    
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+  } catch (error) {
+    console.log('Audio notification not available:', error);
+  }
+};
+
 const PomodoroView: React.FC = () => {
   const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [mode, setMode] = useState<PomodoroMode>(PomodoroMode.Work);
@@ -70,24 +99,43 @@ const PomodoroView: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editableSettings, setEditableSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [focusNote, setFocusNote] = useState<string>('');
 
-  // Timing refs - Fixed to prevent background running
+  // Timing refs - Fixed to prevent background running and excessive updates
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionStartTime = useRef<number | null>(null);
   const totalPausedTime = useRef<number>(0);
   const lastPauseTime = useRef<number | null>(null);
+  const settingsRef = useRef(settings);
+  const modeRef = useRef(mode);
+  const hasLoadedData = useRef(false);
 
-  // Load settings and sessions on component mount
+  // Update refs when state changes
   useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  // Load settings and sessions on component mount - ONCE ONLY
+  useEffect(() => {
+    if (hasLoadedData.current) return;
+    hasLoadedData.current = true;
+
     const loadData = async () => {
       try {
-        const loadedSettings = await firebaseService.loadPomodoroSettings();
+        console.log('Loading Pomodoro data...');
+        const [loadedSettings, sessions] = await Promise.all([
+          firebaseService.loadPomodoroSettings(),
+          firebaseService.loadPomodoroSessions()
+        ]);
+        
         setSettings(loadedSettings);
         setEditableSettings(loadedSettings);
-        
-        // Load focus sessions from Firestore
-        const sessions = await firebaseService.loadPomodoroSessions();
         setFocusSessions(sessions);
+        console.log('Pomodoro data loaded successfully');
       } catch (error) {
         console.error('Error loading pomodoro data:', error);
       }
@@ -119,21 +167,93 @@ const PomodoroView: React.FC = () => {
   // Reset timer completely
   const resetTimer = useCallback(() => {
     clearTimerInterval();
-    setTimeLeft(getDuration(mode, settings));
+    const newDuration = getDuration(modeRef.current, settingsRef.current);
+    setTimeLeft(newDuration);
     setIsRunning(false);
     sessionStartTime.current = null;
     totalPausedTime.current = 0;
     lastPauseTime.current = null;
-  }, [mode, settings, getDuration, clearTimerInterval]);
+  }, [getDuration, clearTimerInterval]);
 
   // Update timeLeft when mode or settings change (only if not running)
   useEffect(() => {
     if (!isRunning && sessionStartTime.current === null) {
-      setTimeLeft(getDuration(mode, settings));
+      const newDuration = getDuration(mode, settings);
+      setTimeLeft(newDuration);
     }
   }, [mode, settings, isRunning, getDuration]);
 
-  // Fixed timer logic - properly handles pause/resume
+  // Save focus session - optimized with error handling
+  const saveFocusSession = useCallback(async (session: FocusSession) => {
+    try {
+      console.log('Saving focus session:', { type: session.type, duration: session.actualTimeSpent });
+      await firebaseService.savePomodoroSession(session);
+      setFocusSessions(prev => [session, ...prev].slice(0, 50)); // Keep only recent 50
+    } catch (error) {
+      console.error('Error saving focus session:', error);
+    }
+  }, []);
+
+  // Complete session with proper time calculation
+  const completeSession = useCallback(async (interrupted: boolean = false) => {
+    const totalDuration = getDuration(modeRef.current, settingsRef.current);
+    let actualTimeSpent: number;
+
+    if (sessionStartTime.current) {
+      const now = Date.now();
+      const elapsed = now - sessionStartTime.current - totalPausedTime.current;
+      actualTimeSpent = Math.round(elapsed / 1000); // Convert to seconds
+    } else {
+      actualTimeSpent = 0;
+    }
+
+    console.log('Session completed:', { 
+      type: modeRef.current, 
+      interrupted, 
+      actualTimeSpent: `${Math.round(actualTimeSpent / 60)}m ${actualTimeSpent % 60}s` 
+    });
+
+    const newSession: FocusSession = {
+      id: Date.now().toString(),
+      type: modeRef.current,
+      duration: totalDuration,
+      completedAt: new Date(),
+      interrupted,
+      actualTimeSpent
+    };
+
+    // Play notification sound
+    if (!interrupted) {
+      playNotificationSound(modeRef.current === PomodoroMode.Work ? 'complete' : 'break');
+    }
+
+    // Save session
+    await saveFocusSession(newSession);
+
+    // Update mode and pomodoro count
+    if (!interrupted && modeRef.current === PomodoroMode.Work) {
+      setPomodorosCompleted(prev => {
+        const nextCount = prev + 1;
+        if (nextCount % settingsRef.current.pomodorosBeforeLongBreak === 0) {
+          setMode(PomodoroMode.LongBreak);
+        } else {
+          setMode(PomodoroMode.ShortBreak);
+        }
+        return nextCount;
+      });
+    } else if (!interrupted) {
+      setMode(PomodoroMode.Work);
+    }
+
+    // Reset timer state
+    clearTimerInterval();
+    setIsRunning(false);
+    sessionStartTime.current = null;
+    totalPausedTime.current = 0;
+    lastPauseTime.current = null;
+  }, [getDuration, saveFocusSession, clearTimerInterval]);
+
+  // Fixed timer logic with proper dependency management
   useEffect(() => {
     if (isRunning) {
       const now = Date.now();
@@ -142,82 +262,40 @@ const PomodoroView: React.FC = () => {
       if (!sessionStartTime.current) {
         sessionStartTime.current = now;
         totalPausedTime.current = 0;
+        console.log('Timer started');
       }
       
       // Resuming from pause
       if (lastPauseTime.current) {
         totalPausedTime.current += now - lastPauseTime.current;
         lastPauseTime.current = null;
+        console.log('Timer resumed');
       }
 
       intervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - sessionStartTime.current! - totalPausedTime.current;
-        const totalDuration = getDuration(mode, settings) * 1000;
+        const currentTime = Date.now();
+        const elapsed = currentTime - sessionStartTime.current! - totalPausedTime.current;
+        const totalDuration = getDuration(modeRef.current, settingsRef.current) * 1000;
         const remaining = Math.max(0, totalDuration - elapsed);
         
-        setTimeLeft(Math.ceil(remaining / 1000));
+        const remainingSeconds = Math.ceil(remaining / 1000);
+        setTimeLeft(remainingSeconds);
 
         if (remaining <= 0) {
           completeSession(false);
         }
-      }, 100);
+      }, 1000); // Update every second instead of 100ms
 
     } else {
-      // Pausing timer
       clearTimerInterval();
-      if (isRunning === false && sessionStartTime.current) {
+      if (sessionStartTime.current && lastPauseTime.current === null) {
         lastPauseTime.current = Date.now();
+        console.log('Timer paused');
       }
     }
 
     return () => clearTimerInterval();
-  }, [isRunning]); // Only depend on isRunning
-
-  const saveFocusSession = useCallback(async (session: FocusSession) => {
-    try {
-      await firebaseService.savePomodoroSession(session);
-      setFocusSessions(prev => [session, ...prev].slice(0, 50));
-    } catch (error) {
-      console.error('Error saving focus session:', error);
-    }
-  }, []);
-
-  const completeSession = useCallback(async (interrupted: boolean = false) => {
-    const totalDuration = getDuration(mode, settings);
-    const actualTimeSpent = sessionStartTime.current 
-      ? Math.max(0, totalDuration - timeLeft)
-      : 0;
-
-    const newSession: FocusSession = {
-      id: Date.now().toString(),
-      type: mode,
-      duration: totalDuration,
-      completedAt: new Date(),
-      interrupted,
-      actualTimeSpent
-    };
-
-    await saveFocusSession(newSession);
-
-    if (!interrupted && mode === PomodoroMode.Work) {
-      setPomodorosCompleted(prev => prev + 1);
-      const nextCount = pomodorosCompleted + 1;
-      if (nextCount % settings.pomodorosBeforeLongBreak === 0) {
-        setMode(PomodoroMode.LongBreak);
-      } else {
-        setMode(PomodoroMode.ShortBreak);
-      }
-    } else if (!interrupted) {
-      setMode(PomodoroMode.Work);
-    }
-
-    // Reset everything
-    clearTimerInterval();
-    setIsRunning(false);
-    sessionStartTime.current = null;
-    totalPausedTime.current = 0;
-    lastPauseTime.current = null;
-  }, [mode, settings, pomodorosCompleted, getDuration, saveFocusSession, timeLeft, clearTimerInterval]);
+  }, [isRunning, completeSession, getDuration, clearTimerInterval]);
 
   const toggleTimer = () => {
     setIsRunning(!isRunning);
@@ -225,12 +303,14 @@ const PomodoroView: React.FC = () => {
 
   const stopSession = async () => {
     if (sessionStartTime.current) {
+      console.log('Session stopped by user');
       await completeSession(true);
     }
     resetTimer();
   };
 
   const skipSession = () => {
+    console.log('Session skipped');
     // Move to next session type without saving
     if (mode === PomodoroMode.Work) {
       const nextCount = pomodorosCompleted + 1;
@@ -258,10 +338,12 @@ const PomodoroView: React.FC = () => {
     }
     
     try {
+      console.log('Saving Pomodoro settings...');
       setSettings(editableSettings);
       await firebaseService.savePomodoroSettings(editableSettings);
       setIsSettingsOpen(false);
       resetTimer();
+      console.log('Settings saved successfully');
     } catch (error) {
       console.error('Error saving pomodoro settings:', error);
       alert('Failed to save settings. Please try again.');
@@ -318,9 +400,7 @@ const PomodoroView: React.FC = () => {
       .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
     
     return {
-      sessions: todaySessions.length,
-      focusTime,
-      completedPomodoros: todaySessions.filter(s => s.type === PomodoroMode.Work && !s.interrupted).length
+      focusTime
     };
   };
 
@@ -420,7 +500,7 @@ const PomodoroView: React.FC = () => {
 
           {/* Stats Sidebar */}
           <div className="space-y-6">
-            {/* Today's Stats */}
+            {/* Today's Focus Time */}
             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 p-6">
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center mr-3">
@@ -430,75 +510,33 @@ const PomodoroView: React.FC = () => {
                 </div>
                 Today's Focus
               </h3>
-              <div className="space-y-5">
-                <div className="flex justify-between items-center p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl border border-blue-200/30">
-                  <span className="text-slate-600 dark:text-slate-400 font-medium">Pomodoros</span>
-                  <span className="font-bold text-2xl text-blue-600 dark:text-blue-400">{todayStats.completedPomodoros}</span>
+              <div className="text-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl border border-emerald-200/30">
+                <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400 mb-2">
+                  {todayStats.focusTime}m
                 </div>
-                <div className="flex justify-between items-center p-3 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200/30">
-                  <span className="text-slate-600 dark:text-slate-400 font-medium">Focus Time</span>
-                  <span className="font-bold text-2xl text-emerald-600 dark:text-emerald-400">{todayStats.focusTime}m</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-purple-50/50 dark:bg-purple-900/20 rounded-xl border border-purple-200/30">
-                  <span className="text-slate-600 dark:text-slate-400 font-medium">Sessions</span>
-                  <span className="font-bold text-2xl text-purple-600 dark:text-purple-400">{todayStats.sessions}</span>
+                <div className="text-emerald-700 dark:text-emerald-300 text-sm font-medium">
+                  Focus Time
                 </div>
               </div>
             </div>
 
-            {/* Recent Sessions */}
+            {/* Focus Notes */}
             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 p-6">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center">
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center">
+                <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center mr-2">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
                   </svg>
                 </div>
-                Focus Records
+                Focus Notes
               </h3>
-              {focusSessions.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">🎯</span>
-                  </div>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
-                    No focus records yet
-                  </p>
-                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
-                    Start your first session!
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                  {focusSessions.slice(0, 8).map((session) => {
-                    const sessionConfig = {
-                      [PomodoroMode.Work]: { color: 'bg-blue-500', name: 'Focus', lightBg: 'bg-blue-50 dark:bg-blue-900/20' },
-                      [PomodoroMode.ShortBreak]: { color: 'bg-emerald-500', name: 'Break', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-                      [PomodoroMode.LongBreak]: { color: 'bg-purple-500', name: 'Long Break', lightBg: 'bg-purple-50 dark:bg-purple-900/20' }
-                    }[session.type];
-
-                    return (
-                      <div key={session.id} className={`flex items-center space-x-4 p-4 rounded-xl ${sessionConfig.lightBg} border border-white/30 transition-all hover:shadow-md`}>
-                        <div className={`w-4 h-4 rounded-full ${sessionConfig.color} flex-shrink-0 shadow-lg`}></div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                            {sessionConfig.name}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            {session.completedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • 
-                            {Math.round(session.actualTimeSpent / 60)}m
-                            {session.interrupted && (
-                              <span className="ml-2 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs font-medium">
-                                stopped
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <textarea
+                value={focusNote}
+                onChange={(e) => setFocusNote(e.target.value)}
+                placeholder="How was your focus today?"
+                className="w-full p-4 text-sm border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-slate-700 dark:text-slate-200 placeholder-slate-400 resize-none"
+                rows={6}
+              />
             </div>
           </div>
         </div>

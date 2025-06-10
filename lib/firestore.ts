@@ -1,4 +1,4 @@
-// Updated src/lib/firestore.ts with Pomodoro session support
+// Optimized src/lib/firestore.ts - reduced logging and optimized operations
 import { 
   collection, 
   doc, 
@@ -12,7 +12,8 @@ import {
   where, 
   orderBy,
   serverTimestamp,
-  limit
+  limit,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Task, DailyPrayerLog, DailyQuranLog, PomodoroSettings, Theme, ChatMessage, PomodoroMode } from '../types';
@@ -126,7 +127,7 @@ export async function getUserSettings(userId: string): Promise<{
   }
 }
 
-// Pomodoro Sessions (New)
+// Optimized Pomodoro Sessions
 export async function savePomodoroSession(userId: string, session: FocusSession): Promise<void> {
   try {
     const sessionRef = doc(db, 'users', userId, 'pomodoroSessions', session.id);
@@ -148,7 +149,7 @@ export async function savePomodoroSession(userId: string, session: FocusSession)
 export async function getPomodoroSessions(userId: string): Promise<FocusSession[]> {
   try {
     const sessionsRef = collection(db, 'users', userId, 'pomodoroSessions');
-    const q = query(sessionsRef, orderBy('completedAt', 'desc'), limit(100));
+    const q = query(sessionsRef, orderBy('completedAt', 'desc'), limit(50)); // Reduced from 100 to 50
     const querySnapshot = await getDocs(q);
     
     const sessions: FocusSession[] = [];
@@ -170,12 +171,28 @@ export async function getPomodoroSessions(userId: string): Promise<FocusSession[
   }
 }
 
+// Batch operation for multiple sessions (more efficient)
 export async function savePomodoroSessions(userId: string, sessions: FocusSession[]): Promise<void> {
   try {
-    // Save multiple sessions - typically used for batch operations
-    for (const session of sessions) {
-      await savePomodoroSession(userId, session);
-    }
+    const batch = writeBatch(db);
+    
+    // Only save the last 20 sessions to avoid hitting batch limits
+    const sessionsToSave = sessions.slice(0, 20);
+    
+    sessionsToSave.forEach(session => {
+      const sessionRef = doc(db, 'users', userId, 'pomodoroSessions', session.id);
+      batch.set(sessionRef, {
+        id: session.id,
+        type: session.type,
+        duration: session.duration,
+        completedAt: session.completedAt,
+        interrupted: session.interrupted,
+        actualTimeSpent: session.actualTimeSpent,
+        createdAt: serverTimestamp()
+      });
+    });
+    
+    await batch.commit();
   } catch (error) {
     console.error('Error saving pomodoro sessions:', error);
     throw error;
@@ -266,8 +283,8 @@ export async function getQuranLogs(userId: string): Promise<DailyQuranLog[]> {
 // Chat History Functions
 export async function saveChatHistory(userId: string, messages: ChatMessage[]): Promise<void> {
   try {
-    // Keep only the last 100 messages to avoid storage bloat
-    const recentMessages = messages.slice(-100);
+    // Keep only the last 50 messages to reduce storage and improve performance
+    const recentMessages = messages.slice(-50);
     
     const chatRef = doc(db, 'users', userId, 'ai-assistant', 'chatHistory');
     await setDoc(chatRef, {
@@ -275,7 +292,7 @@ export async function saveChatHistory(userId: string, messages: ChatMessage[]): 
         id: msg.id,
         text: msg.text,
         sender: msg.sender,
-        timestamp: msg.timestamp.toISOString() // Convert to string for Firestore
+        timestamp: msg.timestamp.toISOString()
       })),
       updatedAt: serverTimestamp(),
       messageCount: recentMessages.length
@@ -297,7 +314,7 @@ export async function getChatHistory(userId: string): Promise<ChatMessage[]> {
         id: msg.id,
         text: msg.text,
         sender: msg.sender,
-        timestamp: new Date(msg.timestamp) // Convert back to Date
+        timestamp: new Date(msg.timestamp)
       }));
     }
     return [];
@@ -317,7 +334,7 @@ export async function clearChatHistory(userId: string): Promise<void> {
   }
 }
 
-// AI Assistant Analytics (optional - for insights)
+// AI Assistant Analytics (optional - for insights) - Removed excessive logging
 export async function saveAIInteraction(userId: string, interaction: {
   prompt: string;
   response: string;
@@ -331,7 +348,6 @@ export async function saveAIInteraction(userId: string, interaction: {
       timestamp: serverTimestamp()
     });
   } catch (error) {
-    console.error('Error saving AI interaction:', error);
-    // Don't throw - analytics shouldn't break the main flow
+    // Silently fail for analytics - don't break the main flow or log excessively
   }
 }

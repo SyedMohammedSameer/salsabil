@@ -1,20 +1,12 @@
-// Enhanced Dashboard View with Pomodoro statistics
+// Fully synced components/DashboardView.tsx with optimized Pomodoro integration
 import React, { useMemo, useEffect, useState } from 'react';
 import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../types';
 import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
+import type { FocusSession } from '../services/firebaseService'; // Import the shared type
 
 interface DashboardViewProps {
   tasks: Task[];
-}
-
-interface FocusSession {
-  id: string;
-  type: PomodoroMode;
-  duration: number;
-  completedAt: Date;
-  interrupted: boolean;
-  actualTimeSpent: number;
 }
 
 // Enhanced Chart Components
@@ -190,23 +182,29 @@ const StatCard: React.FC<{
 const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
-  const [pomodoroSessions, setPomodoroSessions] = useState<FocusSession[]>([]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load all data
+  // Load all data with optimized caching
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('Dashboard: Loading data...');
         const [prayers, quran, sessions] = await Promise.all([
           firebaseService.loadPrayerLogs(),
           firebaseService.loadQuranLogs(),
-          firebaseService.loadPomodoroSessions()
+          firebaseService.loadPomodoroSessions() // Uses optimized caching
         ]);
         setPrayerLogs(prayers);
         setQuranLogs(quran);
-        setPomodoroSessions(sessions);
+        setFocusSessions(sessions);
+        console.log('Dashboard: Data loaded successfully', { 
+          prayers: prayers.length, 
+          quran: quran.length, 
+          sessions: sessions.length 
+        });
       } catch (error) {
-        console.error('Error loading dashboard data:', error);
+        console.error('Dashboard: Error loading data:', error);
       } finally {
         setLoading(false);
       }
@@ -214,7 +212,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     loadData();
   }, []);
 
-  // Calculate comprehensive statistics
+  // Calculate comprehensive statistics with proper time conversion
   const stats = useMemo(() => {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(task => task.completed).length;
@@ -229,12 +227,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
 
     // Date calculations
     const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      return date.toISOString().split('T')[0];
-    }).reverse();
-
-    const last30Days = Array.from({ length: 30 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       return date.toISOString().split('T')[0];
@@ -260,40 +252,30 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     const totalQuranPages = quranReadingData.reduce((sum, pages) => sum + pages, 0);
     const quranStreak = calculateQuranStreak();
 
-    // Pomodoro statistics (New)
-    const todayPomodoros = pomodoroSessions.filter(s => 
-      s.completedAt.toDateString() === new Date().toDateString() && 
-      s.type === PomodoroMode.Work && 
-      !s.interrupted
-    ).length;
-
-    const weeklyFocusTime = pomodoroSessions
+    // Calculate weekly focus time in minutes from actualTimeSpent (which is in seconds)
+    const weeklyFocusTime = focusSessions
       .filter(s => {
         const sessionDate = s.completedAt.toDateString();
         return last7Days.some(date => new Date(date).toDateString() === sessionDate) &&
-               s.type === PomodoroMode.Work;
+               s.type === 'Work';
       })
-      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
+      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0); // Convert seconds to minutes
 
-    const totalPomodoros = pomodoroSessions.filter(s => 
-      s.type === PomodoroMode.Work && !s.interrupted
-    ).length;
-
-    const pomodoroHeatmapData = last7Days.map(date => {
-      const dayPomodoros = pomodoroSessions.filter(s => 
+    // Enhanced Focus time heatmap (shows minutes of focus per day)
+    const focusHeatmapData = last7Days.map(date => {
+      const dayFocusTime = focusSessions.filter(s => 
         s.completedAt.toDateString() === new Date(date).toDateString() &&
-        s.type === PomodoroMode.Work &&
-        !s.interrupted
-      ).length;
+        s.type === 'Work'
+      ).reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
+      
       return {
         day: new Date(date).toLocaleDateString(undefined, { weekday: 'short' }),
-        value: dayPomodoros,
+        value: dayFocusTime,
         max: Math.max(...last7Days.map(d => {
-          return pomodoroSessions.filter(s => 
+          return focusSessions.filter(s => 
             s.completedAt.toDateString() === new Date(d).toDateString() &&
-            s.type === PomodoroMode.Work &&
-            !s.interrupted
-          ).length;
+            s.type === 'Work'
+          ).reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
         }), 1)
       };
     });
@@ -362,13 +344,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       todayTasks,
       todayCompletedTasks,
       last7Days,
-      // Pomodoro stats
-      todayPomodoros,
+      // Enhanced Focus stats (simplified)
       weeklyFocusTime,
-      totalPomodoros,
-      pomodoroHeatmapData
+      focusHeatmapData
     };
-  }, [tasks, prayerLogs, quranLogs, pomodoroSessions]);
+  }, [tasks, prayerLogs, quranLogs, focusSessions]);
 
   if (loading) {
     return (
@@ -428,10 +408,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           suffix="d"
         />
         <StatCard 
-          title="Focus" 
-          value={stats.todayPomodoros} 
+          title="Focus Time" 
+          value={stats.weeklyFocusTime} 
           icon={<PomodoroIcon className="w-5 h-5 text-white" />}
           color="from-orange-500 to-red-600"
+          suffix="m"
         />
       </div>
 
@@ -479,17 +460,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           <WeeklyHeatmap weeklyData={stats.weeklyTaskData} />
         </div>
 
-        {/* Pomodoro Focus Heatmap */}
+        {/* Enhanced Focus Time Heatmap */}
         <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
           <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center">
             <PomodoroIcon className="w-4 h-4 mr-2" />
-            Focus Sessions
+            Focus Time
           </h3>
-          <WeeklyHeatmap weeklyData={stats.pomodoroHeatmapData} />
+          <WeeklyHeatmap weeklyData={stats.focusHeatmapData} />
           <div className="mt-4 text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {stats.weeklyFocusTime} minutes this week
-            </p>
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{stats.weeklyFocusTime}m</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">This week</p>
+            </div>
           </div>
         </div>
       </div>
@@ -562,8 +544,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
               </div>
               
               <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">Focus Sessions</span>
-                <span className="text-orange-800 dark:text-orange-200 font-bold">{stats.todayPomodoros}</span>
+                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">Focus Time</span>
+                <span className="text-orange-800 dark:text-orange-200 font-bold">
+                  {Math.round(focusSessions
+                    .filter(s => s.completedAt.toDateString() === new Date().toDateString() && s.type === 'Work')
+                    .reduce((total, s) => total + s.actualTimeSpent / 60, 0))}m
+                </span>
               </div>
               
               <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
@@ -577,7 +563,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
         </div>
       </div>
 
-      {/* Enhanced Insights Panel with Pomodoro */}
+      {/* Enhanced Insights Panel with Focus Efficiency */}
       <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl p-6 text-white shadow-xl">
         <h3 className="text-xl font-bold mb-4">Weekly Insights</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
