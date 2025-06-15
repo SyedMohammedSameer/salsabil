@@ -1,5 +1,5 @@
-// Enhanced Task Card with better visual design and animations
-import React, { useState } from 'react';
+// Mobile-Optimized Task Card with touch-friendly design
+import React, { useState, useEffect } from 'react';
 import { Task, Priority } from '../types';
 import { PRIORITY_DOT_COLORS } from '../constants';
 import { TrashIcon, EditIcon } from './icons/NavIcons';
@@ -14,7 +14,20 @@ interface TaskCardProps {
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit, onToggleComplete }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
   
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const priorityConfig = {
     [Priority.High]: {
       bg: 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20',
@@ -57,36 +70,61 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
     onEdit(task);
   };
 
+  // Touch event handlers for mobile
+  const handleTouchStart = () => {
+    if (isMobile) {
+      setIsPressed(true);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isMobile) {
+      setIsPressed(false);
+    }
+  };
+
   const displayDate = new Date(task.date + 'T00:00:00');
   const formattedDate = displayDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const isOverdue = !task.completed && new Date(task.date) < new Date(new Date().toDateString());
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, task.id)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`relative group cursor-grab active:cursor-grabbing transform transition-all duration-300 ease-out hover:scale-105 hover:-translate-y-1
-                  ${task.completed ? 'opacity-75 scale-95' : 'hover:shadow-xl'}
-                  ${isHovered ? config.glow : ''}`}
+      draggable={!isMobile} // Disable drag on mobile
+      onDragStart={!isMobile ? (e) => onDragStart(e, task.id) : undefined}
+      onMouseEnter={() => !isMobile && setIsHovered(true)}
+      onMouseLeave={() => !isMobile && setIsHovered(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className={`relative group transition-all duration-300 ease-out
+                  ${isMobile 
+                    ? `${isPressed ? 'scale-95' : 'scale-100'} active:scale-95` 
+                    : `cursor-grab active:cursor-grabbing hover:scale-105 hover:-translate-y-1`
+                  }
+                  ${task.completed ? 'opacity-75' : ''}
+                  ${isHovered && !isMobile ? config.glow : ''}
+                  ${isMobile ? 'touch-manipulation' : ''}`}
     >
       {/* Main Card */}
-      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${config.bg} backdrop-blur-sm border ${config.border} shadow-lg transition-all duration-300`}>
+      <div className={`relative overflow-hidden bg-gradient-to-br ${config.bg} backdrop-blur-sm border ${config.border} transition-all duration-300
+                      ${isMobile 
+                        ? 'rounded-xl shadow-md min-h-[120px]' 
+                        : 'rounded-2xl shadow-lg hover:shadow-xl'
+                      }`}>
+        
         {/* Priority accent bar */}
-        <div className={`absolute top-0 left-0 w-full h-1 ${config.accent}`}></div>
+        <div className={`absolute top-0 left-0 w-full ${config.accent} ${isMobile ? 'h-1' : 'h-1'}`}></div>
         
         {/* Overdue indicator */}
         {isOverdue && (
-          <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+          <div className={`absolute top-2 right-2 rounded-full animate-pulse ${isMobile ? 'w-4 h-4' : 'w-3 h-3'} bg-red-500`}></div>
         )}
 
         {/* Content */}
-        <div className="p-4">
+        <div className={`${isMobile ? 'p-4' : 'p-4'}`}>
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center min-w-0 flex-1">
-              {/* Custom Checkbox */}
+              {/* Custom Checkbox - Larger on mobile */}
               <div className="relative mr-3 flex-shrink-0">
                 <input 
                   type="checkbox" 
@@ -96,14 +134,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
                 />
                 <div 
                   onClick={handleCheckboxChange}
-                  className={`w-6 h-6 rounded-lg border-2 cursor-pointer transition-all duration-300 flex items-center justify-center
+                  className={`cursor-pointer transition-all duration-300 flex items-center justify-center border-2
+                             ${isMobile ? 'w-7 h-7 rounded-lg' : 'w-6 h-6 rounded-lg'}
                              ${task.completed 
                                ? `${config.accent} border-transparent` 
                                : `border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 bg-white dark:bg-slate-700`
                              }`}
                 >
                   {task.completed && (
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className={`text-white ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} fill="currentColor" viewBox="0 0 24 24">
                       <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                   )}
@@ -111,7 +150,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
               </div>
               
               {/* Task Title */}
-              <h4 className={`font-semibold text-sm leading-tight truncate transition-all duration-300
+              <h4 className={`font-semibold leading-tight truncate transition-all duration-300
+                             ${isMobile ? 'text-base' : 'text-sm'}
                              ${task.completed 
                                ? 'line-through text-slate-500 dark:text-slate-400' 
                                : 'text-slate-800 dark:text-slate-200'
@@ -121,14 +161,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
             </div>
             
             {/* Priority Indicator */}
-            <div className={`w-4 h-4 rounded-full ${config.dot} ml-2 flex-shrink-0 shadow-lg transition-transform duration-300 ${isHovered ? 'scale-110' : ''}`} 
+            <div className={`rounded-full ${config.dot} ml-2 flex-shrink-0 shadow-lg transition-transform duration-300
+                           ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}
+                           ${isHovered && !isMobile ? 'scale-110' : ''}`} 
                  title={`Priority: ${task.priority}`}>
             </div>
           </div>
 
           {/* Description */}
           {task.description && (
-            <p className={`text-xs text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 transition-all duration-300
+            <p className={`text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 transition-all duration-300
+                           ${isMobile ? 'text-sm' : 'text-xs'}
                            ${task.completed ? 'line-through opacity-60' : ''}`}>
               {task.description}
             </p>
@@ -138,16 +181,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
           {task.subtasks && task.subtasks.length > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400">
+                <span className={`text-slate-500 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
                   Subtasks: {task.completedSubtasks}/{task.subtasks.length}
                 </span>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                <span className={`font-medium text-slate-600 dark:text-slate-300 ${isMobile ? 'text-sm' : 'text-xs'}`}>
                   {Math.round((task.completedSubtasks / task.subtasks.length) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-2'}`}>
                 <div 
-                  className={`h-2 rounded-full transition-all duration-500 ease-out ${config.accent}`}
+                  className={`rounded-full transition-all duration-500 ease-out ${config.accent} ${isMobile ? 'h-2' : 'h-2'}`}
                   style={{ width: `${(task.completedSubtasks / task.subtasks.length) * 100}%` }}
                 />
               </div>
@@ -157,16 +200,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
           {/* Footer */}
           <div className="flex items-center justify-between">
             {/* Date and Time */}
-            <div className={`text-xs transition-all duration-300 ${task.completed ? 'line-through opacity-60' : 'text-slate-500 dark:text-slate-400'}`}>
+            <div className={`transition-all duration-300 ${task.completed ? 'line-through opacity-60' : 'text-slate-500 dark:text-slate-400'}
+                           ${isMobile ? 'text-sm' : 'text-xs'}`}>
               <div className="flex items-center space-x-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <svg className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
                 </svg>
                 <span>{formattedDate}</span>
               </div>
               {task.startTime && (
                 <div className="flex items-center space-x-1 mt-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   <span>
@@ -176,21 +220,27 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className={`flex space-x-1 transition-all duration-300 ${isHovered || task.completed ? 'opacity-100' : 'opacity-0'}`}>
+            {/* Action Buttons - Always visible on mobile, hover on desktop */}
+            <div className={`flex space-x-2 transition-all duration-300 
+                           ${isMobile 
+                             ? 'opacity-100' 
+                             : isHovered || task.completed ? 'opacity-100' : 'opacity-0'
+                           }`}>
               <button 
                 onClick={handleEditClick}
-                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10"
+                className={`rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10
+                           ${isMobile ? 'p-3 min-h-touch min-w-touch' : 'p-2'}`}
                 title="Edit Task"
               >
-                <EditIcon className="w-3 h-3" />
+                <EditIcon className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
               </button>
               <button 
                 onClick={handleDeleteClick}
-                className="p-2 rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-red-100 dark:hover:bg-red-900/50 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10"
+                className={`rounded-lg bg-white/70 dark:bg-slate-700/70 hover:bg-red-100 dark:hover:bg-red-900/50 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-110 z-10
+                           ${isMobile ? 'p-3 min-h-touch min-w-touch' : 'p-2'}`}
                 title="Delete Task"
               >
-                <TrashIcon className="w-3 h-3" />
+                <TrashIcon className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
               </button>
             </div>
           </div>
@@ -198,9 +248,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onDragStart, onDelete, onEdit
 
         {/* Completion Overlay */}
         {task.completed && (
-          <div className="absolute inset-0 bg-emerald-500/10 dark:bg-emerald-400/10 backdrop-blur-[1px] flex items-center justify-center rounded-2xl pointer-events-none">
-            <div className="bg-emerald-500 text-white p-2 rounded-full shadow-lg">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <div className={`absolute inset-0 bg-emerald-500/10 dark:bg-emerald-400/10 backdrop-blur-[1px] flex items-center justify-center pointer-events-none
+                          ${isMobile ? 'rounded-xl' : 'rounded-2xl'}`}>
+            <div className={`bg-emerald-500 text-white rounded-full shadow-lg
+                           ${isMobile ? 'p-3' : 'p-2'}`}>
+              <svg className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'}`} fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>

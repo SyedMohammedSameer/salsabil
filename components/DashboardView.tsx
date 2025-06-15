@@ -1,48 +1,57 @@
-// Fully synced components/DashboardView.tsx with optimized Pomodoro integration
+// Mobile-Optimized DashboardView.tsx with responsive design
 import React, { useMemo, useEffect, useState } from 'react';
 import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../types';
 import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
-import type { FocusSession } from '../services/firebaseService'; // Import the shared type
+import type { FocusSession } from '../services/firebaseService';
 
 interface DashboardViewProps {
   tasks: Task[];
 }
 
-// Enhanced Chart Components
-const ProgressRing: React.FC<{ percentage: number; size?: number; strokeWidth?: number; color?: string }> = ({ 
+// Enhanced Chart Components with mobile optimization
+const ProgressRing: React.FC<{ 
+  percentage: number; 
+  size?: number; 
+  strokeWidth?: number; 
+  color?: string;
+  isMobile?: boolean;
+}> = ({ 
   percentage, 
   size = 120, 
   strokeWidth = 8, 
-  color = '#10b981' 
+  color = '#10b981',
+  isMobile = false
 }) => {
-  const radius = (size - strokeWidth) / 2;
+  const mobileSize = isMobile ? Math.min(size, 100) : size;
+  const mobileStroke = isMobile ? Math.max(strokeWidth - 2, 4) : strokeWidth;
+  const radius = (mobileSize - mobileStroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDasharray = circumference;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative" style={{ width: mobileSize, height: mobileSize }}>
       <svg
-        width={size}
-        height={size}
+        width={mobileSize}
+        height={mobileSize}
         className="transform -rotate-90"
       >
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={mobileSize / 2}
+          cy={mobileSize / 2}
           r={radius}
           stroke="currentColor"
-          strokeWidth={strokeWidth}
+          strokeWidth={mobileStroke}
           fill="transparent"
           className="text-slate-200 dark:text-slate-700"
         />
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={mobileSize / 2}
+          cy={mobileSize / 2}
           r={radius}
           stroke={color}
-          strokeWidth={strokeWidth}
+          strokeWidth={mobileStroke}
           fill="transparent"
           strokeDasharray={strokeDasharray}
           strokeDashoffset={strokeDashoffset}
@@ -51,7 +60,7 @@ const ProgressRing: React.FC<{ percentage: number; size?: number; strokeWidth?: 
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">
+        <span className={`font-bold text-slate-700 dark:text-slate-200 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
           {Math.round(percentage)}%
         </span>
       </div>
@@ -59,10 +68,16 @@ const ProgressRing: React.FC<{ percentage: number; size?: number; strokeWidth?: 
   );
 };
 
-const AnimatedCounter: React.FC<{ end: number; duration?: number; suffix?: string }> = ({ 
+const AnimatedCounter: React.FC<{ 
+  end: number; 
+  duration?: number; 
+  suffix?: string;
+  isMobile?: boolean;
+}> = ({ 
   end, 
   duration = 1000, 
-  suffix = '' 
+  suffix = '',
+  isMobile = false
 }) => {
   const [count, setCount] = useState(0);
 
@@ -76,7 +91,6 @@ const AnimatedCounter: React.FC<{ end: number; duration?: number; suffix?: strin
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Easing function
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const current = startValue + (endValue - startValue) * easeOut;
       
@@ -90,22 +104,23 @@ const AnimatedCounter: React.FC<{ end: number; duration?: number; suffix?: strin
     requestAnimationFrame(animate);
   }, [end, duration]);
 
-  return <span>{count}{suffix}</span>;
+  return <span className={isMobile ? 'text-xl' : 'text-2xl'}>{count}{suffix}</span>;
 };
 
 const GradientBar: React.FC<{ 
-  data: { name: string; value: number; color: string; maxValue?: number }[] 
-}> = ({ data }) => {
+  data: { name: string; value: number; color: string; maxValue?: number }[];
+  isMobile?: boolean;
+}> = ({ data, isMobile = false }) => {
   const maxValue = Math.max(...data.map(d => d.maxValue || d.value));
   
   return (
-    <div className="space-y-4">
+    <div className={`space-y-${isMobile ? '3' : '4'}`}>
       {data.map((item, index) => (
         <div key={index} className="flex items-center">
-          <span className="w-20 text-sm font-medium text-slate-600 dark:text-slate-400 truncate">
+          <span className={`font-medium text-slate-600 dark:text-slate-400 truncate ${isMobile ? 'w-16 text-xs' : 'w-20 text-sm'}`}>
             {item.name}
           </span>
-          <div className="flex-1 mx-4 bg-slate-200 dark:bg-slate-700 rounded-full h-3 relative overflow-hidden">
+          <div className={`flex-1 bg-slate-200 dark:bg-slate-700 rounded-full relative overflow-hidden ${isMobile ? 'mx-2 h-2' : 'mx-4 h-3'}`}>
             <div 
               className={`h-full rounded-full transition-all duration-1000 ease-out ${item.color}`}
               style={{ 
@@ -114,7 +129,7 @@ const GradientBar: React.FC<{
               }}
             />
           </div>
-          <span className="w-12 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">
+          <span className={`font-bold text-slate-600 dark:text-slate-400 text-right ${isMobile ? 'w-8 text-xs' : 'w-12 text-sm'}`}>
             {item.value}
           </span>
         </div>
@@ -123,9 +138,12 @@ const GradientBar: React.FC<{
   );
 };
 
-const WeeklyHeatmap: React.FC<{ weeklyData: { day: string; value: number; max: number }[] }> = ({ weeklyData }) => {
+const WeeklyHeatmap: React.FC<{ 
+  weeklyData: { day: string; value: number; max: number }[];
+  isMobile?: boolean;
+}> = ({ weeklyData, isMobile = false }) => {
   return (
-    <div className="grid grid-cols-7 gap-2">
+    <div className={`grid grid-cols-7 ${isMobile ? 'gap-1' : 'gap-2'}`}>
       {weeklyData.map((day, index) => {
         const intensity = day.max > 0 ? (day.value / day.max) * 100 : 0;
         const opacityClass = intensity > 75 ? 'opacity-100' : intensity > 50 ? 'opacity-75' : intensity > 25 ? 'opacity-50' : intensity > 0 ? 'opacity-25' : 'opacity-10';
@@ -133,12 +151,13 @@ const WeeklyHeatmap: React.FC<{ weeklyData: { day: string; value: number; max: n
         return (
           <div key={index} className="text-center">
             <div 
-              className={`w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${opacityClass} transition-all duration-300 hover:scale-110 flex items-center justify-center mb-2`}
+              className={`mx-auto rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${opacityClass} transition-all duration-300 hover:scale-110 flex items-center justify-center mb-2
+                         ${isMobile ? 'w-6 h-6' : 'w-8 h-8'}`}
               title={`${day.day}: ${day.value}`}
             >
-              <span className="text-white text-xs font-bold">{day.value}</span>
+              <span className={`text-white font-bold ${isMobile ? 'text-xs' : 'text-xs'}`}>{day.value}</span>
             </div>
-            <span className="text-xs text-slate-600 dark:text-slate-400">{day.day}</span>
+            <span className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>{day.day}</span>
           </div>
         );
       })}
@@ -153,27 +172,34 @@ const StatCard: React.FC<{
   trend?: number; 
   color?: string;
   suffix?: string;
-}> = ({ title, value, icon, trend, color = 'from-blue-500 to-indigo-600', suffix = '' }) => {
+  isMobile?: boolean;
+}> = ({ title, value, icon, trend, color = 'from-blue-500 to-indigo-600', suffix = '', isMobile = false }) => {
   return (
-    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300">
+    <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300
+                    ${isMobile ? 'p-3' : 'p-4'}`}>
       <div className="flex items-center justify-between mb-2">
-        <div className={`w-8 h-8 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center`}>
-          {icon}
+        <div className={`bg-gradient-to-br ${color} rounded-lg flex items-center justify-center
+                        ${isMobile ? 'w-6 h-6' : 'w-8 h-8'}`}>
+          <div className={isMobile ? 'scale-75' : ''}>
+            {icon}
+          </div>
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center text-xs font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            <svg className={`w-3 h-3 mr-1 ${trend >= 0 ? 'rotate-0' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 24 24">
+          <div className={`flex items-center font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}
+                          ${isMobile ? 'text-xs' : 'text-xs'}`}>
+            <svg className={`mr-1 ${trend >= 0 ? 'rotate-0' : 'rotate-180'} ${isMobile ? 'w-2 h-2' : 'w-3 h-3'}`} fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 4l8 8h-6v8h-4v-8H4l8-8z"/>
             </svg>
             {Math.abs(trend)}%
           </div>
         )}
       </div>
-      <h3 className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
+      <h3 className={`font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1
+                     ${isMobile ? 'text-xs' : 'text-xs'}`}>
         {title}
       </h3>
-      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-        <AnimatedCounter end={value} suffix={suffix} />
+      <p className={`font-bold text-slate-800 dark:text-slate-100 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+        <AnimatedCounter end={value} suffix={suffix} isMobile={isMobile} />
       </p>
     </div>
   );
@@ -184,25 +210,31 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Load all data with optimized caching
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('Dashboard: Loading data...');
         const [prayers, quran, sessions] = await Promise.all([
           firebaseService.loadPrayerLogs(),
           firebaseService.loadQuranLogs(),
-          firebaseService.loadPomodoroSessions() // Uses optimized caching
+          firebaseService.loadPomodoroSessions()
         ]);
         setPrayerLogs(prayers);
         setQuranLogs(quran);
         setFocusSessions(sessions);
-        console.log('Dashboard: Data loaded successfully', { 
-          prayers: prayers.length, 
-          quran: quran.length, 
-          sessions: sessions.length 
-        });
       } catch (error) {
         console.error('Dashboard: Error loading data:', error);
       } finally {
@@ -212,27 +244,24 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     loadData();
   }, []);
 
-  // Calculate comprehensive statistics with proper time conversion
+  // Calculate comprehensive statistics
   const stats = useMemo(() => {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(task => task.completed).length;
     const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
     
-    // Priority distribution
     const priorityStats = {
       high: tasks.filter(t => t.priority === Priority.High).length,
       medium: tasks.filter(t => t.priority === Priority.Medium).length,
       low: tasks.filter(t => t.priority === Priority.Low).length
     };
 
-    // Date calculations
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       return date.toISOString().split('T')[0];
     }).reverse();
 
-    // Prayer statistics
     const prayerCompletionRate = last7Days.map(date => {
       const log = prayerLogs.find(l => l.date === date);
       if (!log) return 0;
@@ -243,7 +272,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
 
     const avgPrayerCompletion = prayerCompletionRate.reduce((sum, rate) => sum + rate, 0) / 7;
 
-    // Quran statistics
     const quranReadingData = last7Days.map(date => {
       const log = quranLogs.find(l => l.date === date);
       return log?.pagesRead || 0;
@@ -252,16 +280,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     const totalQuranPages = quranReadingData.reduce((sum, pages) => sum + pages, 0);
     const quranStreak = calculateQuranStreak();
 
-    // Calculate weekly focus time in minutes from actualTimeSpent (which is in seconds)
     const weeklyFocusTime = focusSessions
       .filter(s => {
         const sessionDate = s.completedAt.toDateString();
         return last7Days.some(date => new Date(date).toDateString() === sessionDate) &&
                s.type === 'Work';
       })
-      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0); // Convert seconds to minutes
+      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
 
-    // Enhanced Focus time heatmap (shows minutes of focus per day)
     const focusHeatmapData = last7Days.map(date => {
       const dayFocusTime = focusSessions.filter(s => 
         s.completedAt.toDateString() === new Date(date).toDateString() &&
@@ -280,14 +306,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       };
     });
 
-    // Today's data
     const today = new Date().toISOString().split('T')[0];
     const todayPrayers = prayerLogs.find(l => l.date === today);
     const todayPrayerCount = todayPrayers ? Object.values(todayPrayers.prayers).filter(p => p?.fardh).length : 0;
     const todayQuran = quranLogs.find(l => l.date === today);
     const todayQuranPages = todayQuran?.pagesRead || 0;
 
-    // Weekly task completion trend
     const weeklyTaskData = last7Days.map(date => {
       const dayTasks = tasks.filter(t => t.date === date);
       const completedDayTasks = dayTasks.filter(t => t.completed).length;
@@ -301,7 +325,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       };
     });
 
-    // Productivity insights
     const overdueTasks = tasks.filter(t => !t.completed && new Date(t.date) < new Date()).length;
     const todayTasks = tasks.filter(t => t.date === today).length;
     const todayCompletedTasks = tasks.filter(t => t.date === today && t.completed).length;
@@ -344,7 +367,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       todayTasks,
       todayCompletedTasks,
       last7Days,
-      // Enhanced Focus stats (simplified)
       weeklyFocusTime,
       focusHeatmapData
     };
@@ -353,38 +375,42 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   if (loading) {
     return (
       <div className="animate-fadeIn flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-slate-600 dark:text-slate-400">Loading dashboard...</p>
+        <div className="text-center p-4">
+          <div className={`animate-spin rounded-full border-b-2 border-primary mx-auto mb-4 ${isMobile ? 'h-8 w-8' : 'h-12 w-12'}`}></div>
+          <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-base'}`}>Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="animate-fadeIn min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 p-4">
+    <div className={`animate-fadeIn min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 ${isMobile ? 'p-2' : 'p-4'}`}>
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mr-3">
+      <div className={`mb-${isMobile ? '4' : '6'}`}>
+        <div className={`flex items-center mb-${isMobile ? '3' : '4'}`}>
+          <div className={`bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mr-3
+                          ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}>
             <DashboardIcon />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <h1 className={`font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent
+                           ${isMobile ? 'text-2xl' : 'text-3xl'}`}>
               Dashboard
             </h1>
-            <p className="text-slate-600 dark:text-slate-400">Your productivity and spiritual journey at a glance</p>
+            <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-base'}`}>Your productivity and spiritual journey at a glance</p>
           </div>
         </div>
       </div>
 
       {/* Quick Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className={`grid gap-${isMobile ? '3' : '4'} mb-${isMobile ? '4' : '6'}
+                      ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'}`}>
         <StatCard 
           title="Tasks" 
           value={stats.totalTasks} 
           icon={<ListIcon className="w-5 h-5 text-white" />}
           color="from-blue-500 to-blue-600"
+          isMobile={isMobile}
         />
         <StatCard 
           title="Today" 
@@ -392,57 +418,98 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           icon={<CheckCircleIcon className="w-5 h-5 text-white" />}
           color="from-emerald-500 to-emerald-600"
           trend={stats.todayCompletedTasks > 0 ? 15 : -5}
+          isMobile={isMobile}
         />
-        <StatCard 
-          title="Prayers" 
-          value={stats.todayPrayerCount} 
-          icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
-          color="from-purple-500 to-purple-600"
-          suffix="/5"
-        />
-        <StatCard 
-          title="Streak" 
-          value={stats.quranStreak} 
-          icon={<QuranLogIcon className="w-5 h-5 text-white" />}
-          color="from-teal-500 to-teal-600"
-          suffix="d"
-        />
-        <StatCard 
-          title="Focus Time" 
-          value={stats.weeklyFocusTime} 
-          icon={<PomodoroIcon className="w-5 h-5 text-white" />}
-          color="from-orange-500 to-red-600"
-          suffix="m"
-        />
+        {!isMobile && (
+          <>
+            <StatCard 
+              title="Prayers" 
+              value={stats.todayPrayerCount} 
+              icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
+              color="from-purple-500 to-purple-600"
+              suffix="/5"
+              isMobile={isMobile}
+            />
+            <StatCard 
+              title="Streak" 
+              value={stats.quranStreak} 
+              icon={<QuranLogIcon className="w-5 h-5 text-white" />}
+              color="from-teal-500 to-teal-600"
+              suffix="d"
+              isMobile={isMobile}
+            />
+            <StatCard 
+              title="Focus Time" 
+              value={stats.weeklyFocusTime} 
+              icon={<PomodoroIcon className="w-5 h-5 text-white" />}
+              color="from-orange-500 to-red-600"
+              suffix="m"
+              isMobile={isMobile}
+            />
+          </>
+        )}
       </div>
 
-      {/* Main Analytics Grid */}
-      <div className="mb-6">
-        {/* Task Completion Overview */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Task Completion Overview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Mobile-specific additional stats */}
+      {isMobile && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <StatCard 
+            title="Prayers" 
+            value={stats.todayPrayerCount} 
+            icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
+            color="from-purple-500 to-purple-600"
+            suffix="/5"
+            isMobile={isMobile}
+          />
+          <StatCard 
+            title="Streak" 
+            value={stats.quranStreak} 
+            icon={<QuranLogIcon className="w-5 h-5 text-white" />}
+            color="from-teal-500 to-teal-600"
+            suffix="d"
+            isMobile={isMobile}
+          />
+          <StatCard 
+            title="Focus" 
+            value={stats.weeklyFocusTime} 
+            icon={<PomodoroIcon className="w-5 h-5 text-white" />}
+            color="from-orange-500 to-red-600"
+            suffix="m"
+            isMobile={isMobile}
+          />
+        </div>
+      )}
+
+      {/* Main Analytics - Mobile optimized layout */}
+      <div className={`mb-${isMobile ? '4' : '6'}`}>
+        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20
+                        ${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '3' : '4'}
+                         ${isMobile ? 'text-base' : 'text-lg'}`}>Task Completion Overview</h3>
+          <div className={`grid gap-${isMobile ? '4' : '6'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
             <div className="text-center">
               <ProgressRing 
                 percentage={stats.completionPercentage} 
-                size={120}
+                size={isMobile ? 100 : 120}
                 color="#10b981"
+                isMobile={isMobile}
               />
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Overall Completion</p>
+              <p className={`mt-3 text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Overall Completion</p>
             </div>
-            <div className="space-y-4">
+            <div className={`space-y-${isMobile ? '3' : '4'}`}>
               <div>
-                <h4 className="font-semibold text-slate-700 dark:text-slate-200 mb-3">Priority Breakdown</h4>
+                <h4 className={`font-semibold text-slate-700 dark:text-slate-200 mb-3 ${isMobile ? 'text-sm' : 'text-base'}`}>Priority Breakdown</h4>
                 <GradientBar 
                   data={[
                     { name: 'High', value: stats.priorityStats.high, color: 'bg-gradient-to-r from-red-500 to-red-600' },
                     { name: 'Medium', value: stats.priorityStats.medium, color: 'bg-gradient-to-r from-amber-500 to-amber-600' },
                     { name: 'Low', value: stats.priorityStats.low, color: 'bg-gradient-to-r from-emerald-500 to-emerald-600' }
                   ]}
+                  isMobile={isMobile}
                 />
               </div>
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-600">
-                <div className="flex justify-between text-sm">
+              <div className={`pt-3 border-t border-slate-200 dark:border-slate-600`}>
+                <div className={`flex justify-between ${isMobile ? 'text-sm' : 'text-sm'}`}>
                   <span className="text-slate-600 dark:text-slate-400">Overdue Tasks</span>
                   <span className="font-bold text-red-600">{stats.overdueTasks}</span>
                 </div>
@@ -452,44 +519,47 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
         </div>
       </div>
 
-      {/* Weekly Trends */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Task Completion Heatmap */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Weekly Task Activity</h3>
-          <WeeklyHeatmap weeklyData={stats.weeklyTaskData} />
+      {/* Weekly Trends - Stack on mobile */}
+      <div className={`grid gap-${isMobile ? '4' : '6'} mb-${isMobile ? '4' : '6'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20
+                        ${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '3' : '4'}
+                         ${isMobile ? 'text-base' : 'text-lg'}`}>Weekly Task Activity</h3>
+          <WeeklyHeatmap weeklyData={stats.weeklyTaskData} isMobile={isMobile} />
         </div>
 
-        {/* Enhanced Focus Time Heatmap */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center">
-            <PomodoroIcon className="w-4 h-4 mr-2" />
+        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20
+                        ${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '3' : '4'} flex items-center
+                         ${isMobile ? 'text-base' : 'text-lg'}`}>
+            <PomodoroIcon className={`mr-2 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
             Focus Time
           </h3>
-          <WeeklyHeatmap weeklyData={stats.focusHeatmapData} />
+          <WeeklyHeatmap weeklyData={stats.focusHeatmapData} isMobile={isMobile} />
           <div className="mt-4 text-center">
-            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-              <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{stats.weeklyFocusTime}m</p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">This week</p>
+            <div className={`p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg`}>
+              <p className={`font-bold text-orange-600 dark:text-orange-400 ${isMobile ? 'text-lg' : 'text-lg'}`}>{stats.weeklyFocusTime}m</p>
+              <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>This week</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Spiritual Progress Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Spiritual Progress */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Spiritual Progress</h3>
-          <div className="space-y-4">
+      {/* Spiritual Progress and Today's Focus - Stack on mobile */}
+      <div className={`grid gap-${isMobile ? '4' : '6'} mb-${isMobile ? '4' : '6'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20
+                        ${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '3' : '4'}
+                         ${isMobile ? 'text-base' : 'text-lg'}`}>Spiritual Progress</h3>
+          <div className={`space-y-${isMobile ? '3' : '4'}`}>
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Prayer Completion (7 days avg)</span>
-                <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Prayer Completion (7 days avg)</span>
+                <span className={`font-bold text-purple-600 dark:text-purple-400 ${isMobile ? 'text-base' : 'text-lg'}`}>
                   {Math.round(stats.avgPrayerCompletion)}%
                 </span>
               </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'}`}>
                 <div 
                   className="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full transition-all duration-1000"
                   style={{ width: `${stats.avgPrayerCompletion}%` }}
@@ -499,10 +569,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Quran Pages This Week</span>
-                <span className="text-lg font-bold text-teal-600 dark:text-teal-400">{stats.totalQuranPages}</span>
+                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Quran Pages This Week</span>
+                <span className={`font-bold text-teal-600 dark:text-teal-400 ${isMobile ? 'text-base' : 'text-lg'}`}>{stats.totalQuranPages}</span>
               </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'}`}>
                 <div 
                   className="h-full bg-gradient-to-r from-teal-400 to-teal-600 rounded-full transition-all duration-1000"
                   style={{ width: `${Math.min((stats.totalQuranPages / 35) * 100, 100)}%` }}
@@ -510,12 +580,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-600">
+            <div className={`pt-4 border-t border-slate-200 dark:border-slate-600`}>
               <div className="text-center">
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mb-1">
+                <div className={`font-bold text-emerald-600 dark:text-emerald-400 mb-1 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
                   {stats.quranStreak}
                 </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
+                <div className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>
                   Day reading streak
                 </div>
               </div>
@@ -523,38 +593,44 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           </div>
         </div>
 
-        {/* Today's Focus */}
-        <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-6 shadow-lg border border-white/20">
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-4">Today's Focus</h3>
-          <div className="space-y-4">
-            <div className="text-center p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white">
-              <div className="text-2xl font-bold">{stats.todayTasks}</div>
-              <div className="text-blue-100 text-sm">Tasks Planned</div>
+        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl shadow-lg border border-white/20
+                        ${isMobile ? 'p-4' : 'p-6'}`}>
+          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '3' : '4'}
+                         ${isMobile ? 'text-base' : 'text-lg'}`}>Today's Focus</h3>
+          <div className={`space-y-${isMobile ? '3' : '4'}`}>
+            <div className={`text-center bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white
+                            ${isMobile ? 'p-3' : 'p-4'}`}>
+              <div className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`}>{stats.todayTasks}</div>
+              <div className={`text-blue-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>Tasks Planned</div>
             </div>
             
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <span className="text-emerald-700 dark:text-emerald-300 text-sm font-medium">Prayers</span>
-                <span className="text-emerald-800 dark:text-emerald-200 font-bold">{stats.todayPrayerCount}/5</span>
+            <div className={`space-y-${isMobile ? '2' : '3'}`}>
+              <div className={`flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg
+                              ${isMobile ? 'p-2' : 'p-3'}`}>
+                <span className={`text-emerald-700 dark:text-emerald-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Prayers</span>
+                <span className={`text-emerald-800 dark:text-emerald-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>{stats.todayPrayerCount}/5</span>
               </div>
               
-              <div className="flex items-center justify-between p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-                <span className="text-teal-700 dark:text-teal-300 text-sm font-medium">Quran Pages</span>
-                <span className="text-teal-800 dark:text-teal-200 font-bold">{stats.todayQuranPages}</span>
+              <div className={`flex items-center justify-between bg-teal-50 dark:bg-teal-900/20 rounded-lg
+                              ${isMobile ? 'p-2' : 'p-3'}`}>
+                <span className={`text-teal-700 dark:text-teal-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Quran Pages</span>
+                <span className={`text-teal-800 dark:text-teal-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>{stats.todayQuranPages}</span>
               </div>
               
-              <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">Focus Time</span>
-                <span className="text-orange-800 dark:text-orange-200 font-bold">
+              <div className={`flex items-center justify-between bg-orange-50 dark:bg-orange-900/20 rounded-lg
+                              ${isMobile ? 'p-2' : 'p-3'}`}>
+                <span className={`text-orange-700 dark:text-orange-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Focus Time</span>
+                <span className={`text-orange-800 dark:text-orange-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
                   {Math.round(focusSessions
                     .filter(s => s.completedAt.toDateString() === new Date().toDateString() && s.type === 'Work')
                     .reduce((total, s) => total + s.actualTimeSpent / 60, 0))}m
                 </span>
               </div>
               
-              <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <span className="text-purple-700 dark:text-purple-300 text-sm font-medium">Completion Rate</span>
-                <span className="text-purple-800 dark:text-purple-200 font-bold">
+              <div className={`flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded-lg
+                              ${isMobile ? 'p-2' : 'p-3'}`}>
+                <span className={`text-purple-700 dark:text-purple-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Completion Rate</span>
+                <span className={`text-purple-800 dark:text-purple-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
                   {stats.todayTasks > 0 ? Math.round((stats.todayCompletedTasks / stats.todayTasks) * 100) : 0}%
                 </span>
               </div>
@@ -563,40 +639,41 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
         </div>
       </div>
 
-      {/* Enhanced Insights Panel with Focus Efficiency */}
-      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl p-6 text-white shadow-xl">
-        <h3 className="text-xl font-bold mb-4">Weekly Insights</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
-            <h4 className="font-bold text-base mb-2">📋 Productivity</h4>
-            <p className="text-indigo-100 text-sm">
+      {/* Enhanced Insights Panel */}
+      <div className={`bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl text-white shadow-xl
+                      ${isMobile ? 'p-4' : 'p-6'}`}>
+        <h3 className={`font-bold mb-${isMobile ? '3' : '4'} ${isMobile ? 'text-lg' : 'text-xl'}`}>Weekly Insights</h3>
+        <div className={`grid gap-${isMobile ? '3' : '4'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
+          <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
+            <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>📋 Productivity</h4>
+            <p className={`text-indigo-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
               {stats.completionPercentage > 80 ? "Outstanding progress! You're crushing your goals! 🚀" : 
                stats.completionPercentage > 60 ? "Great momentum! Keep the energy going! ⚡" : 
                "Room for growth. Try breaking tasks into smaller steps! 💪"}
             </p>
           </div>
           
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
-            <h4 className="font-bold text-base mb-2">🍅 Focus</h4>
-            <p className="text-purple-100 text-sm">
+          <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
+            <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>🍅 Focus</h4>
+            <p className={`text-purple-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
               {stats.weeklyFocusTime > 120 ? "Excellent focus this week! Your concentration is on point! 🎯" :
                stats.weeklyFocusTime > 60 ? "Good focus sessions! Keep building that habit! ⏰" :
                "Try using the Pomodoro timer to improve your focus! 🍅"}
             </p>
           </div>
           
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
-            <h4 className="font-bold text-base mb-2">🤲 Prayers</h4>
-            <p className="text-purple-100 text-sm">
+          <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
+            <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>🤲 Prayers</h4>
+            <p className={`text-purple-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
               {stats.avgPrayerCompletion > 80 ? "Mashallah! Your spiritual routine is excellent! ✨" : 
                stats.avgPrayerCompletion > 50 ? "Good progress! Consistency is key! 🌟" : 
                "Consider setting prayer reminders to build consistency! ⏰"}
             </p>
           </div>
           
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
-            <h4 className="font-bold text-base mb-2">📖 Quran</h4>
-            <p className="text-pink-100 text-sm">
+          <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
+            <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>📖 Quran</h4>
+            <p className={`text-pink-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
               {stats.quranStreak > 7 ? "Amazing streak! Your dedication is inspiring! 🌙" : 
                stats.quranStreak > 0 ? "Great start! Keep building that habit! 📚" : 
                "Every verse matters. Start with just one page today! 🌱"}

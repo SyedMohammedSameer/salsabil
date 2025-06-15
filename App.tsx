@@ -1,4 +1,4 @@
-// Enhanced App.tsx with Salsabil branding and modern sidebar
+// Mobile-Optimized App.tsx with responsive navigation
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
@@ -19,9 +19,11 @@ import { SAMPLE_TASKS } from './constants';
 const AppContent: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [currentView, setCurrentView] = useState<View>(View.Planner);
+  const [currentView, setCurrentView] = useState<View>(View.Dashboard); // Start with Dashboard on mobile
   const [theme, setTheme] = useState<Theme>(Theme.Light);
   const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [apiKey] = useState<string>(() => {
     return import.meta.env.VITE_GEMINI_API_KEY || 
@@ -29,6 +31,17 @@ const AppContent: React.FC = () => {
           import.meta.env.GEMINI_API_KEY || 
           '';
   });
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Set current user in Firebase service when user changes
   useEffect(() => {
@@ -92,6 +105,26 @@ const AppContent: React.FC = () => {
     }
   }, [tasks, loading]);
 
+  // Close mobile menu when view changes
+  useEffect(() => {
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
+  }, [currentView, isMobile]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobile && isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, isMobileMenuOpen]);
+
   const toggleTheme = useCallback(async () => {
     const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
     setTheme(newTheme);
@@ -140,7 +173,7 @@ const AppContent: React.FC = () => {
     try {
       await logout();
       setTasks([]);
-      setCurrentView(View.Planner);
+      setCurrentView(View.Dashboard);
     } catch (error) {
       console.error('Failed to log out:', error);
     }
@@ -162,23 +195,16 @@ const AppContent: React.FC = () => {
   const renderView = () => {
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full px-4">
           <div className="text-center">
             <div className="relative mb-8">
-              {/* Salsabil spring loading animation */}
-              <div className="relative">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-cyan-200 dark:border-cyan-800 border-t-cyan-500 dark:border-t-cyan-400 mx-auto mb-6"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
-                </div>
-              </div>
-              {/* Water ripple effect */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-20 h-20 border-2 border-cyan-300 dark:border-cyan-600 rounded-full animate-ping opacity-20"></div>
+              <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-4 border-cyan-200 dark:border-cyan-800 border-t-cyan-500 dark:border-t-cyan-400 mx-auto mb-6"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-4 h-4 md:w-6 md:h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
               </div>
             </div>
-            <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Loading Salsabil</h3>
-            <p className="text-slate-600 dark:text-slate-400">Preparing your spring of productivity...</p>
+            <h3 className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Loading Salsabil</h3>
+            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Preparing your spring of productivity...</p>
           </div>
         </div>
       );
@@ -200,9 +226,23 @@ const AppContent: React.FC = () => {
       case View.QuranLog:
         return <QuranLogView />;
       default:
-        return <PlannerView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />;
+        return <DashboardView tasks={tasks} />;
     }
   };
+
+  // Navigation items for mobile bottom bar
+  const mainNavItems = [
+    { view: View.Dashboard, icon: <DashboardIcon />, label: 'Home' },
+    { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
+    { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
+    { view: View.Pomodoro, icon: <PomodoroIcon />, label: 'Focus' },
+    { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
+  ];
+
+  const spiritualNavItems = [
+    { view: View.PrayerTracker, icon: <PrayerTrackerIcon />, label: 'Prayers' },
+    { view: View.QuranLog, icon: <QuranLogIcon />, label: 'Quran' },
+  ];
 
   // Show auth modal if user is not logged in
   if (!currentUser) {
@@ -210,184 +250,296 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500">
       
-      {/* Enhanced Sidebar Navigation with Salsabil Branding */}
-      <nav className={`relative flex flex-col bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 shadow-2xl transition-all duration-300 ease-in-out z-10
-                      ${sidebarCollapsed ? 'w-20' : 'w-72'} 
-                      md:${sidebarCollapsed ? 'w-20' : 'w-80'}`}>
-        
-        {/* Sidebar Header with Salsabil Logo */}
-        <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
-          <div className="flex items-center justify-between">
-            {!sidebarCollapsed && (
-              <div className="flex items-center space-x-3">
-                {/* Water spring icon - replace with your actual icon */}
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
-                  <img 
-                    src="/salsabil-original.jpg" 
-                    alt="Salsabil" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
-                    Salsabil
-                  </h1>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">A Spring of Growth</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Collapse Toggle Button */}
+      {/* Mobile Header */}
+      {isMobile && (
+        <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg overflow-hidden shadow-md">
+              <img 
+                src="/salsabil-original.jpg" 
+                alt="Salsabil" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+                Salsabil
+              </h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label="Toggle menu"
             >
-              <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} 
-                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
               </svg>
             </button>
           </div>
-        </div>
+        </header>
+      )}
 
-        {/* User Info */}
-        {!sidebarCollapsed && currentUser && (
-          <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                {currentUser.email?.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                  {currentUser.email}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Blessed User
-                </p>
-              </div>
+      {/* Desktop Sidebar Navigation */}
+      {!isMobile && (
+        <nav className={`fixed left-0 top-0 h-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 overflow-y-auto transition-all duration-300 ease-in-out
+                        ${sidebarCollapsed ? 'w-20' : 'w-80'}`}>
+          {/* Desktop Header */}
+          <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+            <div className="flex items-center justify-between">
+              {!sidebarCollapsed && (
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
+                    <img 
+                      src="/salsabil-original.jpg" 
+                      alt="Salsabil" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+                      Salsabil
+                    </h1>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">A Spring of Growth</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Collapse Toggle Button */}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
             </div>
           </div>
-        )}
-        
-        {/* Navigation Items */}
-        <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-          <NavItem 
-            icon={<DashboardIcon />} 
-            label="Dashboard" 
-            isActive={currentView === View.Dashboard} 
-            onClick={() => setCurrentView(View.Dashboard)} 
-          />
-          <NavItem 
-            icon={<PlannerIcon />} 
-            label="Planner" 
-            isActive={currentView === View.Planner} 
-            onClick={() => setCurrentView(View.Planner)} 
-          />
-          <NavItem 
-            icon={<CalendarIcon />} 
-            label="Calendar" 
-            isActive={currentView === View.Calendar} 
-            onClick={() => setCurrentView(View.Calendar)} 
-          />
-          <NavItem 
-            icon={<PomodoroIcon />} 
-            label="Focus Timer" 
-            isActive={currentView === View.Pomodoro} 
-            onClick={() => setCurrentView(View.Pomodoro)} 
-          />
-          
-          {/* Spiritual Section */}
-          {!sidebarCollapsed && (
-            <div className="pt-4">
-              <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                🌙 Spiritual Journey
-              </p>
+
+          {/* User Info */}
+          {!sidebarCollapsed && currentUser && (
+            <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                  {currentUser.email?.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                    {currentUser.email}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Blessed User
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           
-          <NavItem 
-            icon={<PrayerTrackerIcon />} 
-            label="Prayers" 
-            isActive={currentView === View.PrayerTracker} 
-            onClick={() => setCurrentView(View.PrayerTracker)} 
-          />
-          <NavItem 
-            icon={<QuranLogIcon />} 
-            label="Quran Log" 
-            isActive={currentView === View.QuranLog} 
-            onClick={() => setCurrentView(View.QuranLog)} 
-          />
+          {/* Navigation Items */}
+          <div className="flex-1 px-4 py-6 space-y-2">
+            {[...mainNavItems, ...spiritualNavItems].map(item => (
+              <NavItem 
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => setCurrentView(item.view)}
+                isCollapsed={sidebarCollapsed}
+              />
+            ))}
+          </div>
           
-          {/* AI Section */}
-          {!sidebarCollapsed && (
-            <div className="pt-4">
-              <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-                🤖 AI Guidance
-              </p>
-            </div>
-          )}
-          
-          <NavItem 
-            icon={<AssistantIcon />} 
-            label="AI Assistant" 
-            isActive={currentView === View.AIAssistant} 
-            onClick={() => setCurrentView(View.AIAssistant)} 
-          />
-        </div>
-        
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 space-y-3">
-          <div className="flex items-center justify-center space-x-3">
-            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
-            {!sidebarCollapsed && (
+          {/* Desktop Footer */}
+          <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
+            <div className="flex items-center justify-center space-x-3">
+              <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
               <button
                 onClick={handleLogout}
                 className="flex-1 flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200 group"
                 title="Logout"
               >
-                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 <span className="text-sm font-medium">Logout</span>
               </button>
-            )}
-          </div>
-        </div>
-        
-        {/* Sidebar glow effect */}
-        <div className="absolute inset-y-0 -right-px w-px bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent"></div>
-      </nav>
-
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header Bar */}
-        <header className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 px-6 py-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-              {getViewTitle(currentView)}
-            </h2>
-            <div className="flex items-center space-x-4">
-              {/* Islamic date could go here */}
-              <div className="text-sm text-slate-600 dark:text-slate-400">
-                {new Date().toLocaleDateString(undefined, { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </div>
             </div>
           </div>
-        </header>
+        </nav>
+      )}
+
+      {/* Mobile Menu Overlay */}
+      {isMobile && isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" onClick={() => setIsMobileMenuOpen(false)}>
+          <div 
+            className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile Menu Header */}
+            <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-lg overflow-hidden">
+                    <img 
+                      src="/salsabil-original.jpg" 
+                      alt="Salsabil" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Menu</h2>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* User Info */}
+            {currentUser && (
+              <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                    {currentUser.email?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                      {currentUser.email}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Blessed User</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation */}
+            <div className="px-4 py-6 space-y-1">
+              <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                Main
+              </p>
+              {mainNavItems.map(item => (
+                <button
+                  key={item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  className={`w-full flex items-center space-x-3 p-4 rounded-xl transition-all ${
+                    currentView === item.view 
+                      ? 'bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg' 
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              ))}
+
+              <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">
+                🌙 Spiritual
+              </p>
+              {spiritualNavItems.map(item => (
+                <button
+                  key={item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  className={`w-full flex items-center space-x-3 p-4 rounded-xl transition-all ${
+                    currentView === item.view 
+                      ? 'bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg' 
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile Menu Footer */}
+            <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 mt-auto">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center space-x-2 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="font-medium">Logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out ${!isMobile ? (sidebarCollapsed ? 'ml-20' : 'ml-80') : ''}`}>
+        {/* Desktop Header Bar */}
+        {!isMobile && (
+          <header className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 px-6 py-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                {getViewTitle(currentView)}
+              </h2>
+              <div className="flex items-center space-x-4">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  {new Date().toLocaleDateString(undefined, { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </div>
+              </div>
+            </div>
+          </header>
+        )}
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className={`flex-1 overflow-auto ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`}>
           {renderView()}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-700/50 shadow-lg z-40">
+          <div className="grid grid-cols-5 h-16">
+            {mainNavItems.map(item => (
+              <button
+                key={item.view}
+                onClick={() => setCurrentView(item.view)}
+                className={`flex flex-col items-center justify-center space-y-1 transition-all ${
+                  currentView === item.view 
+                    ? 'text-primary dark:text-primary-light bg-primary/10 dark:bg-primary-dark/20' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary-light hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <div className="scale-90">
+                  {item.icon}
+                </div>
+                <span className="text-xs font-medium">{item.label}</span>
+                {currentView === item.view && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-primary dark:bg-primary-light rounded-full"></div>
+                )}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 };

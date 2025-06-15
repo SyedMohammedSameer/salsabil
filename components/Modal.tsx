@@ -1,4 +1,4 @@
-// Enhanced Modal Component with better animations and backdrop
+// Mobile-Optimized Modal Component with full-screen mobile support
 import React, { useEffect, useState } from 'react';
 import { CloseIcon } from './icons/NavIcons';
 
@@ -13,6 +13,18 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -20,10 +32,15 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
       setIsAnimating(true);
       // Prevent body scroll
       document.body.style.overflow = 'hidden';
+      // For iOS Safari
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
     } else {
       setIsAnimating(false);
       // Restore body scroll
       document.body.style.overflow = 'unset';
+      document.body.style.position = 'unset';
+      document.body.style.width = 'unset';
       // Hide modal after animation
       const timer = setTimeout(() => setIsVisible(false), 300);
       return () => clearTimeout(timer);
@@ -31,6 +48,8 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
 
     return () => {
       document.body.style.overflow = 'unset';
+      document.body.style.position = 'unset';
+      document.body.style.width = 'unset';
     };
   }, [isOpen]);
 
@@ -67,28 +86,31 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
       />
       
       {/* Modal Container */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className={`fixed inset-0 flex items-center justify-center ${isMobile ? 'p-0' : 'p-4'}`}>
         <div 
-          className={`relative w-full ${sizeClasses[size]} transform transition-all duration-300 ease-out
+          className={`relative w-full transform transition-all duration-300 ease-out
                      ${isAnimating 
                        ? 'opacity-100 scale-100 translate-y-0' 
                        : 'opacity-0 scale-95 translate-y-4'
+                     }
+                     ${isMobile 
+                       ? 'h-full max-h-full' 
+                       : `${sizeClasses[size]} max-h-[90vh]`
                      }`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Content */}
-          <div className="relative bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-slate-700/50 overflow-hidden">
-            {/* Gradient Border Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/20 to-secondary/20 p-[1px] rounded-2xl">
-              <div className="bg-white dark:bg-slate-800 rounded-2xl h-full w-full" />
-            </div>
+          <div className={`relative bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl shadow-2xl border border-white/20 dark:border-slate-700/50 overflow-hidden
+                          ${isMobile ? 'h-full rounded-none' : 'rounded-2xl'}`}>
             
             {/* Content */}
-            <div className="relative z-10">
+            <div className="relative z-10 h-full flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-200/50 dark:border-slate-700/50">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+              <div className={`flex items-center justify-between border-b border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/50
+                              ${isMobile ? 'p-4 pt-safe' : 'p-6'}`}>
+                <div className="flex-1 min-w-0">
+                  <h2 className={`font-bold text-slate-800 dark:text-slate-100 truncate
+                                 ${isMobile ? 'text-lg' : 'text-xl'}`}>
                     {title}
                   </h2>
                   <div className="w-12 h-1 bg-gradient-to-r from-primary to-accent rounded-full mt-2" />
@@ -96,47 +118,54 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
                 
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all duration-200 group"
+                  className={`flex-shrink-0 ml-4 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all duration-200 group
+                             ${isMobile ? 'p-3' : 'p-2'}`}
                   aria-label="Close modal"
                 >
-                  <CloseIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <CloseIcon className={`group-hover:scale-110 transition-transform ${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
                 </button>
               </div>
               
               {/* Body */}
-              <div className="p-6">
+              <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4 pb-safe' : 'p-6'}`}>
                 {children}
               </div>
             </div>
           </div>
           
           {/* Subtle glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/10 to-secondary/10 rounded-2xl blur-xl -z-10 scale-110" />
+          {!isMobile && (
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/10 to-secondary/10 rounded-2xl blur-xl -z-10 scale-110" />
+          )}
         </div>
       </div>
       
-      {/* Loading dots animation in corners */}
-      <div className="fixed top-4 left-4 flex space-x-1">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className={`w-2 h-2 bg-primary rounded-full transition-all duration-300
-                       ${isAnimating ? 'opacity-60 animate-pulse' : 'opacity-0'}`}
-            style={{ animationDelay: `${i * 0.1}s` }}
-          />
-        ))}
-      </div>
-      
-      <div className="fixed top-4 right-4 flex space-x-1">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className={`w-2 h-2 bg-accent rounded-full transition-all duration-300
-                       ${isAnimating ? 'opacity-60 animate-pulse' : 'opacity-0'}`}
-            style={{ animationDelay: `${i * 0.1 + 0.3}s` }}
-          />
-        ))}
-      </div>
+      {/* Loading dots animation in corners (desktop only) */}
+      {!isMobile && (
+        <>
+          <div className="fixed top-4 left-4 flex space-x-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`w-2 h-2 bg-primary rounded-full transition-all duration-300
+                           ${isAnimating ? 'opacity-60 animate-pulse' : 'opacity-0'}`}
+                style={{ animationDelay: `${i * 0.1}s` }}
+              />
+            ))}
+          </div>
+          
+          <div className="fixed top-4 right-4 flex space-x-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`w-2 h-2 bg-accent rounded-full transition-all duration-300
+                           ${isAnimating ? 'opacity-60 animate-pulse' : 'opacity-0'}`}
+                style={{ animationDelay: `${i * 0.1 + 0.3}s` }}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

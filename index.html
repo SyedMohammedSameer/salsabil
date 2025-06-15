@@ -2,11 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  
+  <!-- Mobile-First Viewport and Touch Settings -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Salsabil" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="msapplication-tap-highlight" content="no" />
+  
+  <!-- Prevent zoom on input focus (iOS) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover">
+  
+  <!-- Icons for various platforms -->
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" sizes="32x32" href="/salsabil-icon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/salsabil-icon-16.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/salsabil-icon-180.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/salsabil-icon-152.png" />
+  <link rel="apple-touch-icon" sizes="144x144" href="/salsabil-icon-144.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/salsabil-icon-120.png" />
+  <link rel="apple-touch-icon" sizes="114x114" href="/salsabil-icon-114.png" />
+  <link rel="apple-touch-icon" sizes="76x76" href="/salsabil-icon-76.png" />
+  <link rel="apple-touch-icon" sizes="72x72" href="/salsabil-icon-72.png" />
+  <link rel="apple-touch-icon" sizes="60x60" href="/salsabil-icon-60.png" />
+  <link rel="apple-touch-icon" sizes="57x57" href="/salsabil-icon-57.png" />
+  
+  <!-- Android Chrome Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/salsabil-icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/salsabil-icon-512.png" />
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Theme Colors -->
+  <meta name="theme-color" content="#3b82f6" />
+  <meta name="msapplication-TileColor" content="#3b82f6" />
+  <meta name="msapplication-TileImage" content="/salsabil-icon-144.png" />
+  
   <title>Salsabil - A Spring of Productivity & Spiritual Growth</title>
   <meta name="description" content="Salsabil beautifully combines task management, spiritual tracking, and AI-powered insights for holistic personal growth. Named after the blessed spring in Jannah." />
   
@@ -25,7 +59,7 @@
   <meta property="twitter:image" content="/salsabil-og-image.jpg" />
   
   <!-- Additional SEO -->
-  <meta name="keywords" content="productivity, Islamic, spiritual, tasks, prayer tracker, Quran log, AI assistant, Pomodoro, focus, growth" />
+  <meta name="keywords" content="productivity, Islamic, spiritual, tasks, prayer tracker, Quran log, AI assistant, Pomodoro, focus, growth, mobile app" />
   <meta name="author" content="Salsabil Team" />
   <meta name="robots" content="index, follow" />
   
@@ -64,6 +98,22 @@
               medium: '#f59e0b', // amber-500
               high: '#ef4444', // red-500
             }
+          },
+          // Mobile-optimized spacing
+          spacing: {
+            'safe-top': 'env(safe-area-inset-top)',
+            'safe-bottom': 'env(safe-area-inset-bottom)',
+            'safe-left': 'env(safe-area-inset-left)',
+            'safe-right': 'env(safe-area-inset-right)',
+          },
+          // Touch-friendly minimum sizes
+          minHeight: {
+            'touch': '44px', // iOS HIG minimum touch target
+            'touch-android': '48px', // Android minimum touch target
+          },
+          minWidth: {
+            'touch': '44px',
+            'touch-android': '48px',
           },
           keyframes: {
             fadeIn: {
@@ -180,10 +230,54 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
+    /* Mobile-optimized body */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      letter-spacing: -0.01em;
+      /* Prevent bounce scrolling on iOS */
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Root container for mobile */
+    #root {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh; /* Dynamic viewport height for mobile browsers */
+      overflow: hidden;
+      /* Support for safe areas (iPhone X+) */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    /* Disable text selection on mobile (except inputs) */
+    @media (max-width: 768px) {
+      * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      input, textarea, [contenteditable] {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+      }
+    }
+
     /* Custom scrollbar styling */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
 
     ::-webkit-scrollbar-track {
@@ -207,7 +301,7 @@
       color: inherit;
     }
 
-    /* Focus styles */
+    /* Focus styles - Mobile friendly */
     button:focus-visible,
     input:focus-visible,
     textarea:focus-visible,
@@ -215,6 +309,14 @@
       outline: 2px solid #3b82f6;
       outline-offset: 2px;
       border-radius: 8px;
+    }
+
+    /* Mobile input styles */
+    @media (max-width: 768px) {
+      input, textarea, select {
+        font-size: 16px; /* Prevent zoom on iOS */
+        transform: translateZ(0); /* Force hardware acceleration */
+      }
     }
 
     /* Smooth transitions for theme switching */
@@ -228,37 +330,37 @@
     .loading-dots {
       display: inline-block;
       position: relative;
-      width: 80px;
-      height: 80px;
+      width: 64px;
+      height: 64px;
     }
 
     .loading-dots div {
       position: absolute;
-      top: 33px;
-      width: 13px;
-      height: 13px;
+      top: 27px;
+      width: 11px;
+      height: 11px;
       border-radius: 50%;
       background: linear-gradient(135deg, #3b82f6, #06b6d4);
       animation-timing-function: cubic-bezier(0, 1, 1, 0);
     }
 
     .loading-dots div:nth-child(1) {
-      left: 8px;
+      left: 6px;
       animation: loading-dots1 0.6s infinite;
     }
 
     .loading-dots div:nth-child(2) {
-      left: 8px;
+      left: 6px;
       animation: loading-dots2 0.6s infinite;
     }
 
     .loading-dots div:nth-child(3) {
-      left: 32px;
+      left: 26px;
       animation: loading-dots2 0.6s infinite;
     }
 
     .loading-dots div:nth-child(4) {
-      left: 56px;
+      left: 45px;
       animation: loading-dots3 0.6s infinite;
     }
 
@@ -274,7 +376,7 @@
 
     @keyframes loading-dots2 {
       0% { transform: translate(0, 0); }
-      100% { transform: translate(24px, 0); }
+      100% { transform: translate(19px, 0); }
     }
 
     /* Gradient text effect */
@@ -300,23 +402,6 @@
     }
 
     /* Improve text readability */
-    body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      line-height: 1.6;
-      letter-spacing: -0.01em;
-    }
-
-    /* Hide scrollbar in webkit browsers for specific elements */
-    .hide-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-
-    .hide-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-
-    /* Ensure proper line-height for better readability */
     p, span, div {
       line-height: 1.6;
     }
@@ -370,6 +455,61 @@
       width: 300px;
       height: 300px;
     }
+
+    /* Mobile-specific optimizations */
+    @media (max-width: 768px) {
+      /* Larger touch targets */
+      button, .clickable {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      
+      /* Better mobile typography */
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.25rem; }
+      h3 { font-size: 1.125rem; }
+      
+      /* Remove hover effects on mobile */
+      .mobile-no-hover:hover {
+        transform: none !important;
+        box-shadow: inherit !important;
+      }
+      
+      /* Prevent horizontal scroll */
+      body, #root {
+        overflow-x: hidden;
+      }
+    }
+
+    /* Hide scrollbar in webkit browsers for specific elements */
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Safe area utilities for newer iPhones */
+    .pt-safe { padding-top: env(safe-area-inset-top); }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    .pl-safe { padding-left: env(safe-area-inset-left); }
+    .pr-safe { padding-right: env(safe-area-inset-right); }
+
+    /* Prevent zoom on input focus */
+    @media screen and (max-width: 768px) {
+      input[type="text"],
+      input[type="email"],
+      input[type="password"],
+      input[type="number"],
+      input[type="tel"],
+      input[type="url"],
+      textarea,
+      select {
+        font-size: 16px !important;
+      }
+    }
   </style>
   
   <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
@@ -389,26 +529,26 @@
   
   <!-- Loading screen that shows before React mounts -->
   <div id="initial-loading" class="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 flex items-center justify-center z-50">
-    <div class="text-center">
-      <div class="mb-8 relative">
-        <!-- Water spring icon placeholder - replace with your actual icon -->
-        <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 via-cyan-500 to-emerald-400 flex items-center justify-center shadow-2xl">
-          <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
-            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+    <div class="text-center px-4">
+      <div class="mb-6 relative">
+        <!-- Water spring icon placeholder -->
+        <div class="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 via-cyan-500 to-emerald-400 flex items-center justify-center shadow-2xl">
+          <div class="w-10 h-10 md:w-12 md:h-12 bg-white/30 rounded-full flex items-center justify-center backdrop-blur-sm">
+            <svg class="w-6 h-6 md:w-8 md:h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
               <circle cx="12" cy="14" r="4" opacity="0.6"/>
             </svg>
           </div>
         </div>
-        <div class="loading-dots mb-6">
+        <div class="loading-dots mb-4">
           <div></div>
           <div></div>
           <div></div>
           <div></div>
         </div>
       </div>
-      <h1 class="text-3xl font-bold gradient-text mb-2">Salsabil</h1>
-      <p class="text-slate-600 dark:text-slate-400 text-lg mb-2">A Spring of Productivity & Spiritual Growth</p>
+      <h1 class="text-2xl md:text-3xl font-bold gradient-text mb-2">Salsabil</h1>
+      <p class="text-slate-600 dark:text-slate-400 text-base md:text-lg mb-2">A Spring of Productivity & Spiritual Growth</p>
       <p class="text-slate-500 dark:text-slate-500 text-sm italic">Loading your journey...</p>
     </div>
   </div>
@@ -433,6 +573,19 @@
         (!localStorage.getItem('salsabilTheme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
     }
+
+    // Prevent zoom on input focus for iOS
+    document.addEventListener('touchstart', function() {}, true);
+    
+    // Add mobile viewport handling
+    function updateViewportHeight() {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    }
+    
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    updateViewportHeight();
   </script>
   
   <script type="module" src="/index.tsx"></script>
