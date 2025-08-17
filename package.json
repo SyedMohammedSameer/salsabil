@@ -4,7 +4,16 @@
   "version": "1.0.0",
   "type": "module",
   "description": "A modern web application that beautifully combines productivity management with spiritual growth tracking",
-  "keywords": ["productivity", "spiritual", "islamic", "tasks", "prayer", "quran", "ai", "pomodoro"],
+  "keywords": [
+    "productivity",
+    "spiritual",
+    "islamic",
+    "tasks",
+    "prayer",
+    "quran",
+    "ai",
+    "pomodoro"
+  ],
   "author": "Salsabil Team",
   "homepage": "https://salsabil.app",
   "repository": {
@@ -22,7 +31,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.2.0",
+    "@google/generative-ai": "^0.24.1",
     "firebase": "^11.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
