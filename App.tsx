@@ -1,4 +1,4 @@
-// App.tsx - FIXED VERSION with proper data syncing
+// App.tsx - FIXED VERSION with proper authentication timing
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
@@ -26,6 +26,7 @@ const AppContent: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [authStateStable, setAuthStateStable] = useState(false);
   const [apiKey] = useState<string>(() => {
     return import.meta.env.VITE_GEMINI_API_KEY || 
           import.meta.env.VITE_API_KEY || 
@@ -44,67 +45,90 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Set current user in Firebase service when user changes
+  // Wait for auth state to stabilize before initializing data
   useEffect(() => {
-    console.log('App: User changed:', currentUser ? currentUser.uid : 'null');
-    firebaseService.setCurrentUser(currentUser?.uid || null);
+    // Wait a bit for Firebase auth to settle
+    const timer = setTimeout(() => {
+      console.log('🔥 App: Auth state stabilized, current user:', currentUser ? currentUser.uid : 'none');
+      setAuthStateStable(true);
+    }, 1500); // Give Firebase auth time to settle
+
+    return () => clearTimeout(timer);
+  }, [currentUser]);
+
+  // Set current user in Firebase service when auth state is stable
+  useEffect(() => {
+    if (!authStateStable) return;
+
+    const userId = currentUser?.uid || null;
+    console.log('🔥 App: Setting Firebase user to:', userId);
+    firebaseService.setCurrentUser(userId);
     
     // Reset data initialization when user changes
     setDataInitialized(false);
     setLoading(true);
-  }, [currentUser]);
+  }, [currentUser, authStateStable]);
 
-  // Initialize data and set up real-time listeners when user is determined
+  // Initialize data when auth state is stable
   useEffect(() => {
-    if (dataInitialized) return;
+    if (!authStateStable || dataInitialized) return;
 
     const initializeData = async () => {
       try {
-        console.log('App: Initializing data for user:', currentUser ? currentUser.uid : 'anonymous');
+        console.log('🔥 App: Initializing data for user:', currentUser ? currentUser.uid : 'anonymous');
         
         // Load theme first (doesn't need real-time updates)
         const userTheme = await firebaseService.loadTheme();
         setTheme(userTheme);
         
         if (currentUser) {
-          // User is logged in - set up real-time listeners
-          console.log('App: Setting up real-time listeners for authenticated user');
+          // User is logged in - set up real-time listeners with delay
+          console.log('🔥 App: Setting up real-time listeners for authenticated user');
           
-          // Set up tasks real-time listener
-          firebaseService.setupTasksListener((newTasks) => {
-            console.log('App: Received real-time tasks update:', newTasks.length, 'tasks');
-            setTasks(newTasks);
-          });
-          
-          // Set up other listeners for prayer logs, quran logs, etc.
-          // These will be used by respective components
+          // Wait a bit more for Firebase to be fully ready
+          setTimeout(() => {
+            // Set up tasks real-time listener
+            firebaseService.setupTasksListener((newTasks) => {
+              console.log('🔥 App: Received real-time tasks update:', newTasks.length, 'tasks');
+              setTasks(newTasks);
+            });
+            
+            // Set up other listeners for prayer logs, quran logs, etc.
+            // These will be used by respective components
+            
+            setDataInitialized(true);
+            setLoading(false);
+          }, 2000); // Additional delay for Firebase to be ready
           
         } else {
           // No user - show sample tasks
-          console.log('App: No user logged in, showing sample tasks');
+          console.log('🔥 App: No user logged in, showing sample tasks');
           setTasks(SAMPLE_TASKS);
+          setDataInitialized(true);
+          setLoading(false);
         }
         
-        setDataInitialized(true);
-        setLoading(false);
-        
       } catch (error) {
-        console.error('App: Error initializing data:', error);
+        console.error('🔥 App: Error initializing data:', error);
         
         // Fallback logic
         if (currentUser) {
-          setTasks([]); // Empty for authenticated users if error
+          console.log('🔥 App: Error loading user data, trying again in 3 seconds...');
+          // For authenticated users, try again after a delay
+          setTimeout(() => {
+            setDataInitialized(false);
+            setLoading(true);
+          }, 3000);
         } else {
           setTasks(SAMPLE_TASKS); // Sample tasks for anonymous users
+          setDataInitialized(true);
+          setLoading(false);
         }
-        
-        setDataInitialized(true);
-        setLoading(false);
       }
     };
 
     initializeData();
-  }, [currentUser, dataInitialized]);
+  }, [currentUser, authStateStable, dataInitialized]);
 
   // Apply theme
   useEffect(() => {
@@ -196,6 +220,7 @@ const AppContent: React.FC = () => {
       setTasks([]);
       setCurrentView(View.Dashboard);
       setDataInitialized(false);
+      setAuthStateStable(false);
       firebaseService.cleanup();
     } catch (error) {
       console.error('Failed to log out:', error);
@@ -216,7 +241,7 @@ const AppContent: React.FC = () => {
   };
 
   const renderView = () => {
-    if (loading) {
+    if (loading || !authStateStable) {
       return (
         <div className="flex items-center justify-center h-full px-4">
           <div className="text-center">
@@ -230,7 +255,7 @@ const AppContent: React.FC = () => {
               {currentUser ? 'Loading your data...' : 'Loading Salsabil...'}
             </h3>
             <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">
-              {currentUser ? 'Syncing with your account' : 'Preparing your spring of productivity...'}
+              {currentUser ? 'Syncing with your account...' : 'Preparing your spring of productivity...'}
             </p>
           </div>
         </div>
@@ -271,8 +296,8 @@ const AppContent: React.FC = () => {
     { view: View.QuranLog, icon: <QuranLogIcon />, label: 'Quran' },
   ];
 
-  // Show auth modal if user is not logged in
-  if (!currentUser) {
+  // Show auth modal if user is not logged in and auth state is stable
+  if (!currentUser && authStateStable) {
     return <AuthModal />;
   }
 
@@ -532,7 +557,7 @@ const AppContent: React.FC = () => {
                     day: 'numeric' 
                   })}
                 </div>
-                {currentUser && (
+                {currentUser && dataInitialized && (
                   <div className="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-500">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span>Synced</span>

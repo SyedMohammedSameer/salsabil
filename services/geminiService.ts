@@ -1,5 +1,5 @@
-// Enhanced services/geminiService.ts with comprehensive context handling
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+// Enhanced services/geminiService.ts - FIXED with working Gemini 2.5 Flash API
+import { GoogleGenAI } from "@google/genai";
 import { Task } from '../types';
 import { GEMINI_TEXT_MODEL, MOCK_AI_RESPONSES } from '../constants';
 
@@ -15,8 +15,9 @@ const initializeAiClient = (apiKey: string): GoogleGenAI | null => {
     return ai;
   }
   try {
-    ai = new GoogleGenAI({ apiKey });
+    ai = new GoogleGenAI(apiKey);
     currentApiKey = apiKey;
+    console.log('✨ Gemini: Initialized client with model:', GEMINI_TEXT_MODEL);
     return ai;
   } catch (error) {
     console.error("Failed to initialize GoogleGenAI client:", error);
@@ -27,12 +28,12 @@ const initializeAiClient = (apiKey: string): GoogleGenAI | null => {
 };
 
 const generateMockResponse = async (message: string): Promise<string> => {
-  return new Promise(resolve => setTimeout(() => resolve(message), 500));
+  return new Promise(resolve => setTimeout(() => resolve(generateContextualMockResponse(message)), 800));
 };
 
 // Enhanced system prompt for Noor
 const NOOR_SYSTEM_PROMPT = `
-You are Noor, an intelligent AI assistant for the FocusFlow productivity and spiritual growth app. Your name means "light" in Arabic, representing guidance and enlightenment.
+You are Noor, an intelligent AI assistant for the Salsabil productivity and spiritual growth app. Your name means "light" in Arabic, representing guidance and enlightenment.
 
 CORE PERSONALITY:
 - Wise, encouraging, and supportive
@@ -50,7 +51,7 @@ CAPABILITIES:
 - Personalized recommendations based on user data
 
 GUIDELINES:
-- Keep responses concise and to the point (10-60 words)
+- Keep responses concise and to the point (10-60 words for quick responses, longer for detailed analysis)
 - Focus on actionable insights and clear next steps
 - Use plain text formatting only - no markdown, stars, or special characters
 - For lists, use simple numbers or dashes without formatting
@@ -83,6 +84,7 @@ export const getEnhancedAiResponse = async (
 ): Promise<string> => {
   const client = initializeAiClient(apiKey);
   if (!client) {
+    console.log('🤖 Gemini: Using mock mode - no API key');
     return generateMockResponse(
       `${MOCK_AI_RESPONSES.NO_KEY}\n\n*Noor (Mock Mode):* ${generateContextualMockResponse(prompt)}`
     );
@@ -98,24 +100,49 @@ Please provide a personalized response based on the comprehensive user data abov
 `;
   
   try {
-    const chat = client.chats.create({
+    console.log('🤖 Gemini: Making API call with model:', GEMINI_TEXT_MODEL);
+    
+    const model = client.getGenerativeModel({ 
       model: GEMINI_TEXT_MODEL,
-      history: history,
-      config: {
-        systemInstruction: NOOR_SYSTEM_PROMPT,
+      systemInstruction: NOOR_SYSTEM_PROMPT,
+      generationConfig: {
         temperature: 0.7,
         topP: 0.9,
-        maxOutputTokens: 3000,
+        maxOutputTokens: 1000,
       }
     });
     
-    const result: GenerateContentResponse = await chat.sendMessage({ 
-      message: fullPrompt 
+    // Build the chat history for Gemini format
+    const chatHistory = history.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.parts[0]?.text || '' }]
+    }));
+    
+    const chat = model.startChat({
+      history: chatHistory
     });
     
-    return result.text || "I apologize, but I couldn't generate a response. Please try again.";
+    const result = await chat.sendMessage(fullPrompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('🤖 Gemini: Received response of length:', text.length);
+    return text || "I apologize, but I couldn't generate a response. Please try again.";
+    
   } catch (error) {
-    console.error("Error calling Gemini API (getEnhancedAiResponse):", error);
+    console.error("🤖 Gemini: Error calling API:", error);
+    
+    // Check for specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        return "It looks like there's an issue with the API key. Please check your configuration and try again. 🔑";
+      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+        return "I've reached my usage limit for now. Please try again later, or I can help you with basic suggestions! 🌟";
+      } else if (error.message.includes('model')) {
+        return "There's an issue with the AI model. Please try again in a moment! 🔄";
+      }
+    }
+    
     return "I'm experiencing some technical difficulties right now. Please try again in a moment, and I'll do my best to help you! 🌟";
   }
 };
@@ -139,7 +166,7 @@ export const summarizeWeeklyProgress = async (tasks: Task[], apiKey: string): Pr
   const client = initializeAiClient(apiKey);
   if (!client) {
     return generateMockResponse(
-      "📊 **Weekly Summary (Mock Mode)**\n\nYou've made solid progress this week! Focus on completing those high-priority tasks, and don't forget your spiritual practices. Every small step counts toward your growth! ✨"
+      "📊 Weekly Summary: You've made solid progress this week! Focus on completing those high-priority tasks, and don't forget your spiritual practices. Every small step counts toward your growth! ✨"
     );
   }
 
@@ -167,16 +194,18 @@ export const summarizeWeeklyProgress = async (tasks: Task[], apiKey: string): Pr
   })))}`;
 
   try {
-    const response: GenerateContentResponse = await client.models.generateContent({
+    const model = client.getGenerativeModel({ 
       model: GEMINI_TEXT_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nFocus on providing a weekly progress summary with specific insights and actionable encouragement.",
+      systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nFocus on providing a weekly progress summary with specific insights and actionable encouragement.",
+      generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 600,
       }
     });
-    return response.text || "I'd love to help you review your progress, but I'm having trouble accessing that information right now. How do you feel your week has gone so far?";
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text() || "I'd love to help you review your progress, but I'm having trouble accessing that information right now. How do you feel your week has gone so far?";
   } catch (error) {
     console.error("Error calling Gemini API (summarizeWeeklyProgress):", error);
     return "I'm having trouble generating your summary right now, but I can see you're working hard! Keep up the great momentum! 💪";
@@ -187,7 +216,7 @@ export const suggestNextSteps = async (tasks: Task[], apiKey: string): Promise<s
   const client = initializeAiClient(apiKey);
   if (!client) {
     return generateMockResponse(
-      "🎯 **Next Steps (Mock Mode)**\n\n1. Focus on your highest priority incomplete tasks\n2. Break large tasks into smaller, manageable steps\n3. Schedule specific times for important work\n4. Take breaks and maintain balance\n\nYou've got this! 🌟"
+      "🎯 Next Steps: 1. Focus on your highest priority incomplete tasks 2. Break large tasks into smaller, manageable steps 3. Schedule specific times for important work 4. Take breaks and maintain balance. You've got this! 🌟"
     );
   }
   
@@ -216,16 +245,18 @@ export const suggestNextSteps = async (tasks: Task[], apiKey: string): Promise<s
   Focus on urgent items, high priorities, and maintaining momentum.`;
 
   try {
-    const response: GenerateContentResponse = await client.models.generateContent({
+    const model = client.getGenerativeModel({ 
       model: GEMINI_TEXT_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide specific, actionable next steps prioritized by urgency and importance.",
+      systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide specific, actionable next steps prioritized by urgency and importance.",
+      generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 500,
       }
     });
-    return response.text || "Focus on your highest priority tasks first, and remember to take breaks! What feels most important to tackle right now?";
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text() || "Focus on your highest priority tasks first, and remember to take breaks! What feels most important to tackle right now?";
   } catch (error) {
     console.error("Error calling Gemini API (suggestNextSteps):", error);
     return "I recommend focusing on your highest priority tasks first. Break them into smaller steps and celebrate small wins along the way! 🎯";
@@ -236,7 +267,7 @@ export const getFocusSuggestion = async (tasks: Task[], apiKey: string): Promise
   const client = initializeAiClient(apiKey);
   if (!client) {
     return generateMockResponse(
-      "🎯 **Focus Suggestion (Mock Mode)**\n\nFor tomorrow, I suggest prioritizing your most important incomplete task. Start with something achievable to build momentum, then tackle the bigger challenges. Remember to balance work with spiritual practices! 🌙"
+      "🎯 Focus Suggestion: For tomorrow, I suggest prioritizing your most important incomplete task. Start with something achievable to build momentum, then tackle the bigger challenges. Remember to balance work with spiritual practices! 🌙"
     );
   }
   
@@ -269,16 +300,18 @@ export const getFocusSuggestion = async (tasks: Task[], apiKey: string): Promise
   Provide a focused recommendation for what to prioritize next.`;
 
   try {
-    const response: GenerateContentResponse = await client.models.generateContent({
+    const model = client.getGenerativeModel({ 
       model: GEMINI_TEXT_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide focused guidance on what to prioritize next, considering deadlines and importance.",
+      systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide focused guidance on what to prioritize next, considering deadlines and importance.",
+      generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 400,
       }
     });
-    return response.text || "Focus on your most urgent tasks first, and don't forget to maintain balance in your day. What feels most important to you right now?";
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text() || "Focus on your most urgent tasks first, and don't forget to maintain balance in your day. What feels most important to you right now?";
   } catch (error) {
     console.error("Error calling Gemini API (getFocusSuggestion):", error);
     return "Tomorrow, start with your highest priority task to build momentum. Remember to begin with Bismillah and keep your intentions pure! 🌟";
@@ -321,7 +354,7 @@ export const getSpiritualGuidance = async (
   const client = initializeAiClient(apiKey);
   if (!client) {
     return generateMockResponse(
-      "🤲 **Spiritual Guidance (Mock Mode)**\n\nFocus on consistency over perfection. Start each day with intention, maintain regular prayer times, and read Quran daily even if just a few verses. Small, consistent acts of worship are beloved to Allah. May your spiritual journey be filled with peace and growth! ✨"
+      "🤲 Spiritual Guidance: Focus on consistency over perfection. Start each day with intention, maintain regular prayer times, and read Quran daily even if just a few verses. Small, consistent acts of worship are beloved to Allah. May your spiritual journey be filled with peace and growth! ✨"
     );
   }
 
@@ -333,16 +366,18 @@ export const getSpiritualGuidance = async (
   Offer gentle, encouraging advice for spiritual growth while being respectful of Islamic principles.`;
 
   try {
-    const response: GenerateContentResponse = await client.models.generateContent({
+    const model = client.getGenerativeModel({ 
       model: GEMINI_TEXT_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide gentle, encouraging spiritual guidance rooted in Islamic principles. Be supportive and practical.",
+      systemInstruction: NOOR_SYSTEM_PROMPT + "\n\nProvide gentle, encouraging spiritual guidance rooted in Islamic principles. Be supportive and practical.",
+      generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 600,
       }
     });
-    return response.text || "Remember that spiritual growth is a journey, not a destination. Be patient with yourself and trust in Allah's timing. Every sincere effort is blessed! 🤲";
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text() || "Remember that spiritual growth is a journey, not a destination. Be patient with yourself and trust in Allah's timing. Every sincere effort is blessed! 🤲";
   } catch (error) {
     console.error("Error calling Gemini API (getSpiritualGuidance):", error);
     return "Your spiritual journey is unique and beautiful. Focus on consistency, seek knowledge, and remember that Allah is always there to guide you. Keep moving forward with hope! 🌙";
