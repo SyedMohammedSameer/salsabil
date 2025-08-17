@@ -98,7 +98,7 @@ export const loadPomodoroSessionsFromLocalStorage = (): FocusSession[] => {
     if (serializedSessions === null) {
       return [];
     }
-    const parsed = JSON.parse(serializedSessions);
+    const parsed = JSON.parse(serializedSessions) || [];
     // Convert timestamp strings back to Date objects
     return parsed.map((session: any) => ({
       ...session,
@@ -128,7 +128,7 @@ export const savePomodoroSessionsToLocalStorage = (sessions: FocusSession[]): vo
 
 export const savePomodoroSessionToLocalStorage = (session: FocusSession): void => {
   try {
-    const existingSessions = loadPomodoroSessionsFromLocalStorage();
+    const existingSessions = loadPomodoroSessionsFromLocalStorage() || [];
     const updatedSessions = [session, ...existingSessions].slice(0, 100); // Keep only last 100
     savePomodoroSessionsToLocalStorage(updatedSessions);
   } catch (error) {
@@ -143,7 +143,7 @@ export const loadPrayerLogsFromLocalStorage = (): DailyPrayerLog[] => {
     if (serializedLogs === null) {
       return [];
     }
-    return JSON.parse(serializedLogs);
+    return JSON.parse(serializedLogs) || [];
   } catch (error) {
     console.error("Could not load prayer logs from local storage", error);
     return [];
@@ -166,7 +166,7 @@ export const loadQuranLogsFromLocalStorage = (): DailyQuranLog[] => {
     if (serializedLogs === null) {
       return [];
     }
-    return JSON.parse(serializedLogs);
+    return JSON.parse(serializedLogs) || [];
   } catch (error) {
     console.error("Could not load Quran logs from local storage", error);
     return [];
@@ -189,7 +189,7 @@ export const loadChatHistoryFromLocalStorage = (): ChatMessage[] => {
     if (serializedHistory === null) {
       return [];
     }
-    const parsed = JSON.parse(serializedHistory);
+    const parsed = JSON.parse(serializedHistory) || [];
     // Convert timestamp strings back to Date objects
     return parsed.map((msg: any) => ({
       ...msg,
@@ -203,6 +203,9 @@ export const loadChatHistoryFromLocalStorage = (): ChatMessage[] => {
 
 export const saveChatHistoryToLocalStorage = (messages: ChatMessage[]): void => {
   try {
+    if (!messages) {
+      return;
+    }
     // Keep only the last 50 messages in localStorage to avoid bloat
     const recentMessages = messages.slice(-50);
     // Convert Date objects to strings for storage

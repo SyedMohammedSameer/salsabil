@@ -204,3 +204,16 @@ export const loadQuranLogs = async (userId: string | null): Promise<DailyQuranLo
     }
     return localStorage.loadQuranLogsFromLocalStorage();
 };
+export const loadPomodoroSessions = async (userId: string | null): Promise<FocusSession[]> => {
+    if (userId) {
+        return await firestore.getPomodoroSessions(userId);
+    }
+    return localStorage.loadPomodoroSessionsFromLocalStorage();
+}
+
+export const savePomodoroSession = async (userId: string | null, session: FocusSession): Promise<void> => {
+    localStorage.savePomodoroSessionToLocalStorage(session);
+    if (userId) {
+        await firestore.savePomodoroSession(userId, session);
+    }
+}

@@ -51,10 +51,10 @@ const AIAssistantView: React.FC<AIAssistantViewProps> = ({ tasks, apiKey }) => {
       try {
         // Load all user data in parallel
         const [prayerLogs, quranLogs, pomodoroSettings, chatHistory] = await Promise.all([
-          firebaseService.loadPrayerLogs(),
-          firebaseService.loadQuranLogs(),
-          firebaseService.loadPomodoroSettings(),
-          firebaseService.loadChatHistory()
+          firebaseService.loadPrayerLogs(currentUser?.uid || null),
+          firebaseService.loadQuranLogs(currentUser?.uid || null),
+          firebaseService.loadPomodoroSettings(currentUser?.uid || null),
+          firebaseService.loadChatHistory(currentUser?.uid || null)
         ]);
 
         // Calculate comprehensive stats
@@ -101,7 +101,7 @@ const AIAssistantView: React.FC<AIAssistantViewProps> = ({ tasks, apiKey }) => {
     };
 
     loadAllData();
-  }, [tasks]);
+  }, [tasks, currentUser]);
 
   // Update context when tasks change
   useEffect(() => {
@@ -254,12 +254,12 @@ Please use this comprehensive context to provide personalized, relevant assistan
   const saveMessagesToFirebase = useCallback(
     debounce(async (messages: ChatMessageType[]) => {
       try {
-        await firebaseService.saveChatHistory(messages);
+        await firebaseService.saveChatHistory(currentUser?.uid || null, messages);
       } catch (error) {
         console.error('Error saving chat history:', error);
       }
     }, 2000),
-    []
+    [currentUser]
   );
 
   const handleSend = async () => {

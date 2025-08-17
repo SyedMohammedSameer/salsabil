@@ -4,6 +4,7 @@ import { PomodoroMode, PomodoroSettings } from '../types';
 import { PlayIcon, PauseIcon, SkipIcon, EditIcon, CloseIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
+import { useAuth } from '../context/AuthContext';
 
 interface FocusSession {
   id: string;
@@ -97,6 +98,7 @@ const playNotificationSound = (type: 'complete' | 'break') => {
 };
 
 const PomodoroView: React.FC = () => {
+  const { currentUser } = useAuth();
   const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [mode, setMode] = useState<PomodoroMode>(PomodoroMode.Work);
   const [timeLeft, setTimeLeft] = useState(DEFAULT_POMODORO_SETTINGS.workDuration * 60);
@@ -145,8 +147,8 @@ const PomodoroView: React.FC = () => {
     const loadData = async () => {
       try {
         const [loadedSettings, sessions] = await Promise.all([
-          firebaseService.loadPomodoroSettings(),
-          firebaseService.loadPomodoroSessions()
+          firebaseService.loadPomodoroSettings(currentUser?.uid || null),
+          firebaseService.loadPomodoroSessions(currentUser?.uid || null)
         ]);
         
         setSettings(loadedSettings);
@@ -157,7 +159,7 @@ const PomodoroView: React.FC = () => {
       }
     };
     loadData();
-  }, []);
+  }, [currentUser]);
 
   const getDuration = useCallback((currentMode: PomodoroMode, currentSettings: PomodoroSettings) => {
     switch (currentMode) {
@@ -198,12 +200,12 @@ const PomodoroView: React.FC = () => {
 
   const saveFocusSession = useCallback(async (session: FocusSession) => {
     try {
-      await firebaseService.savePomodoroSession(session);
+      await firebaseService.savePomodoroSession(currentUser?.uid || null, session);
       setFocusSessions(prev => [session, ...prev].slice(0, 50));
     } catch (error) {
       console.error('Error saving focus session:', error);
     }
-  }, []);
+  }, [currentUser]);
 
   const completeSession = useCallback(async (interrupted: boolean = false) => {
     const totalDuration = getDuration(modeRef.current, settingsRef.current);
@@ -336,7 +338,7 @@ const PomodoroView: React.FC = () => {
     
     try {
       setSettings(editableSettings);
-      await firebaseService.savePomodoroSettings(editableSettings);
+      await firebaseService.savePomodoroSettings(currentUser?.uid || null, editableSettings);
       setIsSettingsOpen(false);
       resetTimer();
     } catch (error) {

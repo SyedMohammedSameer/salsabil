@@ -283,6 +283,9 @@ export async function getQuranLogs(userId: string): Promise<DailyQuranLog[]> {
 // Chat History Functions
 export async function saveChatHistory(userId: string, messages: ChatMessage[]): Promise<void> {
   try {
+    if (!messages) {
+      return;
+    }
     // Keep only the last 50 messages to reduce storage and improve performance
     const recentMessages = messages.slice(-50);
     
