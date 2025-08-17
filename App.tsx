@@ -1,4 +1,4 @@
-// Mobile-Optimized App.tsx with responsive navigation
+// App.tsx - FIXED VERSION with proper data syncing
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
@@ -19,9 +19,10 @@ import { SAMPLE_TASKS } from './constants';
 const AppContent: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [currentView, setCurrentView] = useState<View>(View.Dashboard); // Start with Dashboard on mobile
+  const [currentView, setCurrentView] = useState<View>(View.Dashboard);
   const [theme, setTheme] = useState<Theme>(Theme.Light);
   const [loading, setLoading] = useState(true);
+  const [dataInitialized, setDataInitialized] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -45,45 +46,65 @@ const AppContent: React.FC = () => {
 
   // Set current user in Firebase service when user changes
   useEffect(() => {
+    console.log('App: User changed:', currentUser ? currentUser.uid : 'null');
     firebaseService.setCurrentUser(currentUser?.uid || null);
+    
+    // Reset data initialization when user changes
+    setDataInitialized(false);
+    setLoading(true);
   }, [currentUser]);
 
-  // Load user data when user logs in or app starts
+  // Initialize data and set up real-time listeners when user is determined
   useEffect(() => {
-    const loadUserData = async () => {
+    if (dataInitialized) return;
+
+    const initializeData = async () => {
       try {
-        setLoading(true);
+        console.log('App: Initializing data for user:', currentUser ? currentUser.uid : 'anonymous');
         
+        // Load theme first (doesn't need real-time updates)
         const userTheme = await firebaseService.loadTheme();
         setTheme(userTheme);
         
-        try {
-          const userTasks = await firebaseService.loadTasks();
-          if (userTasks.length === 0 && !currentUser) {
-            setTasks(SAMPLE_TASKS);
-          } else {
-            const validatedTasks = userTasks.map(task => ({
-              ...task,
-              subtasks: task.subtasks || [],
-              completedSubtasks: task.completedSubtasks || 0,
-              completed: task.completed || false
-            }));
-            setTasks(validatedTasks);
-          }
-        } catch (taskError) {
-          console.error('Error loading tasks:', taskError);
-          setTasks(currentUser ? [] : SAMPLE_TASKS);
+        if (currentUser) {
+          // User is logged in - set up real-time listeners
+          console.log('App: Setting up real-time listeners for authenticated user');
+          
+          // Set up tasks real-time listener
+          firebaseService.setupTasksListener((newTasks) => {
+            console.log('App: Received real-time tasks update:', newTasks.length, 'tasks');
+            setTasks(newTasks);
+          });
+          
+          // Set up other listeners for prayer logs, quran logs, etc.
+          // These will be used by respective components
+          
+        } else {
+          // No user - show sample tasks
+          console.log('App: No user logged in, showing sample tasks');
+          setTasks(SAMPLE_TASKS);
         }
+        
+        setDataInitialized(true);
+        setLoading(false);
+        
       } catch (error) {
-        console.error('Error loading user data:', error);
-        setTasks(SAMPLE_TASKS);
-      } finally {
+        console.error('App: Error initializing data:', error);
+        
+        // Fallback logic
+        if (currentUser) {
+          setTasks([]); // Empty for authenticated users if error
+        } else {
+          setTasks(SAMPLE_TASKS); // Sample tasks for anonymous users
+        }
+        
+        setDataInitialized(true);
         setLoading(false);
       }
     };
 
-    loadUserData();
-  }, [currentUser]);
+    initializeData();
+  }, [currentUser, dataInitialized]);
 
   // Apply theme
   useEffect(() => {
@@ -93,17 +114,6 @@ const AppContent: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
-
-  // Save tasks when they change (debounced)
-  useEffect(() => {
-    if (!loading && tasks.length > 0) {
-      const timeoutId = setTimeout(() => {
-        firebaseService.saveTasks(tasks);
-      }, 500);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [tasks, loading]);
 
   // Close mobile menu when view changes
   useEffect(() => {
@@ -125,6 +135,13 @@ const AppContent: React.FC = () => {
     };
   }, [isMobile, isMobileMenuOpen]);
 
+  // Cleanup listeners when component unmounts
+  useEffect(() => {
+    return () => {
+      firebaseService.cleanup();
+    };
+  }, []);
+
   const toggleTheme = useCallback(async () => {
     const newTheme = theme === Theme.Light ? Theme.Dark : Theme.Light;
     setTheme(newTheme);
@@ -140,40 +157,46 @@ const AppContent: React.FC = () => {
       completed: false 
     };
     
-    setTasks(prevTasks => [...prevTasks, newTask]);
-    
     try {
       await firebaseService.saveTask(newTask);
+      // Real-time listener will automatically update the UI
     } catch (error) {
       console.error('Error saving new task:', error);
+      // Fallback: update local state directly
+      setTasks(prevTasks => [...prevTasks, newTask]);
     }
   }, []);
 
   const updateTask = useCallback(async (updatedTask: Task): Promise<void> => {
-    setTasks(prevTasks => prevTasks.map(task => task.id === updatedTask.id ? updatedTask : task));
-    
     try {
       await firebaseService.saveTask(updatedTask);
+      // Real-time listener will automatically update the UI
     } catch (error) {
       console.error('Error updating task:', error);
+      // Fallback: update local state directly
+      setTasks(prevTasks => prevTasks.map(task => task.id === updatedTask.id ? updatedTask : task));
     }
   }, []);
 
   const deleteTask = useCallback(async (taskId: string): Promise<void> => {
-    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-    
     try {
       await firebaseService.deleteTask(taskId);
+      // Real-time listener will automatically update the UI
     } catch (error) {
       console.error('Error deleting task:', error);
+      // Fallback: update local state directly
+      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
     }
   }, []);
 
   const handleLogout = async () => {
     try {
       await logout();
+      // Clear all data and reset to initial state
       setTasks([]);
       setCurrentView(View.Dashboard);
+      setDataInitialized(false);
+      firebaseService.cleanup();
     } catch (error) {
       console.error('Failed to log out:', error);
     }
@@ -203,8 +226,12 @@ const AppContent: React.FC = () => {
                 <div className="w-4 h-4 md:w-6 md:h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
               </div>
             </div>
-            <h3 className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">Loading Salsabil</h3>
-            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">Preparing your spring of productivity...</p>
+            <h3 className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              {currentUser ? 'Loading your data...' : 'Loading Salsabil...'}
+            </h3>
+            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">
+              {currentUser ? 'Syncing with your account' : 'Preparing your spring of productivity...'}
+            </p>
           </div>
         </div>
       );
@@ -340,7 +367,7 @@ const AppContent: React.FC = () => {
                     {currentUser.email}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Blessed User
+                    Blessed User • {tasks.length} tasks
                   </p>
                 </div>
               </div>
@@ -424,7 +451,9 @@ const AppContent: React.FC = () => {
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
                       {currentUser.email}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Blessed User</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Blessed User • {tasks.length} tasks
+                    </p>
                   </div>
                 </div>
               </div>
@@ -503,6 +532,12 @@ const AppContent: React.FC = () => {
                     day: 'numeric' 
                   })}
                 </div>
+                {currentUser && (
+                  <div className="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-500">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Synced</span>
+                  </div>
+                )}
               </div>
             </div>
           </header>

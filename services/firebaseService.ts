@@ -1,8 +1,10 @@
-// Optimized services/firebaseService.ts - reduced logging and optimized requests
+// services/firebaseService.ts - FIXED VERSION with real-time syncing
 import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessage, PomodoroMode } from '../types';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
+import { onSnapshot, collection, doc, Unsubscribe } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 // Add FocusSession interface
 export interface FocusSession {
@@ -14,64 +16,137 @@ export interface FocusSession {
   actualTimeSpent: number;
 }
 
-// Hybrid service that uses Firebase when user is logged in, localStorage as fallback
+// Real-time listener management
 let currentUserId: string | null = null;
-let saveTimeout: NodeJS.Timeout | null = null;
-let prayerLogSaveTimeout: NodeJS.Timeout | null = null;
-let chatSaveTimeout: NodeJS.Timeout | null = null;
+let unsubscribeCallbacks: { [key: string]: Unsubscribe } = {};
 
-// Cache to prevent unnecessary Firebase reads
+// Clear all caches and listeners
 let settingsCache: { theme?: Theme; pomodoroSettings?: PomodoroSettings } | null = null;
-let sessionsCacheExpiry: number = 0;
 let sessionsCache: FocusSession[] = [];
+let sessionsCacheExpiry: number = 0;
+
+// Callback functions for real-time updates
+type DataUpdateCallback<T> = (data: T) => void;
+let tasksUpdateCallback: DataUpdateCallback<Task[]> | null = null;
+let prayerLogsUpdateCallback: DataUpdateCallback<DailyPrayerLog[]> | null = null;
+let quranLogsUpdateCallback: DataUpdateCallback<DailyQuranLog[]> | null = null;
+let chatHistoryUpdateCallback: DataUpdateCallback<ChatMessage[]> | null = null;
 
 export function setCurrentUser(userId: string | null) {
+  // Clean up previous user's listeners
+  if (currentUserId !== userId) {
+    cleanupAllListeners();
+    clearAllCaches();
+  }
+  
   currentUserId = userId;
-  // Clear cache when user changes
+  console.log('Firebase service: User changed to:', userId ? 'authenticated' : 'anonymous');
+}
+
+function cleanupAllListeners() {
+  Object.values(unsubscribeCallbacks).forEach(unsubscribe => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  });
+  unsubscribeCallbacks = {};
+}
+
+function clearAllCaches() {
   settingsCache = null;
   sessionsCache = [];
   sessionsCacheExpiry = 0;
+  tasksUpdateCallback = null;
+  prayerLogsUpdateCallback = null;
+  quranLogsUpdateCallback = null;
+  chatHistoryUpdateCallback = null;
 }
 
-// Tasks
+// ============================================================================
+// TASKS - WITH REAL-TIME LISTENERS
+// ============================================================================
+
+export const setupTasksListener = (callback: DataUpdateCallback<Task[]>): void => {
+  tasksUpdateCallback = callback;
+  
+  if (!currentUserId) {
+    // No user - provide empty array or sample tasks based on your logic
+    callback([]);
+    return;
+  }
+
+  try {
+    const tasksRef = collection(db, 'users', currentUserId, 'tasks');
+    
+    // Clean up previous listener
+    if (unsubscribeCallbacks.tasks) {
+      unsubscribeCallbacks.tasks();
+    }
+    
+    unsubscribeCallbacks.tasks = onSnapshot(
+      tasksRef,
+      (snapshot) => {
+        const tasks: Task[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          tasks.push({
+            id: doc.id,
+            title: data.title,
+            description: data.description,
+            date: data.date,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            priority: data.priority,
+            subtasks: data.subtasks || [],
+            completedSubtasks: data.completedSubtasks || 0,
+            completed: data.completed || false
+          });
+        });
+        
+        console.log(`Firebase: Received ${tasks.length} tasks for user ${currentUserId}`);
+        callback(tasks);
+        
+        // Also save to localStorage as backup
+        localStorage.saveTasksToLocalStorage(tasks);
+      },
+      (error) => {
+        console.error('Firebase tasks listener error:', error);
+        // Fallback to localStorage
+        const localTasks = localStorage.loadTasksFromLocalStorage() || [];
+        callback(localTasks);
+      }
+    );
+  } catch (error) {
+    console.error('Error setting up tasks listener:', error);
+    const localTasks = localStorage.loadTasksFromLocalStorage() || [];
+    callback(localTasks);
+  }
+};
+
 export const loadTasks = async (): Promise<Task[]> => {
+  // This is now mainly for initial load - real-time updates come through listener
   if (currentUserId) {
     try {
       return await firestore.getUserTasks(currentUserId);
     } catch (error) {
-      console.error('Error loading tasks from Firebase, falling back to localStorage:', error);
+      console.error('Error loading tasks from Firebase:', error);
     }
   }
   return localStorage.loadTasksFromLocalStorage() || [];
-};
-
-export const saveTasks = async (tasks: Task[]): Promise<void> => {
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
-  }
-  
-  saveTimeout = setTimeout(async () => {
-    if (currentUserId) {
-      try {
-        await Promise.all(tasks.map(task => firestore.saveTask(currentUserId!, task)));
-        return;
-      } catch (error) {
-        console.error('Error saving tasks to Firebase, falling back to localStorage:', error);
-      }
-    }
-    localStorage.saveTasksToLocalStorage(tasks);
-  }, 1000);
 };
 
 export const saveTask = async (task: Task): Promise<void> => {
   if (currentUserId) {
     try {
       await firestore.saveTask(currentUserId, task);
+      // Real-time listener will automatically update the UI
       return;
     } catch (error) {
       console.error('Error saving task to Firebase:', error);
     }
   }
+  
+  // Fallback to localStorage
   const tasks = localStorage.loadTasksFromLocalStorage() || [];
   const existingIndex = tasks.findIndex(t => t.id === task.id);
   if (existingIndex >= 0) {
@@ -80,23 +155,131 @@ export const saveTask = async (task: Task): Promise<void> => {
     tasks.push(task);
   }
   localStorage.saveTasksToLocalStorage(tasks);
+  
+  // Notify callback if available
+  if (tasksUpdateCallback) {
+    tasksUpdateCallback(tasks);
+  }
 };
 
 export const deleteTask = async (taskId: string): Promise<void> => {
   if (currentUserId) {
     try {
       await firestore.deleteTask(currentUserId, taskId);
+      // Real-time listener will automatically update the UI
       return;
     } catch (error) {
       console.error('Error deleting task from Firebase:', error);
     }
   }
+  
+  // Fallback to localStorage
   const tasks = localStorage.loadTasksFromLocalStorage() || [];
   const filteredTasks = tasks.filter(t => t.id !== taskId);
   localStorage.saveTasksToLocalStorage(filteredTasks);
+  
+  // Notify callback if available
+  if (tasksUpdateCallback) {
+    tasksUpdateCallback(filteredTasks);
+  }
 };
 
-// Theme - with caching
+// ============================================================================
+// PRAYER LOGS - WITH REAL-TIME LISTENERS
+// ============================================================================
+
+export const setupPrayerLogsListener = (callback: DataUpdateCallback<DailyPrayerLog[]>): void => {
+  prayerLogsUpdateCallback = callback;
+  
+  if (!currentUserId) {
+    callback([]);
+    return;
+  }
+
+  try {
+    const prayerLogsRef = doc(db, 'users', currentUserId, 'settings', 'prayerLogs');
+    
+    if (unsubscribeCallbacks.prayerLogs) {
+      unsubscribeCallbacks.prayerLogs();
+    }
+    
+    unsubscribeCallbacks.prayerLogs = onSnapshot(
+      prayerLogsRef,
+      (doc) => {
+        const logs = doc.exists() ? (doc.data().logs || []) : [];
+        console.log(`Firebase: Received ${logs.length} prayer logs`);
+        callback(logs);
+        localStorage.savePrayerLogsToLocalStorage(logs);
+      },
+      (error) => {
+        console.error('Firebase prayer logs listener error:', error);
+        const localLogs = localStorage.loadPrayerLogsFromLocalStorage();
+        callback(localLogs);
+      }
+    );
+  } catch (error) {
+    console.error('Error setting up prayer logs listener:', error);
+    const localLogs = localStorage.loadPrayerLogsFromLocalStorage();
+    callback(localLogs);
+  }
+};
+
+// ============================================================================
+// QURAN LOGS - WITH REAL-TIME LISTENERS  
+// ============================================================================
+
+export const setupQuranLogsListener = (callback: DataUpdateCallback<DailyQuranLog[]>): void => {
+  quranLogsUpdateCallback = callback;
+  
+  if (!currentUserId) {
+    callback([]);
+    return;
+  }
+
+  try {
+    const quranLogsRef = doc(db, 'users', currentUserId, 'settings', 'quranLogs');
+    
+    if (unsubscribeCallbacks.quranLogs) {
+      unsubscribeCallbacks.quranLogs();
+    }
+    
+    unsubscribeCallbacks.quranLogs = onSnapshot(
+      quranLogsRef,
+      (doc) => {
+        const logs = doc.exists() ? (doc.data().logs || []) : [];
+        console.log(`Firebase: Received ${logs.length} quran logs`);
+        callback(logs);
+        localStorage.saveQuranLogsToLocalStorage(logs);
+      },
+      (error) => {
+        console.error('Firebase quran logs listener error:', error);
+        const localLogs = localStorage.loadQuranLogsFromLocalStorage();
+        callback(localLogs);
+      }
+    );
+  } catch (error) {
+    console.error('Error setting up quran logs listener:', error);
+    const localLogs = localStorage.loadQuranLogsFromLocalStorage();
+    callback(localLogs);
+  }
+};
+
+// ============================================================================
+// LEGACY FUNCTIONS (maintained for compatibility)
+// ============================================================================
+
+export const saveTasks = async (tasks: Task[]): Promise<void> => {
+  if (currentUserId) {
+    try {
+      await Promise.all(tasks.map(task => firestore.saveTask(currentUserId!, task)));
+      return;
+    } catch (error) {
+      console.error('Error saving tasks to Firebase:', error);
+    }
+  }
+  localStorage.saveTasksToLocalStorage(tasks);
+};
+
 export const loadTheme = async (): Promise<Theme> => {
   if (currentUserId) {
     try {
@@ -114,7 +297,6 @@ export const loadTheme = async (): Promise<Theme> => {
 };
 
 export const saveTheme = async (theme: Theme): Promise<void> => {
-  // Update cache immediately
   if (settingsCache) {
     settingsCache.theme = theme;
   } else {
@@ -131,7 +313,6 @@ export const saveTheme = async (theme: Theme): Promise<void> => {
   localStorage.saveThemeToLocalStorage(theme);
 };
 
-// Pomodoro Settings - with caching and reduced requests
 export const loadPomodoroSettings = async (): Promise<PomodoroSettings> => {
   if (currentUserId) {
     try {
@@ -149,7 +330,6 @@ export const loadPomodoroSettings = async (): Promise<PomodoroSettings> => {
 };
 
 export const savePomodoroSettings = async (settings: PomodoroSettings): Promise<void> => {
-  // Update cache immediately
   if (settingsCache) {
     settingsCache.pomodoroSettings = settings;
   } else {
@@ -166,11 +346,9 @@ export const savePomodoroSettings = async (settings: PomodoroSettings): Promise<
   localStorage.savePomodoroSettingsToLocalStorage(settings);
 };
 
-// Pomodoro Sessions - optimized with caching and batch operations
 export const loadPomodoroSessions = async (): Promise<FocusSession[]> => {
   const now = Date.now();
   
-  // Return cached data if still valid (5 minutes cache)
   if (sessionsCache.length > 0 && now < sessionsCacheExpiry) {
     return sessionsCache;
   }
@@ -179,7 +357,7 @@ export const loadPomodoroSessions = async (): Promise<FocusSession[]> => {
     try {
       const sessions = await firestore.getPomodoroSessions(currentUserId);
       sessionsCache = sessions;
-      sessionsCacheExpiry = now + (5 * 60 * 1000); // Cache for 5 minutes
+      sessionsCacheExpiry = now + (5 * 60 * 1000);
       return sessions;
     } catch (error) {
       console.error('Error loading pomodoro sessions from Firebase:', error);
@@ -193,35 +371,19 @@ export const loadPomodoroSessions = async (): Promise<FocusSession[]> => {
 };
 
 export const savePomodoroSession = async (session: FocusSession): Promise<void> => {
-  // Update cache immediately
   sessionsCache = [session, ...sessionsCache].slice(0, 100);
   
-  // Save to Firebase with error handling but no excessive logging
   if (currentUserId) {
     try {
       await firestore.savePomodoroSession(currentUserId, session);
     } catch (error) {
       console.error('Failed to save session to Firebase:', error);
-      // Don't fall back to localStorage here as it's already updated in the cache
     }
   }
   
-  // Always save to localStorage as backup
   localStorage.savePomodoroSessionToLocalStorage(session);
 };
 
-export const savePomodoroSessions = async (sessions: FocusSession[]): Promise<void> => {
-  if (currentUserId) {
-    try {
-      await firestore.savePomodoroSessions(currentUserId, sessions);
-    } catch (error) {
-      console.error('Error saving pomodoro sessions to Firebase:', error);
-    }
-  }
-  localStorage.savePomodoroSessionsToLocalStorage(sessions);
-};
-
-// Prayer Logs
 export const loadPrayerLogs = async (): Promise<DailyPrayerLog[]> => {
   if (currentUserId) {
     try {
@@ -234,23 +396,16 @@ export const loadPrayerLogs = async (): Promise<DailyPrayerLog[]> => {
 };
 
 export const savePrayerLogs = async (logs: DailyPrayerLog[]): Promise<void> => {
-  if (prayerLogSaveTimeout) {
-    clearTimeout(prayerLogSaveTimeout);
-  }
-  
-  prayerLogSaveTimeout = setTimeout(async () => {
-    if (currentUserId) {
-      try {
-        await firestore.savePrayerLogs(currentUserId, logs);
-      } catch (error) {
-        console.error('Error saving prayer logs to Firebase:', error);
-      }
+  if (currentUserId) {
+    try {
+      await firestore.savePrayerLogs(currentUserId, logs);
+    } catch (error) {
+      console.error('Error saving prayer logs to Firebase:', error);
     }
-    localStorage.savePrayerLogsToLocalStorage(logs);
-  }, 1000);
+  }
+  localStorage.savePrayerLogsToLocalStorage(logs);
 };
 
-// Quran Logs
 export const loadQuranLogs = async (): Promise<DailyQuranLog[]> => {
   if (currentUserId) {
     try {
@@ -273,7 +428,6 @@ export const saveQuranLogs = async (logs: DailyQuranLog[]): Promise<void> => {
   localStorage.saveQuranLogsToLocalStorage(logs);
 };
 
-// Chat History
 export const loadChatHistory = async (): Promise<ChatMessage[]> => {
   if (currentUserId) {
     try {
@@ -286,20 +440,14 @@ export const loadChatHistory = async (): Promise<ChatMessage[]> => {
 };
 
 export const saveChatHistory = async (messages: ChatMessage[]): Promise<void> => {
-  if (chatSaveTimeout) {
-    clearTimeout(chatSaveTimeout);
-  }
-  
-  chatSaveTimeout = setTimeout(async () => {
-    if (currentUserId) {
-      try {
-        await firestore.saveChatHistory(currentUserId, messages);
-      } catch (error) {
-        console.error('Error saving chat history to Firebase:', error);
-      }
+  if (currentUserId) {
+    try {
+      await firestore.saveChatHistory(currentUserId, messages);
+    } catch (error) {
+      console.error('Error saving chat history to Firebase:', error);
     }
-    localStorage.saveChatHistoryToLocalStorage(messages);
-  }, 2000);
+  }
+  localStorage.saveChatHistoryToLocalStorage(messages);
 };
 
 export const clearChatHistory = async (): Promise<void> => {
@@ -311,4 +459,10 @@ export const clearChatHistory = async (): Promise<void> => {
     }
   }
   localStorage.clearChatHistoryFromLocalStorage();
+};
+
+// Cleanup function to be called when app unmounts
+export const cleanup = (): void => {
+  cleanupAllListeners();
+  clearAllCaches();
 };

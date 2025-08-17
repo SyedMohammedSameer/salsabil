@@ -1,4 +1,4 @@
-// Enhanced Prayer Tracker View with better UI
+// components/PrayerTrackerView.tsx - FIXED with real-time syncing
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyPrayerLog, PrayerName } from '../types';
 import { PRAYER_DEFINITIONS, PRAYER_ORDER } from '../constants';
@@ -146,20 +146,31 @@ const PrayerTrackerView: React.FC = () => {
   const [currentLog, setCurrentLog] = useState<DailyPrayerLog | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load prayer logs on component mount
+  // Set up real-time listener for prayer logs
   useEffect(() => {
-    const loadLogs = async () => {
+    console.log('PrayerTracker: Setting up real-time listener');
+    
+    firebaseService.setupPrayerLogsListener((newLogs) => {
+      console.log('PrayerTracker: Received real-time update:', newLogs.length, 'logs');
+      setPrayerLogs(newLogs);
+      setLoading(false);
+    });
+
+    // Initial load for fallback
+    const loadInitialLogs = async () => {
       try {
-        const logs = await firebaseService.loadPrayerLogs();
-        setPrayerLogs(logs);
+        const initialLogs = await firebaseService.loadPrayerLogs();
+        setPrayerLogs(initialLogs);
       } catch (error) {
-        console.error('Error loading prayer logs:', error);
+        console.error('Error loading initial prayer logs:', error);
       } finally {
         setLoading(false);
       }
     };
-    loadLogs();
+
+    loadInitialLogs();
   }, []);
 
   useEffect(() => {
@@ -194,7 +205,7 @@ const PrayerTrackerView: React.FC = () => {
     (updatedLog.prayers[prayerName] as any)[type] = checked;
 
     setCurrentLog(updatedLog);
-    updateLocalStorage(updatedLog);
+    updatePrayerLogs(updatedLog);
   };
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -205,27 +216,41 @@ const PrayerTrackerView: React.FC = () => {
      if (!currentLog) return;
      const updatedLog = { ...currentLog, notes: notes };
      setCurrentLog(updatedLog);
-     await updateLocalStorage(updatedLog);
+     await updatePrayerLogs(updatedLog);
   }
 
-  const updateLocalStorage = useCallback(async (logToSave: DailyPrayerLog) => {
-    setPrayerLogs(prevLogs => {
-      const existingLogIndex = prevLogs.findIndex(log => log.date === logToSave.date);
-      let newLogs;
-      if (existingLogIndex > -1) {
-        newLogs = [...prevLogs];
-        newLogs[existingLogIndex] = logToSave;
-      } else {
-        newLogs = [...prevLogs, logToSave];
+  const updatePrayerLogs = useCallback(async (logToSave: DailyPrayerLog) => {
+    setIsSyncing(true);
+    
+    try {
+      const updatedLogs = prayerLogs.map(log => 
+        log.date === logToSave.date ? logToSave : log
+      );
+      
+      // If this is a new log, add it to the array
+      if (!prayerLogs.find(log => log.date === logToSave.date)) {
+        updatedLogs.push(logToSave);
       }
       
-      firebaseService.savePrayerLogs(newLogs).catch(error => {
-        console.error('Error saving prayer logs:', error);
+      // Save to Firebase - real-time listener will update the UI
+      await firebaseService.savePrayerLogs(updatedLogs);
+    } catch (error) {
+      console.error('Error saving prayer logs:', error);
+      // Fallback: update local state
+      setPrayerLogs(prevLogs => {
+        const existingLogIndex = prevLogs.findIndex(log => log.date === logToSave.date);
+        if (existingLogIndex > -1) {
+          const newLogs = [...prevLogs];
+          newLogs[existingLogIndex] = logToSave;
+          return newLogs;
+        } else {
+          return [...prevLogs, logToSave];
+        }
       });
-      
-      return newLogs;
-    });
-  }, []);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [prayerLogs]);
 
   const changeDate = (offset: number) => {
     setCurrentDate(prevDate => {
@@ -273,7 +298,18 @@ const PrayerTrackerView: React.FC = () => {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-cyan-600 bg-clip-text text-transparent">
               Prayer Tracker
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">Track your daily prayers and spiritual journey</p>
+            <p className="text-slate-600 dark:text-slate-400 mt-1 flex items-center">
+              Track your daily prayers and spiritual journey
+              {isSyncing && (
+                <span className="ml-2 flex items-center text-blue-500">
+                  <svg className="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Syncing...
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -363,9 +399,10 @@ const PrayerTrackerView: React.FC = () => {
             />
             <button 
                 onClick={saveNotes}
-                className="mt-4 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-cyan-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-cyan-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50"
+                disabled={isSyncing}
             >
-                Save Reflections
+                {isSyncing ? 'Saving...' : 'Save Reflections'}
             </button>
           </div>
         </>
