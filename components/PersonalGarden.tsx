@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Tree, TreeType, TreeGrowthStage } from '../types';
 import TreeComponent from './TreeComponent';
+import * as firebaseService from '../services/firebaseService';
 
 const PersonalGarden: React.FC = () => {
   const { currentUser } = useAuth();
@@ -25,9 +26,13 @@ const PersonalGarden: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Load personal trees from Firestore
-    // This would be implemented to fetch user's personal garden
-    setLoading(false);
+    if (currentUser) {
+      const unsubscribe = firebaseService.setupPersonalGardenListener(currentUser.uid, (trees) => {
+        setPersonalTrees(trees);
+        setLoading(false);
+      });
+      return () => unsubscribe();
+    }
   }, [currentUser]);
 
   const filteredTrees = personalTrees.filter(tree => 
@@ -172,4 +177,3 @@ const PersonalGarden: React.FC = () => {
 };
 
 export default PersonalGarden;
-

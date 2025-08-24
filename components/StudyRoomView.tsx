@@ -1,7 +1,3 @@
-// ===================================
-// STUDY ROOM VIEW COMPONENT (components/StudyRoomView.tsx)
-// ===================================
-
 import React, { useState, useEffect } from 'react';
 import { StudyRoom, RoomParticipant, TreeType } from '../types';
 import { 
@@ -115,7 +111,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
       await plantTreeInRoom(
         roomId, 
         currentUser.uid, 
-        currentUser.email || 'Anonymous', 
+        currentUser.displayName || 'Anonymous', 
         room.treeType, 
         lastSessionMinutes
       );
@@ -316,4 +312,3 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 };
 
 export default StudyRoomView;
-

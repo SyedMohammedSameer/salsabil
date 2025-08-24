@@ -1,4 +1,4 @@
-// Fixed CreateRoomModal.tsx - Compact and properly scrollable
+// Fixed CreateRoomModal.tsx - With proper icons and working custom duration
 import React, { useState, useEffect } from 'react';
 import { TreeType } from '../types';
 import { createStudyRoom } from '../services/gardenService';
@@ -43,7 +43,7 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onRo
     try {
       const roomId = await createStudyRoom(
         currentUser.uid,
-        currentUser.email || 'Anonymous',
+        currentUser.displayName || 'Anonymous',
         formData
       );
       onRoomCreated(roomId);
@@ -174,21 +174,18 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onRo
 
             <div>
               <label htmlFor="focusDuration" className={`block font-medium text-slate-700 dark:text-slate-300 mb-2 ${isMobile ? 'text-sm' : 'text-sm'}`}>
-                Duration
+                Duration (min)
               </label>
-              <select
+              <input
+                type="number"
                 id="focusDuration"
                 value={formData.focusDuration}
                 onChange={(e) => handleInputChange('focusDuration', parseInt(e.target.value))}
                 className={`w-full border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 focus:ring-2 focus:ring-emerald-500
-                           ${isMobile ? 'px-3 py-3 text-base' : 'px-4 py-3'}`}
-              >
-                <option value={15}>15 min</option>
-                <option value={25}>25 min</option>
-                <option value={45}>45 min</option>
-                <option value={60}>60 min</option>
-                <option value={90}>90 min</option>
-              </select>
+                               ${isMobile ? 'px-3 py-3 text-base' : 'px-4 py-3'}`}
+                placeholder="25"
+                min="1"
+              />
             </div>
           </div>
         </form>

@@ -16,7 +16,8 @@ import {
   Unsubscribe 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { StudyRoom, TreeType, TreeGrowthStage, RoomParticipant } from '../types'; // Make sure all types are imported
+import { StudyRoom, TreeType, TreeGrowthStage, RoomParticipant, Tree } from '../types'; 
+import * as firebaseService from './firebaseService';
 
   
   // Create Study Room
@@ -181,6 +182,10 @@ import { StudyRoom, TreeType, TreeGrowthStage, RoomParticipant } from '../types'
           treesPlanted: (participantData.treesPlanted || 0) + 1
         });
       }
+
+      // Also save the tree to the user's personal garden
+      await firebaseService.savePersonalTree(userId, newTree);
+
     } catch (error) {
       console.error('Error planting tree:', error);
       throw error;
