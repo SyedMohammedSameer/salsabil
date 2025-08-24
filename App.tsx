@@ -1,4 +1,4 @@
-// App.tsx - FIXED VERSION with proper authentication timing and COMPLETE UI
+// App.tsx - FIXED VERSION with Profile Modal and Display Name
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
@@ -11,12 +11,12 @@ import QuranLogView from './components/QuranLogView';
 import ThemeToggle from './components/ThemeToggle';
 import NavItem from './components/NavItem';
 import AuthModal from './components/AuthModal';
-import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, PrayerTrackerIcon, QuranLogIcon } from './components/icons/NavIcons';
+import ProfileModal from './components/ProfileModal'; // Import the new modal
+import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, PrayerTrackerIcon, QuranLogIcon, GardenIcon } from './components/icons/NavIcons';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import * as firebaseService from './services/firebaseService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
-import { GardenIcon } from './components/icons/NavIcons';
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading, logout } = useAuth();
@@ -27,6 +27,7 @@ const AppContent: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for the profile modal
   
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
 
@@ -49,33 +50,26 @@ const AppContent: React.FC = () => {
       const roomId = path.split('/join/')[1];
       if (roomId) {
         sessionStorage.setItem('pendingInvite', roomId);
-        // Navigate to the view where users can see rooms
         setCurrentView(View.Garden);
-        // Clean up the URL
         window.history.replaceState({}, '', '/');
       }
     }
   }, []);
 
-  // *** MAJOR FIX AREA: Corrected Data Loading Logic ***
+  // Data Loading Logic
   useEffect(() => {
-    // 1. If auth is still loading, we wait.
     if (authLoading) {
       setDataLoading(true);
       return;
     }
 
-    // 2. If auth is done and there's NO user, load sample data.
     if (!currentUser) {
-      console.log('🔥 App: No user logged in. Loading sample data.');
       setTasks(SAMPLE_TASKS);
       setTheme(Theme.Light);
       setDataLoading(false);
       return;
     }
     
-    // 3. If auth is done and there IS a user, load their data.
-    console.log(`🔥 App: User ${currentUser.uid} authenticated. Initializing data...`);
     setDataLoading(true);
     let tasksUnsubscribe: (() => void) | undefined;
     
@@ -84,14 +78,13 @@ const AppContent: React.FC = () => {
         const userTheme = await firebaseService.loadTheme(currentUser.uid);
         setTheme(userTheme);
         
-        // Setup real-time listener for tasks
         tasksUnsubscribe = firebaseService.setupTasksListener(currentUser.uid, (newTasks) => {
           setTasks(newTasks);
         });
         
       } catch (error) {
-        console.error('🔥 App: Error initializing data:', error);
-        setTasks(SAMPLE_TASKS); // Fallback on error
+        console.error('App: Error initializing data:', error);
+        setTasks(SAMPLE_TASKS);
       } finally {
         setDataLoading(false);
       }
@@ -99,9 +92,7 @@ const AppContent: React.FC = () => {
     
     initializeData();
     
-    // 4. Cleanup function to prevent memory leaks when user logs out.
     return () => {
-      console.log('🔥 App: Cleaning up listeners.');
       if (tasksUnsubscribe) {
         tasksUnsubscribe();
       }
@@ -128,7 +119,7 @@ const AppContent: React.FC = () => {
   const handleTaskAction = useCallback(async (action: (userId: string) => Promise<void>) => {
       if (!currentUser) {
           console.error("Action failed: User not logged in.");
-          return; // Or show a login prompt
+          return;
       }
       try {
           await action(currentUser.uid);
@@ -227,7 +218,7 @@ const AppContent: React.FC = () => {
     { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
     { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
     { view: View.Pomodoro, icon: <PomodoroIcon />, label: 'Focus' },
-    { view: View.Garden, icon: <GardenIcon />, label: 'Garden' },  // <-- ADD THIS LINE
+    { view: View.Garden, icon: <GardenIcon />, label: 'Garden' },
     { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
   ];
 
@@ -308,21 +299,21 @@ const AppContent: React.FC = () => {
           </div>
 
           {!sidebarCollapsed && currentUser && (
-            <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
+            <button onClick={() => setIsProfileModalOpen(true)} className="w-full text-left p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl hover:shadow-lg transition-shadow">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  {currentUser.email?.charAt(0).toUpperCase()}
+                  {(currentUser.displayName || currentUser.email)?.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                    {currentUser.email}
+                    {currentUser.displayName || currentUser.email}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Blessed User • {tasks.length} tasks
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
           )}
           
           <div className="flex-1 px-4 py-6 space-y-2">
@@ -377,17 +368,17 @@ const AppContent: React.FC = () => {
               </div>
             </div>
             {currentUser && (
-              <div className="p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
+              <button onClick={() => setIsProfileModalOpen(true)} className="w-full text-left p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                    {currentUser.email?.charAt(0).toUpperCase()}
+                    {(currentUser.displayName || currentUser.email)?.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{currentUser.email}</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{currentUser.displayName || currentUser.email}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Blessed User • {tasks.length} tasks</p>
                   </div>
                 </div>
-              </div>
+              </button>
             )}
             <div className="px-4 py-6 space-y-1">
               <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Main</p>
@@ -460,6 +451,14 @@ const AppContent: React.FC = () => {
             ))}
           </div>
         </nav>
+      )}
+
+      {/* Render the Profile Modal */}
+      {currentUser && (
+        <ProfileModal 
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+        />
       )}
     </div>
   );

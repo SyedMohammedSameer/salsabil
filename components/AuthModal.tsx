@@ -1,4 +1,4 @@
-// Mobile-Optimized AuthModal.tsx with responsive design
+// Mobile-Optimized AuthModal.tsx with responsive design and Display Name
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -6,6 +6,7 @@ export default function AuthModal() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState(''); // New state for display name
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -26,6 +27,10 @@ export default function AuthModal() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (!isLogin && !displayName.trim()) {
+      return setError('Please enter a display name.');
+    }
+
     if (password.length < 6) {
       return setError('Password must be at least 6 characters');
     }
@@ -37,7 +42,7 @@ export default function AuthModal() {
       if (isLogin) {
         await login(email, password);
       } else {
-        await signup(email, password);
+        await signup(email, password, displayName);
       }
     } catch (error: any) {
       setError(error.message || 'Failed to authenticate');
@@ -92,6 +97,24 @@ export default function AuthModal() {
           )}
 
           <form onSubmit={handleSubmit} className={`space-y-${isMobile ? '5' : '6'} flex-1 flex flex-col`}>
+            {!isLogin && (
+              <div>
+                <label htmlFor="displayName" className={`block font-medium text-slate-700 dark:text-slate-300 mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                  className={`w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-slate-900 dark:text-slate-100 transition-all duration-200
+                             ${isMobile ? 'px-4 py-3 text-base' : 'px-4 py-3'}`}
+                  placeholder="Enter your name"
+                  autoComplete="name"
+                />
+              </div>
+            )}
             <div>
               <label htmlFor="email" className={`block font-medium text-slate-700 dark:text-slate-300 mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>
                 Email Address
