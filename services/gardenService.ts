@@ -1,21 +1,23 @@
 import { 
-    collection, 
-    doc, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    getDocs, 
-    setDoc,
-    getDoc,
-    query, 
-    where, 
-    orderBy,
-    serverTimestamp,
-    limit,
-    onSnapshot,
-    Unsubscribe
-  } from 'firebase/firestore';
-  import { db } from '../lib/firebase';
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDocs, 
+  setDoc,
+  getDoc,
+  query, 
+  where, 
+  orderBy,
+  serverTimestamp,
+  limit,
+  onSnapshot,
+  Unsubscribe 
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { StudyRoom, TreeType, TreeGrowthStage, RoomParticipant } from '../types'; // Make sure all types are imported
+
   
   // Create Study Room
   export const createStudyRoom = async (userId: string, userName: string, roomData: {
@@ -54,7 +56,26 @@ import {
       throw error;
     }
   };
+  export const setupStudyRoomsListener = (callback: (rooms: StudyRoom[]) => void): Unsubscribe => {
+    const roomsQuery = query(
+      collection(db, 'studyRooms'),
+      where('isActive', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    
+    const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
+      const rooms: StudyRoom[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        trees: doc.data().trees || []
+      } as StudyRoom));
+      callback(rooms);
+    });
   
+    return unsubscribe;
+  };
   // Join Study Room
   export const joinStudyRoom = async (roomId: string, userId: string, userName: string): Promise<void> => {
     try {
@@ -93,16 +114,29 @@ import {
   // Leave Study Room
   export const leaveStudyRoom = async (roomId: string, userId: string): Promise<void> => {
     try {
-      await deleteDoc(doc(db, 'studyRooms', roomId, 'participants', userId));
-      
       const roomRef = doc(db, 'studyRooms', roomId);
+      const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
+  
+      // First, remove the participant
+      await deleteDoc(participantRef);
+      
+      // Then, get the latest room data to check the participant count
       const roomDoc = await getDoc(roomRef);
       
       if (roomDoc.exists()) {
         const roomData = roomDoc.data();
-        await updateDoc(roomRef, {
-          participantCount: Math.max(0, roomData.participantCount - 1)
-        });
+        const newParticipantCount = Math.max(0, roomData.participantCount - 1);
+  
+        // If the new count is zero, delete the entire room
+        if (newParticipantCount === 0) {
+          await deleteDoc(roomRef);
+          console.log(`Study circle ${roomId} was empty and has been deleted.`);
+        } else {
+          // Otherwise, just update the count
+          await updateDoc(roomRef, {
+            participantCount: newParticipantCount
+          });
+        }
       }
     } catch (error) {
       console.error('Error leaving study room:', error);

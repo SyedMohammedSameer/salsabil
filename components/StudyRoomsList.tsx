@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { StudyRoom, TreeType } from '../types';
-import { getStudyRooms, joinStudyRoom } from '../services/gardenService';
+import { setupStudyRoomsListener, joinStudyRoom } from '../services/gardenService'
 import { useAuth } from '../context/AuthContext';
 
 interface StudyRoomsListProps {
@@ -19,7 +19,15 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
   const [filter, setFilter] = useState<TreeType | 'All'>('All');
 
   useEffect(() => {
-    loadRooms();
+    setLoading(true);
+    // The listener returns an 'unsubscribe' function to clean up
+    const unsubscribe = setupStudyRoomsListener((studyRooms) => {
+      setRooms(studyRooms);
+      setLoading(false);
+    });
+
+    // This function will be called when the component is unmounted
+    return () => unsubscribe();
   }, []);
 
   const loadRooms = async () => {

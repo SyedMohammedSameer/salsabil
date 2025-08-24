@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import TreeComponent from './TreeComponent';
 import { PlayIcon, PauseIcon, ChevronLeftIcon } from './icons/NavIcons';
 
+
 interface StudyRoomViewProps {
   roomId: string;
   onLeaveRoom: () => void;
@@ -67,6 +68,13 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
       if (interval) clearInterval(interval);
     };
   }, [isFocusing, timeLeft, room]);
+
+  const handleShareRoom = () => {
+    const inviteLink = `${window.location.origin}/join/${roomId}`;
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => alert("Invite link copied!"))
+      .catch(err => console.error('Failed to copy link: ', err));
+  };
 
   const handleStartFocus = () => {
     if (!room) return;
@@ -149,28 +157,24 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <button
-            onClick={onLeaveRoom}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mr-4"
-          >
-            <ChevronLeftIcon className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center">
-              <span className="mr-3">{getTreeTypeIcon(room.treeType)}</span>
-              {room.name}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">{room.description}</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{room.name}</h1>
+          <p className="text-slate-600 dark:text-slate-400">{room.description}</p>
         </div>
-        
-        <button
-          onClick={handleLeaveRoom}
-          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-        >
-          Leave Circle
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleShareRoom}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center space-x-2"
+          >
+            <span>Share</span>
+          </button>
+          <button
+            onClick={handleLeaveRoom}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+          >
+            Leave Circle
+          </button>
+        </div>
       </div>
 
       {/* Focus Timer */}

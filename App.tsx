@@ -43,6 +43,20 @@ const AppContent: React.FC = () => {
     document.documentElement.classList.toggle('dark', theme === Theme.Dark);
   }, [theme]);
 
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/join/')) {
+      const roomId = path.split('/join/')[1];
+      if (roomId) {
+        sessionStorage.setItem('pendingInvite', roomId);
+        // Navigate to the view where users can see rooms
+        setCurrentView(View.Garden);
+        // Clean up the URL
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, []);
+
   // *** MAJOR FIX AREA: Corrected Data Loading Logic ***
   useEffect(() => {
     // 1. If auth is still loading, we wait.

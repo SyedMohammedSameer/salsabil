@@ -5,6 +5,7 @@ import StudyRoomView from './StudyRoomView';
 import PersonalGarden from './PersonalGarden';
 import CreateRoomModal from './CreateRoomModal';
 import { PlusIcon } from './icons/NavIcons';
+import { joinStudyRoom } from '../services/gardenService'
 
 const GardenView: React.FC = () => {
   const { currentUser } = useAuth();
@@ -12,6 +13,23 @@ const GardenView: React.FC = () => {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const pendingRoomId = sessionStorage.getItem('pendingInvite');
+    if (pendingRoomId && currentUser) {
+      sessionStorage.removeItem('pendingInvite'); // Clear the item
+  
+      const joinFromInvite = async () => {
+        try {
+          await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.email || 'Anonymous');
+          handleJoinRoom(pendingRoomId); // Your existing function to enter the room view
+        } catch (error) {
+          alert('Could not join the study circle. It might be full.');
+        }
+      };
+      joinFromInvite();
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const checkMobile = () => {
