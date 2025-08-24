@@ -5,6 +5,25 @@ import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
 import { onSnapshot, collection, doc, Unsubscribe } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { Tree, TreeType } from '../types';
+import { Tree, TreeType, TreeGrowthStage } from '../types';
+import { 
+    collection, 
+    doc, 
+    addDoc, 
+    updateDoc, 
+    deleteDoc, 
+    getDocs, 
+    setDoc,
+    getDoc,
+    query, 
+    where, 
+    orderBy,
+    serverTimestamp,
+    limit,
+    onSnapshot,
+    Unsubscribe 
+    } from 'firebase/firestore';
 
 export interface FocusSession {
   id: string;
@@ -217,3 +236,138 @@ export const savePomodoroSession = async (userId: string | null, session: FocusS
         await firestore.savePomodoroSession(userId, session);
     }
 }
+
+export const savePersonalTree = async (userId: string, tree: Tree): Promise<void> => {
+    if (!userId) {
+      console.warn('🔥 Firebase: No user ID provided, cannot save personal tree.');
+      return;
+    }
+    
+    try {
+      const treeRef = doc(db, 'users', userId, 'garden', tree.id);
+      await setDoc(treeRef, {
+        ...tree,
+        plantedAt: tree.plantedAt.toISOString(), // Convert Date to string for Firestore
+        createdAt: serverTimestamp()
+      });
+      console.log('🌳 Personal tree saved successfully:', tree.id);
+    } catch (error) {
+      console.error('Error saving personal tree:', error);
+      throw error;
+    }
+  };
+  
+  export const loadPersonalTrees = async (userId: string | null): Promise<Tree[]> => {
+    if (!userId) {
+      console.warn('🔥 Firebase: No user ID provided, cannot load personal trees.');
+      return [];
+    }
+    
+    try {
+      const gardenRef = collection(db, 'users', userId, 'garden');
+      const gardenQuery = query(gardenRef, orderBy('plantedAt', 'desc'), limit(100));
+      const querySnapshot = await getDocs(gardenQuery);
+      
+      const trees: Tree[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        trees.push({
+          id: data.id,
+          type: data.type as TreeType,
+          plantedAt: new Date(data.plantedAt), // Convert string back to Date
+          growthStage: data.growthStage,
+          focusMinutes: data.focusMinutes,
+          isAlive: data.isAlive,
+          plantedBy: data.plantedBy,
+          plantedByName: data.plantedByName
+        });
+      });
+      
+      console.log(`🌳 Loaded ${trees.length} personal trees for user ${userId}`);
+      return trees;
+    } catch (error) {
+      console.error('Error loading personal trees:', error);
+      return [];
+    }
+  };
+  
+  export const setupPersonalGardenListener = (userId: string, callback: (trees: Tree[]) => void): Unsubscribe => {
+    console.log(`🔥 Firebase: Setting up personal garden listener for user: ${userId}`);
+    const gardenRef = collection(db, 'users', userId, 'garden');
+    const gardenQuery = query(gardenRef, orderBy('plantedAt', 'desc'), limit(100));
+    
+    const unsubscribe = onSnapshot(gardenQuery, (snapshot) => {
+      const trees: Tree[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        trees.push({
+          id: data.id,
+          type: data.type as TreeType,
+          plantedAt: new Date(data.plantedAt),
+          growthStage: data.growthStage,
+          focusMinutes: data.focusMinutes,
+          isAlive: data.isAlive,
+          plantedBy: data.plantedBy,
+          plantedByName: data.plantedByName
+        });
+      });
+      console.log(`🌳 Personal garden listener received ${trees.length} trees.`);
+      callback(trees);
+    }, (error) => {
+      console.error('🔥 Firebase: Personal garden listener error:', error);
+      callback([]);
+    });
+  
+    return unsubscribe;
+  };
+  
+  // Personal Garden Stats
+  export const updatePersonalGardenStats = async (userId: string, stats: {
+    totalTrees: number;
+    totalFocusMinutes: number;
+    treesThisWeek: number;
+    currentStreak: number;
+  }): Promise<void> => {
+    if (!userId) return;
+    
+    try {
+      const statsRef = doc(db, 'users', userId, 'gardenStats', 'summary');
+      await setDoc(statsRef, {
+        ...stats,
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error updating garden stats:', error);
+    }
+  };
+  
+  export const loadPersonalGardenStats = async (userId: string | null): Promise<{
+    totalTrees: number;
+    totalFocusMinutes: number;
+    treesThisWeek: number;
+    currentStreak: number;
+  } | null> => {
+    if (!userId) return null;
+    
+    try {
+      const statsRef = doc(db, 'users', userId, 'gardenStats', 'summary');
+      const docSnap = await getDoc(statsRef);
+      
+      if (docSnap.exists()) {
+        return docSnap.data() as any;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error loading garden stats:', error);
+      return null;
+    }
+  };
+  
+  // Helper function to calculate tree growth stage
+  export const getGrowthStage = (focusMinutes: number): TreeGrowthStage => {
+    if (focusMinutes < 25) return TreeGrowthStage.Sprout;
+    if (focusMinutes < 50) return TreeGrowthStage.Sapling;
+    if (focusMinutes < 100) return TreeGrowthStage.YoungTree;
+    return TreeGrowthStage.MatureTree;
+  };
+  

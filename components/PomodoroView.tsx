@@ -1,6 +1,6 @@
-// Mobile-Optimized PomodoroView.tsx with touch-friendly controls
+// Mobile-Optimized PomodoroView.tsx with Garden Integration
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { PomodoroMode, PomodoroSettings } from '../types';
+import { PomodoroMode, PomodoroSettings, TreeType, TreeGrowthStage } from '../types';
 import { PlayIcon, PauseIcon, SkipIcon, EditIcon, CloseIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
@@ -97,6 +97,54 @@ const playNotificationSound = (type: 'complete' | 'break') => {
   }
 };
 
+// Garden Integration Hook
+const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) => {
+  const { currentUser } = useAuth();
+  const [showTreePlantingModal, setShowTreePlantingModal] = useState(false);
+
+  useEffect(() => {
+    if (sessionCompleted && focusMinutes >= 15) { // Only for sessions 15+ minutes
+      setShowTreePlantingModal(true);
+    }
+  }, [sessionCompleted, focusMinutes]);
+
+  const getGrowthStage = (minutes: number): TreeGrowthStage => {
+    if (minutes < 25) return TreeGrowthStage.Sprout;
+    if (minutes < 50) return TreeGrowthStage.Sapling;
+    if (minutes < 100) return TreeGrowthStage.YoungTree;
+    return TreeGrowthStage.MatureTree;
+  };
+
+  const plantPersonalTree = async (treeType: TreeType) => {
+    if (!currentUser) return;
+    
+    try {
+      // Create personal tree object
+      const personalTree = {
+        id: `personal_${Date.now()}`,
+        type: treeType,
+        plantedAt: new Date(),
+        growthStage: getGrowthStage(focusMinutes),
+        focusMinutes,
+        isAlive: true,
+        plantedBy: currentUser.uid,
+        plantedByName: currentUser.email || 'Anonymous'
+      };
+      
+      // Save to user's personal garden in Firestore
+      await firebaseService.savePersonalTree(currentUser.uid, personalTree);
+      console.log('Tree planted in personal garden:', personalTree);
+      
+    } catch (error) {
+      console.error('Error planting tree:', error);
+    }
+    
+    setShowTreePlantingModal(false);
+  };
+
+  return { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree };
+};
+
 const PomodoroView: React.FC = () => {
   const { currentUser } = useAuth();
   const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
@@ -110,6 +158,10 @@ const PomodoroView: React.FC = () => {
   const [focusNote, setFocusNote] = useState<string>('');
   const [isMobile, setIsMobile] = useState(false);
 
+  // Garden integration state
+  const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [lastFocusMinutes, setLastFocusMinutes] = useState(0);
+
   // Timing refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionStartTime = useRef<number | null>(null);
@@ -118,6 +170,12 @@ const PomodoroView: React.FC = () => {
   const settingsRef = useRef(settings);
   const modeRef = useRef(mode);
   const hasLoadedData = useRef(false);
+
+  // Garden integration hook
+  const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree } = useGardenIntegration(
+    sessionCompleted, 
+    lastFocusMinutes
+  );
 
   // Detect mobile screen size
   useEffect(() => {
@@ -235,6 +293,15 @@ const PomodoroView: React.FC = () => {
       // Vibrate on mobile if available
       if (isMobile && 'vibrate' in navigator) {
         navigator.vibrate([200, 100, 200]);
+      }
+
+      // Garden integration: trigger tree planting for completed work sessions
+      if (modeRef.current === PomodoroMode.Work && actualTimeSpent >= 15) {
+        setLastFocusMinutes(Math.round(actualTimeSpent));
+        setSessionCompleted(true);
+        
+        // Reset session completed flag after a short delay
+        setTimeout(() => setSessionCompleted(false), 1000);
       }
     }
 
@@ -644,6 +711,72 @@ const PomodoroView: React.FC = () => {
                              ${isMobile ? 'flex-1 px-4 py-4 text-base font-bold' : 'flex-1 px-4 py-3 font-bold'}`}
                 >
                   Save Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tree Planting Modal */}
+        {showTreePlantingModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 w-full max-w-md">
+              <div className="p-6">
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">🌳</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                    Focus Session Complete!
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    You focused for {lastFocusMinutes} minutes. Plant a tree in your spiritual garden!
+                  </p>
+                </div>
+                
+                <div className="space-y-3 mb-6">
+                  <button
+                    onClick={() => plantPersonalTree(TreeType.Work)}
+                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg transition-colors"
+                  >
+                    <span>💼</span>
+                    <span>Work Tree</span>
+                  </button>
+                  <button
+                    onClick={() => plantPersonalTree(TreeType.Study)}
+                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white rounded-lg transition-colors"
+                  >
+                    <span>📚</span>
+                    <span>Study Tree</span>
+                  </button>
+                  <button
+                    onClick={() => plantPersonalTree(TreeType.QuranReading)}
+                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-lg transition-colors"
+                  >
+                    <span>📖</span>
+                    <span>Quran Tree</span>
+                  </button>
+                  <button
+                    onClick={() => plantPersonalTree(TreeType.Dhikr)}
+                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg transition-colors"
+                  >
+                    <span>🤲</span>
+                    <span>Dhikr Tree</span>
+                  </button>
+                  <button
+                    onClick={() => plantPersonalTree(TreeType.GeneralFocus)}
+                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-slate-500 to-gray-500 hover:from-slate-600 hover:to-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    <span>🎯</span>
+                    <span>Focus Tree</span>
+                  </button>
+                </div>
+                
+                <button
+                  onClick={() => setShowTreePlantingModal(false)}
+                  className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Skip for now
                 </button>
               </div>
             </div>

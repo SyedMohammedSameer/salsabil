@@ -102,3 +102,69 @@ export interface DailyQuranLog {
   pagesRead?: number;
   notes?: string;
 }
+
+export enum TreeType {
+  Work = 'Work',
+  Study = 'Study', 
+  QuranReading = 'QuranReading',
+  Dhikr = 'Dhikr',
+  GeneralFocus = 'GeneralFocus'
+}
+
+export enum TreeGrowthStage {
+  Seed = 'Seed',
+  Sprout = 'Sprout', 
+  Sapling = 'Sapling',
+  YoungTree = 'YoungTree',
+  MatureTree = 'MatureTree'
+}
+
+export interface Tree {
+  id: string;
+  type: TreeType;
+  plantedAt: Date;
+  growthStage: TreeGrowthStage;
+  focusMinutes: number;
+  isAlive: boolean;
+  plantedBy: string; // userId
+  plantedByName: string; // display name
+}
+
+export interface StudyRoom {
+  id: string;
+  name: string;
+  description: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
+  isActive: boolean;
+  participantCount: number;
+  maxParticipants: number;
+  focusDuration: number; // in minutes
+  treeType: TreeType;
+  currentSessionStart?: Date;
+  trees: Tree[];
+  tags: string[];
+}
+
+export interface RoomParticipant {
+  userId: string;
+  displayName: string;
+  joinedAt: Date;
+  isActive: boolean;
+  currentFocusStart?: Date;
+  totalFocusMinutes: number;
+  treesPlanted: number;
+}
+
+// MODIFY YOUR EXISTING View ENUM TO ADD Garden:
+export enum View {
+  Planner = 'Planner',
+  Calendar = 'Calendar',
+  AIAssistant = 'AI Assistant',
+  Dashboard = 'Dashboard',
+  Pomodoro = 'Pomodoro',
+  PrayerTracker = 'Prayer Tracker',
+  QuranLog = 'Quran Log',
+  Garden = 'Garden',  // <-- ADD THIS LINE
+}

@@ -15,6 +15,8 @@ import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import * as firebaseService from './services/firebaseService';
 import { SAMPLE_TASKS } from './constants';
+import GardenView from './components/GardenView';
+import { GardenIcon } from './components/icons/NavIcons';
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading, logout } = useAuth();
@@ -151,6 +153,7 @@ const AppContent: React.FC = () => {
       [View.AIAssistant]: 'AI Assistant', 
       [View.Dashboard]: 'Dashboard',
       [View.Pomodoro]: 'Focus Timer',
+      [View.Garden]: 'Garden',
       [View.PrayerTracker]: 'Prayer Tracker',
       [View.QuranLog]: 'Quran Reading Log'
     };
@@ -194,6 +197,8 @@ const AppContent: React.FC = () => {
         return <DashboardView tasks={tasks} />;
       case View.Pomodoro:
         return <PomodoroView />;
+      case View.Garden:
+        return <GardenView />;
       case View.PrayerTracker:
         return <PrayerTrackerView />;
       case View.QuranLog:
@@ -208,6 +213,7 @@ const AppContent: React.FC = () => {
     { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
     { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
     { view: View.Pomodoro, icon: <PomodoroIcon />, label: 'Focus' },
+    { view: View.Garden, icon: <GardenIcon />, label: 'Garden' },  // <-- ADD THIS LINE
     { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
   ];
 
