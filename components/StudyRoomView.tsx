@@ -1,5 +1,5 @@
 // Enhanced StudyRoomView.tsx with Forest-app inspired design
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StudyRoom, RoomParticipant, TreeType } from '../types';
 import { 
   setupRoomListener, 
@@ -38,6 +38,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   const [isStartingFocus, setIsStartingFocus] = useState(false);
   const [isStoppingFocus, setIsStoppingFocus] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const hasAutoStoppedRef = useRef(false);
 
   // Detect mobile
   useEffect(() => {
@@ -106,11 +107,20 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     }
   }, [roomId, timerState]);
 
+  // Create stable references for functions to avoid useEffect recreation
+  const updateTimerRef = useRef(updateStudyCircleTimer);
+  const resetTimerRef = useRef(resetStudyCircleTimer);
+  const currentUserRef = useRef(currentUser);
+  
+  updateTimerRef.current = updateStudyCircleTimer;
+  resetTimerRef.current = resetStudyCircleTimer;
+  currentUserRef.current = currentUser;
+
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
     if (isRoomFocusing && roomFocusStartTime && room) {
-      interval = setInterval(() => {
+      interval = setInterval(async () => {
         const elapsed = Date.now() - roomFocusStartTime.getTime();
         const remaining = Math.max(0, (room.focusDuration * 60 * 1000) - elapsed);
         const remainingSeconds = Math.ceil(remaining / 1000);
@@ -118,35 +128,36 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         setTimeLeft(remainingSeconds);
         
         // Update global timer state
-        updateStudyCircleTimer(roomId, true, remainingSeconds, roomFocusStartTime);
+        updateTimerRef.current(roomId, true, remainingSeconds, roomFocusStartTime);
         
         if (remainingSeconds <= 0) {
+          // Clear the interval first to prevent multiple calls
+          if (interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+          
           // Session completed - auto-stop and auto-plant tree
           const focusMinutes = room.focusDuration;
+          
+          try {
+            // Auto-stop the session first
+            await stopRoomFocusSession(roomId);
+          } catch (error) {
+            console.error('Failed to stop room session:', error);
+          }
+          
+          // Then update UI state
           setIsRoomFocusing(false);
           setRoomFocusStartTime(null);
-          setSessionCompleted(true); // Mark session as completed
+          setSessionCompleted(true);
+          resetTimerRef.current();
           
-          // Reset global timer state
-          resetStudyCircleTimer();
-          
-          // Handle session completion asynchronously
-          const handleSessionCompletion = async () => {
-            try {
-              // Auto-stop the session
-              await stopRoomFocusSession(roomId);
-              
-              // Show confirmation to plant tree
-              if (currentUser && focusMinutes > 0) {
-                setLastSessionMinutes(focusMinutes);
-                setShowTreePlantingModal(true);
-              }
-            } catch (error) {
-              console.error('Failed to stop room session:', error);
-            }
-          };
-          
-          handleSessionCompletion();
+          // Show confirmation to plant tree
+          if (currentUserRef.current && focusMinutes > 0) {
+            setLastSessionMinutes(focusMinutes);
+            setShowTreePlantingModal(true);
+          }
         }
       }, 1000);
     }
@@ -154,7 +165,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRoomFocusing, roomFocusStartTime, room, updateStudyCircleTimer, resetStudyCircleTimer, roomId]);
+  }, [isRoomFocusing, roomFocusStartTime, room, roomId]);
 
   const handleShareRoom = async () => {
     if (!room) {
@@ -219,6 +230,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     try {
       setTreePlanted(false); // Reset tree planting for new session
       setSessionCompleted(false); // Reset session completion state
+      hasAutoStoppedRef.current = false; // allow auto-stop for the new session
       await startRoomFocusSession(roomId);
       // The room listener will update the local state
     } catch (error) {
@@ -255,6 +267,35 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     }
   };
 
+  // Failsafe: auto-stop and prompt when timeLeft hits 0 even if interval is throttled
+  useEffect(() => {
+    const performAutoStop = async () => {
+      if (!room || !isRoomFocusing || hasAutoStoppedRef.current) return;
+      hasAutoStoppedRef.current = true;
+
+      const focusMinutes = room.focusDuration;
+      try {
+        await stopRoomFocusSession(roomId);
+      } catch (error) {
+        console.error('Failed to stop room session (failsafe):', error);
+      }
+
+      setIsRoomFocusing(false);
+      setRoomFocusStartTime(null);
+      setSessionCompleted(true);
+      resetStudyCircleTimer();
+
+      if (currentUserRef.current && focusMinutes > 0) {
+        setLastSessionMinutes(focusMinutes);
+        setShowTreePlantingModal(true);
+      }
+    };
+
+    if (isRoomFocusing && timeLeft <= 0) {
+      performAutoStop();
+    }
+  }, [timeLeft, isRoomFocusing, room, roomId, resetStudyCircleTimer]);
+
   const handleLeaveRoom = async () => {
     if (!currentUser || isLeavingRoom) return;
     
@@ -284,7 +325,8 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         currentUser.uid, 
         currentUser.displayName || 'Anonymous', 
         TreeType.GeneralFocus, // Use default type for now
-        lastSessionMinutes
+        lastSessionMinutes,
+        selectedTreeVariety // Pass the selected tree variety
       );
       setTreePlanted(true); // Mark tree as planted for this session
       setShowTreePlantingModal(false);

@@ -105,7 +105,16 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
   }, [trees, containerSize]);
 
   const getTreeEmoji = (tree: Tree): string => {
-    // Different emojis based on tree type and growth stage
+    // Use selected tree variety emoji if available, otherwise fall back to type-based emojis
+    if (tree.varietyEmoji) {
+      // For early growth stages, still show generic growth stages
+      if (tree.growthStage === TreeGrowthStage.Seed) return '🌱';
+      if (tree.growthStage === TreeGrowthStage.Sprout) return '🌿';
+      // For sapling and above, show the selected variety
+      return tree.varietyEmoji;
+    }
+
+    // Fallback to old logic for trees without variety information
     const typeEmojis = {
       [TreeType.GeneralFocus]: tree.growthStage === TreeGrowthStage.MatureTree ? '🌳' : '🌲',
       [TreeType.Study]: tree.growthStage === TreeGrowthStage.MatureTree ? '📚🌳' : '🌲',
@@ -121,6 +130,22 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
   };
 
   const getTreeColor = (tree: Tree): string => {
+    // Use selected tree variety color if available
+    if (tree.varietyColor) {
+      // Convert Tailwind gradient to single color for text-shadow
+      if (tree.varietyColor.includes('green')) return '#22c55e';
+      if (tree.varietyColor.includes('pink')) return '#ec4899';
+      if (tree.varietyColor.includes('yellow')) return '#eab308';
+      if (tree.varietyColor.includes('purple')) return '#8b5cf6';
+      if (tree.varietyColor.includes('red')) return '#ef4444';
+      if (tree.varietyColor.includes('blue')) return '#3b82f6';
+      if (tree.varietyColor.includes('teal')) return '#14b8a6';
+      if (tree.varietyColor.includes('emerald')) return '#10b981';
+      if (tree.varietyColor.includes('rose')) return '#f43f5e';
+      if (tree.varietyColor.includes('amber')) return '#f59e0b';
+    }
+
+    // Fallback to old logic
     const colors = {
       [TreeType.GeneralFocus]: '#22c55e',
       [TreeType.Study]: '#3b82f6', 
@@ -236,7 +261,9 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
               {/* Hover tooltip */}
               {hoveredTree?.id === tree.id && (
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 text-white text-xs rounded-lg whitespace-nowrap pointer-events-none z-50">
-                  <div className="font-semibold">{tree.focusMinutes} min focus</div>
+                  <div className="font-semibold">
+                    {tree.varietyName ? `${tree.varietyName} • ${tree.focusMinutes} min` : `${tree.focusMinutes} min focus`}
+                  </div>
                   <div className="text-xs opacity-75">{tree.plantedAt.toLocaleDateString()}</div>
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black/80"></div>
                 </div>

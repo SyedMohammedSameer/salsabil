@@ -128,6 +128,10 @@ export interface Tree {
   isAlive: boolean;
   plantedBy: string; // userId
   plantedByName: string; // display name
+  // New fields for tree varieties
+  varietyName?: string; // e.g., "Oak Tree", "Cherry Blossom"
+  varietyEmoji?: string; // e.g., "🌳", "🌸"
+  varietyColor?: string; // e.g., "from-green-500 to-emerald-500"
 }
 
 export interface StudyRoom {

@@ -239,7 +239,8 @@ export const plantTreeInRoom = async (
   userId: string, 
   userName: string, 
   treeType: TreeType, 
-  focusMinutes: number
+  focusMinutes: number,
+  treeVariety?: { name: string; emoji: string; color: string }
 ): Promise<void> => {
   try {
     // Validate inputs
@@ -255,11 +256,23 @@ export const plantTreeInRoom = async (
       focusMinutes,
       isAlive: true, // Trees are always alive when planted
       plantedBy: userId,
-      plantedByName: userName
+      plantedByName: userName,
+      // Add variety information if provided
+      varietyName: treeVariety?.name,
+      varietyEmoji: treeVariety?.emoji,
+      varietyColor: treeVariety?.color
     };
 
+    // Use batch operations for better performance
+    const batch = writeBatch(db);
     const roomRef = doc(db, 'studyRooms', roomId);
-    const roomDoc = await getDoc(roomRef);
+    const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
+    
+    // Get both documents in parallel
+    const [roomDoc, participantDoc] = await Promise.all([
+      getDoc(roomRef),
+      getDoc(participantRef)
+    ]);
     
     if (!roomDoc.exists()) {
       throw new Error('Study circle no longer exists');
@@ -272,31 +285,36 @@ export const plantTreeInRoom = async (
 
     const updatedTrees = [...(roomData.trees || []), newTree];
     
-    // Update room with new tree
-    await updateDoc(roomRef, {
+    // Batch update room with new tree
+    batch.update(roomRef, {
       trees: updatedTrees,
       lastTreePlanted: serverTimestamp()
     });
 
-    // Update participant stats
-    const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
-    const participantDoc = await getDoc(participantRef);
-    
+    // Batch update participant stats if participant exists
     if (participantDoc.exists()) {
       const participantData = participantDoc.data();
-      await updateDoc(participantRef, {
+      batch.update(participantRef, {
         totalFocusMinutes: (participantData.totalFocusMinutes || 0) + focusMinutes,
         treesPlanted: (participantData.treesPlanted || 0) + 1,
         lastTreePlanted: serverTimestamp()
       });
     }
-
-    // Save to user's personal garden
-    try {
-      await firebaseService.savePersonalTree(userId, newTree);
-    } catch (personalGardenError) {
-      console.warn('Failed to save tree to personal garden:', personalGardenError);
-      // Don't throw here - room tree planting succeeded
+    
+    // Execute batch operation and personal garden save in parallel
+    const [batchResult, personalTreeResult] = await Promise.allSettled([
+      batch.commit(),
+      firebaseService.savePersonalTree(userId, newTree)
+    ]);
+    
+    // Check if batch operation failed (this is critical)
+    if (batchResult.status === 'rejected') {
+      throw batchResult.reason;
+    }
+    
+    // Warn if personal garden save failed (not critical)
+    if (personalTreeResult.status === 'rejected') {
+      console.warn('Failed to save tree to personal garden:', personalTreeResult.reason);
     }
 
     console.log(`Tree planted successfully in room ${roomId} by ${userName}`);
