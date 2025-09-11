@@ -38,16 +38,23 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
     }> = [];
 
     const layers = [
-      { minY: 0.7, maxY: 0.95, minScale: 0.6, maxScale: 0.8 }, // Background
-      { minY: 0.5, maxY: 0.8, minScale: 0.8, maxScale: 1.0 },  // Midground  
-      { minY: 0.3, maxY: 0.6, minScale: 1.0, maxScale: 1.2 }   // Foreground
+      { minY: 0.75, maxY: 0.88, minScale: 0.6, maxScale: 0.8 }, // Background (farther, slightly higher)
+      { minY: 0.82, maxY: 0.93, minScale: 0.8, maxScale: 1.0 },  // Midground
+      { minY: 0.88, maxY: 0.97, minScale: 1.0, maxScale: 1.2 }   // Foreground (closest to ground)
     ];
 
-    // Helper function to check if two positions overlap
-    const checkCollision = (pos1: {x: number, y: number, scale: number}, pos2: {x: number, y: number, scale: number}) => {
-      const minDistance = Math.max(0.08, (pos1.scale + pos2.scale) * 0.06); // Minimum distance based on tree sizes
-      const distance = Math.sqrt(Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2));
-      return distance < minDistance;
+    // Helper function to check if two positions overlap using pixel-based distance
+    const checkCollision = (
+      pos1: { x: number; y: number; scale: number },
+      pos2: { x: number; y: number; scale: number }
+    ) => {
+      const dx = (pos1.x - pos2.x) * containerSize.width;
+      const dy = (pos1.y - pos2.y) * containerSize.height;
+      const distancePx = Math.sqrt(dx * dx + dy * dy);
+      const avgScale = (pos1.scale + pos2.scale) / 2;
+      // Minimum separation in pixels scales with size; clamp to sensible range
+      const minDistancePx = Math.min(140, Math.max(50, 80 * avgScale));
+      return distancePx < minDistancePx;
     };
 
     trees.forEach((tree) => {
@@ -66,14 +73,15 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
       
       const scale = (layerConfig.minScale + random(400) * (layerConfig.maxScale - layerConfig.minScale)) * growthScale;
 
-      // Try to find a non-overlapping position (max 10 attempts)
+      // Try to find a non-overlapping position (more attempts for better distribution)
       let attempts = 0;
       let x, y;
       let validPosition = false;
 
-      while (attempts < 10 && !validPosition) {
-        x = 0.1 + random(200 + attempts * 50) * 0.8; // 10% margin on sides, vary with attempts
-        y = layerConfig.minY + random(300 + attempts * 30) * (layerConfig.maxY - layerConfig.minY);
+      while (attempts < 30 && !validPosition) {
+        // Use slightly wider margins to reduce edge clustering
+        x = 0.08 + random(200 + attempts * 53) * 0.84;
+        y = layerConfig.minY + random(300 + attempts * 31) * (layerConfig.maxY - layerConfig.minY);
         
         const newPos = { x, y, scale };
         validPosition = !positions.some(pos => checkCollision(newPos, pos));
@@ -82,8 +90,8 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
 
       // If we couldn't find a non-overlapping position, use the last attempt
       if (!validPosition) {
-        x = 0.1 + random(200 + attempts * 50) * 0.8;
-        y = layerConfig.minY + random(300 + attempts * 30) * (layerConfig.maxY - layerConfig.minY);
+        x = 0.08 + random(200 + attempts * 53) * 0.84;
+        y = layerConfig.minY + random(300 + attempts * 31) * (layerConfig.maxY - layerConfig.minY);
       }
 
       positions.push({ tree, x: x!, y: y!, layer, scale });
@@ -94,7 +102,7 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
       if (a.layer !== b.layer) return a.layer - b.layer;
       return a.y - b.y;
     });
-  }, [trees]);
+  }, [trees, containerSize]);
 
   const getTreeEmoji = (tree: Tree): string => {
     // Different emojis based on tree type and growth stage
@@ -191,11 +199,11 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
         {treePositions.map(({ tree, x, y, layer, scale }) => (
           <div
             key={tree.id}
-            className="absolute transform -translate-x-1/2 -translate-y-full transition-all duration-300 hover:scale-110 cursor-pointer"
+            className="absolute transform -translate-x-1/2 transition-all duration-300 hover:scale-110 cursor-pointer"
             style={{
               left: `${x * 100}%`,
               bottom: `${(1 - y) * 100}%`,
-              transform: `translateX(-50%) translateY(100%) scale(${scale})`,
+              transform: `translateX(-50%) scale(${scale})`,
               zIndex: Math.floor(y * 100) + layer * 100,
               filter: layer === 0 ? 'brightness(0.7) opacity(0.8)' : layer === 1 ? 'brightness(0.85)' : 'brightness(1)',
             }}

@@ -405,7 +405,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
       <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl shadow-lg border border-white/20 p-8 text-center">
         <div className="relative mb-8">
           {/* Circular Progress Ring */}
-          <div className="relative w-48 h-48 mx-auto">
+          <div className="relative w-64 h-64 mx-auto">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
               <circle
                 cx="50"
@@ -442,7 +442,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 {formatTime(timeLeft)}
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                {isRoomFocusing ? 'Circle focusing together...' : 'Ready to focus'}
+                {isRoomFocusing ? '' : ''}
               </div>
               
               {/* Animated growing tree in center */}
@@ -451,9 +451,9 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                   <div className="relative">
                     {/* Growing tree animation */}
                     <div 
-                      className="text-4xl transition-all duration-1000 transform"
+                      className="text-6xl transition-all duration-1000 transform"
                       style={{
-                        transform: `scale(${0.3 + (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60) * 0.7})`,
+                        transform: `scale(${0.4 + (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60) * 1.0})`,
                         opacity: 0.6 + (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60) * 0.4
                       }}
                     >
@@ -475,7 +475,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-3xl opacity-60">
+                  <div className="text-5xl opacity-60">
                     🌱
                   </div>
                 )}
