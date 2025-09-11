@@ -33,6 +33,10 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   const [treePlanted, setTreePlanted] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPlantingTree, setIsPlantingTree] = useState(false);
+  const [isLeavingRoom, setIsLeavingRoom] = useState(false);
+  const [isStartingFocus, setIsStartingFocus] = useState(false);
+  const [isStoppingFocus, setIsStoppingFocus] = useState(false);
 
   // Detect mobile
   useEffect(() => {
@@ -191,8 +195,9 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   };
 
   const handleStartFocus = async () => {
-    if (!room || isRoomFocusing) return;
+    if (!room || isRoomFocusing || isStartingFocus) return;
     
+    setIsStartingFocus(true);
     try {
       setTreePlanted(false); // Reset tree planting for new session
       await startRoomFocusSession(roomId);
@@ -200,12 +205,15 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     } catch (error) {
       console.error('Failed to start focus session:', error);
       alert('Failed to start focus session. Please try again.');
+    } finally {
+      setIsStartingFocus(false);
     }
   };
 
   const handleStopFocus = async () => {
-    if (!room || !isRoomFocusing || !roomFocusStartTime) return;
+    if (!room || !isRoomFocusing || !roomFocusStartTime || isStoppingFocus) return;
     
+    setIsStoppingFocus(true);
     try {
       await stopRoomFocusSession(roomId);
       
@@ -221,15 +229,18 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     } catch (error) {
       console.error('Failed to stop focus session:', error);
       alert('Failed to stop focus session. Please try again.');
+    } finally {
+      setIsStoppingFocus(false);
     }
   };
 
   const handleLeaveRoom = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isLeavingRoom) return;
     
     const confirmLeave = window.confirm('Are you sure you want to leave this study circle?');
     if (!confirmLeave) return;
     
+    setIsLeavingRoom(true);
     try {
       await leaveStudyRoom(roomId, currentUser.uid);
       // Reset global timer state when leaving
@@ -238,12 +249,14 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     } catch (error) {
       console.error('Error leaving room:', error);
       alert('Failed to leave the circle. Please try again.');
+      setIsLeavingRoom(false); // Reset loading state on error
     }
   };
 
   const handlePlantTree = async () => {
-    if (!currentUser || !room || treePlanted) return;
+    if (!currentUser || !room || treePlanted || isPlantingTree) return;
     
+    setIsPlantingTree(true);
     try {
       await plantTreeInRoom(
         roomId, 
@@ -259,6 +272,8 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     } catch (error) {
       console.error('Error planting tree:', error);
       alert('Failed to plant tree. Please try again.');
+    } finally {
+      setIsPlantingTree(false);
     }
   };
 
@@ -368,9 +383,12 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 
                 <button
                   onClick={handleLeaveRoom}
-                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/40 rounded-full transition-colors flex items-center space-x-2"
+                  disabled={isLeavingRoom}
+                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/40 rounded-full transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="text-sm font-medium">Leave</span>
+                  <span className="text-sm font-medium">
+                    {isLeavingRoom ? 'Leaving...' : 'Leave'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -488,7 +506,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         <div className="flex justify-center space-x-4 mb-6">
           <button
             onClick={isRoomFocusing ? handleStopFocus : handleStartFocus}
-            disabled={!room}
+            disabled={!room || isStartingFocus || isStoppingFocus}
             className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
               isRoomFocusing 
                 ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600' 
@@ -499,12 +517,12 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
               {isRoomFocusing ? (
                 <>
                   <PauseIcon className="w-6 h-6" />
-                  <span>Stop Circle Focus</span>
+                  <span>{isStoppingFocus ? 'Stopping...' : 'Stop Circle Focus'}</span>
                 </>
               ) : (
                 <>
                   <PlayIcon className="w-6 h-6" />
-                  <span>Start Circle Focus</span>
+                  <span>{isStartingFocus ? 'Starting...' : 'Start Circle Focus'}</span>
                 </>
               )}
             </div>
@@ -716,14 +734,16 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 </button>
                 <button
                   onClick={handlePlantTree}
-                  disabled={treePlanted}
+                  disabled={treePlanted || isPlantingTree}
                   className={`flex-1 px-4 py-3 text-white rounded-xl transition-all shadow-lg hover:shadow-xl ${
-                    treePlanted 
+                    treePlanted || isPlantingTree
                       ? 'bg-gray-400 cursor-not-allowed opacity-50' 
                       : `bg-gradient-to-r ${getTreeVarietiesForDuration(lastSessionMinutes).find(t => t.type === selectedTreeType)?.color || 'from-green-500 to-emerald-500'}`
                   }`}
                 >
-                  {treePlanted ? '✅ Tree Planted!' : `Plant ${getTreeVarietiesForDuration(lastSessionMinutes).find(t => t.type === selectedTreeType)?.emoji || '🌱'} Tree`}
+                  {treePlanted ? '✅ Tree Planted!' : 
+                   isPlantingTree ? '🌱 Planting...' :
+                   `Plant ${getTreeVarietiesForDuration(lastSessionMinutes).find(t => t.type === selectedTreeType)?.emoji || '🌱'} Tree`}
                 </button>
               </div>
             </div>
