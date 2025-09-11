@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { StudyRoom, TreeType } from '../types';
-import { setupStudyRoomsListener, joinStudyRoom } from '../services/gardenService'
+import { setupStudyRoomsListener, joinStudyRoom, getStudyRooms } from '../services/gardenService'
 import { useAuth } from '../context/AuthContext';
 
 interface StudyRoomsListProps {
@@ -30,16 +30,6 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
     return () => unsubscribe();
   }, []);
 
-  const loadRooms = async () => {
-    try {
-      const studyRooms = await getStudyRooms();
-      setRooms(studyRooms);
-    } catch (error) {
-      console.error('Error loading rooms:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleJoinRoom = async (roomId: string) => {
     if (!currentUser) return;
