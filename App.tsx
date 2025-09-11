@@ -190,20 +190,41 @@ const AppContent: React.FC = () => {
   const renderView = () => {
     if (authLoading || dataLoading) {
       return (
-        <div className="flex items-center justify-center h-full px-4">
+        <div className="flex items-center justify-center h-full px-4 bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900">
           <div className="text-center">
             <div className="relative mb-8">
-              <div className="animate-spin rounded-full h-12 w-12 md:h-16 md:w-16 border-4 border-cyan-200 dark:border-cyan-800 border-t-cyan-500 dark:border-t-cyan-400 mx-auto mb-6"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-4 h-4 md:w-6 md:h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
+              {/* Salsabil logo/icon */}
+              <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 relative">
+                <div className="w-full h-full rounded-2xl overflow-hidden shadow-2xl ring-4 ring-white/20 backdrop-blur-xl bg-white/10">
+                  <img src="/salsabil-original.jpg" alt="Salsabil" className="w-full h-full object-cover animate-pulse"/>
+                </div>
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-500 opacity-30 blur animate-pulse"></div>
+              </div>
+              
+              {/* Spinning loader */}
+              <div className="relative">
+                <div className="animate-spin rounded-full h-8 w-8 md:h-10 md:w-10 border-3 border-cyan-200 dark:border-cyan-800 border-t-cyan-500 dark:border-t-cyan-400 mx-auto"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-2 h-2 md:w-3 md:h-3 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full animate-pulse"></div>
+                </div>
               </div>
             </div>
-            <h3 className="text-lg md:text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
-              {authLoading ? 'Authenticating...' : 'Loading Salsabil...'}
-            </h3>
-            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400">
-              {currentUser ? 'Syncing with your account...' : 'Preparing your spring of productivity...'}
-            </p>
+            
+            <div className="space-y-3">
+              <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
+                {authLoading ? 'Authenticating...' : 'Loading Salsabil...'}
+              </h3>
+              <p className="text-sm md:text-base text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                {currentUser ? 'Syncing with your account...' : 'Preparing your spring of productivity and spiritual growth...'}
+              </p>
+              
+              {/* Loading dots */}
+              <div className="flex justify-center space-x-2 mt-6">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            </div>
           </div>
         </div>
       );
@@ -362,11 +383,11 @@ const AppContent: React.FC = () => {
           </div>
           
           <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
-            <div className="flex items-center justify-center space-x-3">
+            <div className={`flex items-center justify-center ${sidebarCollapsed ? 'flex-col space-y-3' : 'space-x-3'}`}>
               <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
               <button
                 onClick={handleLogout}
-                className="flex-1 flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200 group"
+                className={`${sidebarCollapsed ? 'w-full' : 'flex-1'} flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200 group`}
                 title="Logout"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -468,24 +489,34 @@ const AppContent: React.FC = () => {
       </main>
 
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-700/50 shadow-lg z-40">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-40">
           <div className="grid grid-cols-5 h-16">
             {mainNavItems.map(item => (
               <button
                 key={item.view}
                 onClick={() => setCurrentView(item.view)}
-                className={`relative flex flex-col items-center justify-center space-y-1 transition-all ${currentView === item.view ? 'text-blue-600 dark:text-cyan-400 bg-blue-50 dark:bg-cyan-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                className={`relative flex flex-col items-center justify-center space-y-1 transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+                  currentView === item.view 
+                    ? 'text-blue-600 dark:text-cyan-400 bg-gradient-to-t from-blue-50 to-transparent dark:from-cyan-900/20 dark:to-transparent' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-700/70'
+                }`}
               >
-                <div className="scale-90 relative">
-                  {item.icon}
+                <div className="relative">
+                  <div className={`transition-all duration-300 ${currentView === item.view ? 'scale-110' : 'scale-90'}`}>
+                    {item.icon}
+                  </div>
                   {item.hasActiveTimer && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-full animate-pulse flex items-center justify-center shadow-lg">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></div>
                     </div>
                   )}
                 </div>
-                <span className="text-xs font-medium">{item.label}</span>
-                {currentView === item.view && <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-blue-600 dark:bg-cyan-400 rounded-full"></div>}
+                <span className={`text-xs font-medium transition-all duration-300 ${
+                  currentView === item.view ? 'font-semibold' : ''
+                }`}>{item.label}</span>
+                {currentView === item.view && (
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-cyan-400 dark:to-blue-400 rounded-full shadow-lg animate-slideInDown"></div>
+                )}
               </button>
             ))}
           </div>

@@ -318,18 +318,18 @@ const QuranLogView: React.FC = () => {
                 </div>
 
                 {/* Progress Bar */}
-                {currentLog.pagesRead > 0 && (
+                {(currentLog.pagesRead ?? 0) > 0 && (
                   <div className="mt-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-emerald-700 dark:text-emerald-300">Daily Progress</span>
                       <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                        {((currentLog.pagesRead / 604) * 100).toFixed(2)}% of Quran
+                        {(((currentLog.pagesRead ?? 0) / 604) * 100).toFixed(2)}% of Quran
                       </span>
                     </div>
                     <div className="w-full h-3 bg-emerald-200 dark:bg-emerald-800 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min((currentLog.pagesRead / 20) * 100, 100)}%` }}
+                        style={{ width: `${Math.min(((currentLog.pagesRead ?? 0) / 20) * 100, 100)}%` }}
                       />
                     </div>
                   </div>

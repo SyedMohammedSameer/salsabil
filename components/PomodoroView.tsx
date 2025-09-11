@@ -220,6 +220,7 @@ const PomodoroView: React.FC = () => {
   const settingsRef = useRef(settings);
   const modeRef = useRef(mode);
   const hasLoadedData = useRef(false);
+  const hasLoadedTimerState = useRef(false);
 
   // Garden integration hook
   const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting, getTreeVarietiesForDuration } = useGardenIntegration(
@@ -271,15 +272,21 @@ const PomodoroView: React.FC = () => {
 
   // Load state from global timer context on component mount
   useEffect(() => {
-    if (timerState.pomodoroIsRunning) {
+    if (timerState.pomodoroIsRunning && !hasLoadedTimerState.current) {
+      console.log('Loading persisted Pomodoro timer state:', timerState);
       setIsRunning(true);
       setTimeLeft(timerState.pomodoroTimeLeft);
       setMode(timerState.pomodoroMode as PomodoroMode);
       if (timerState.pomodoroStartTime) {
         sessionStartTime.current = timerState.pomodoroStartTime.getTime();
+        totalPausedTime.current = 0;
+        lastPauseTime.current = null;
       }
+      hasLoadedTimerState.current = true;
+    } else if (!timerState.pomodoroIsRunning) {
+      hasLoadedTimerState.current = true;
     }
-  }, []);
+  }, [timerState.pomodoroIsRunning, timerState.pomodoroTimeLeft, timerState.pomodoroMode, timerState.pomodoroStartTime]);
 
   const getDuration = useCallback((currentMode: PomodoroMode, currentSettings: PomodoroSettings) => {
     switch (currentMode) {
@@ -312,11 +319,12 @@ const PomodoroView: React.FC = () => {
   }, [getDuration, clearTimerInterval]);
 
   useEffect(() => {
-    if (!isRunning && sessionStartTime.current === null) {
+    // Only reset timer duration if we're not loading from persisted state and have loaded timer state
+    if (!isRunning && sessionStartTime.current === null && !timerState.pomodoroIsRunning && hasLoadedTimerState.current) {
       const newDuration = getDuration(mode, settings);
       setTimeLeft(newDuration);
     }
-  }, [mode, settings, isRunning, getDuration]);
+  }, [mode, settings, isRunning, getDuration, timerState.pomodoroIsRunning]);
 
   const saveFocusSession = useCallback(async (session: FocusSession) => {
     try {

@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Tree, TreeType, TreeGrowthStage } from '../types';
 import TreeComponent from './TreeComponent';
+import GardenLandscape from './GardenLandscape';
 import * as firebaseService from '../services/firebaseService';
 
 const PersonalGarden: React.FC = () => {
@@ -14,6 +15,7 @@ const PersonalGarden: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<TreeType | 'All'>('All');
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [viewMode, setViewMode] = useState<'landscape' | 'grid'>('landscape');
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -211,8 +213,39 @@ const PersonalGarden: React.FC = () => {
         ))}
       </div>
 
-      {/* Trees Grid */}
-      {filteredTrees.length === 0 ? (
+      {/* View Mode Toggle */}
+      <div className="flex items-center justify-between bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-white/20">
+        <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">🌳 Garden View</h3>
+        <div className="flex rounded-lg p-1 bg-slate-100 dark:bg-slate-700">
+          <button
+            onClick={() => setViewMode('landscape')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+              viewMode === 'landscape'
+                ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <span>🏞️</span>
+            <span>Landscape</span>
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+              viewMode === 'grid'
+                ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <span>⚏</span>
+            <span>Grid</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Trees Display */}
+      {viewMode === 'landscape' ? (
+        <GardenLandscape trees={filteredTrees} loading={loading} />
+      ) : filteredTrees.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
             <span className="text-4xl">🌱</span>

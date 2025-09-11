@@ -1,175 +1,145 @@
-# 🌊 Salsabil
-*A Spring of Productivity & Spiritual Growth*
+# 🌿 Salsabil - A Spring of Productivity & Spiritual Growth
 
-[![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-11.8.1-orange.svg)](https://firebase.google.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-blue.svg)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-blue.svg)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-6.2.0-purple.svg)](https://vitejs.dev/)
+**Salsabil** is a beautiful, comprehensive productivity app designed for mindful living and spiritual growth. Named after the spring in Paradise mentioned in Islamic tradition, this app helps users cultivate productive habits while nurturing their spiritual journey.
 
-## ✨ About Salsabil
+## ✨ Features
 
-Salsabil is a modern web application that beautifully combines productivity management with spiritual growth tracking. Named after the blessed spring in Jannah (Paradise) mentioned in the Quran, Salsabil helps you nourish both your worldly goals and spiritual journey.
+### 🎯 **Productivity Tools**
+- **Weekly Planner**: Organize tasks with priority levels and smart scheduling
+- **Calendar View**: Comprehensive calendar integration for task management  
+- **Pomodoro Timer**: Focus sessions with persistent timer state across modules
+- **AI Assistant**: Smart task management and productivity insights
 
-> *"A fountain there, called Salsabil"* - Quran 76:18
+### 🕌 **Spiritual Growth**
+- **Prayer Tracker**: Monitor your daily prayers with beautiful progress tracking
+- **Quran Reading Log**: Track your Quran reading progress with streak counters
+- **Islamic Calendar**: Stay connected with important Islamic dates
 
-Just as Salsabil is a source of pure, flowing water in Paradise, this app serves as a source of clarity, organization, and spiritual mindfulness in your daily life.
+### 🌳 **Virtual Garden**
+- **Focus Garden**: Watch trees grow as you complete focus sessions
+- **Beautiful Landscape View**: Forest app-inspired organic tree placement with collision detection
+- **Study Circles**: Join collaborative focus sessions and grow gardens together
+- **Tree Varieties**: Different beautiful trees based on focus duration and type
 
-## 🚀 Features
+### 📊 **Dashboard & Analytics**
+- **Real-time Stats**: Track focus time, prayer completion, and reading progress
+- **Visual Progress**: Beautiful charts and progress rings
+- **Streak Tracking**: Maintain consistency with streak counters
 
-### 📋 **Task Management**
-- **Weekly Planner**: Organize tasks across a beautiful weekly view
-- **Smart Calendar**: Visualize your schedule with drag-and-drop functionality
-- **Priority System**: Categorize tasks by importance with color-coded priorities
-- **Subtask Tracking**: Break down complex projects into manageable steps
+## 🛠 **Technical Features**
 
-### 🤖 **AI Assistant (Noor)**
-- **Intelligent Insights**: Get personalized productivity recommendations
-- **Contextual Guidance**: AI understands your tasks, habits, and spiritual journey
-- **Natural Conversations**: Chat about goals, challenges, and progress
-- **Smart Suggestions**: Receive actionable advice based on your data patterns
+### 🎨 **Beautiful Design**
+- **Responsive Design**: Perfect on mobile, tablet, and desktop
+- **Dark/Light Mode**: Seamless theme switching
+- **Smooth Animations**: Custom Tailwind animations for delightful UX
+- **Glass Morphism**: Modern UI with backdrop blur effects
 
-### 📊 **Analytics Dashboard**
-- **Progress Visualization**: Beautiful charts and metrics for tasks, prayers, and Quran reading
-- **Streak Tracking**: Monitor consistency in spiritual practices
-- **Weekly Insights**: Comprehensive analytics with motivational feedback
-- **Focus Time Analytics**: Detailed Pomodoro session tracking
+### 🔧 **Robust Architecture**  
+- **React + TypeScript**: Type-safe, modern React architecture
+- **Firebase Integration**: Real-time database with offline support
+- **Timer Persistence**: Timers maintain state when switching between modules
+- **Real-time Sync**: Live collaboration in study circles
 
-### 🕐 **Focus Timer (Pomodoro)**
-- **Customizable Sessions**: Adjust work/break durations to your preference
-- **Audio Notifications**: Gentle sound alerts for session transitions
-- **Session History**: Track your focus patterns and productivity trends
-- **Smart Breaks**: Automatic transitions between work and rest periods
+### 🌐 **Deployment Ready**
+- **Vercel Optimized**: Proper SPA routing configuration
+- **PWA Ready**: Works offline and can be installed as an app
+- **Performance Optimized**: Built with Vite for fast loading
 
-### 🤲 **Spiritual Tracking**
-- **Prayer Logger**: Track your five daily prayers with completion status
-- **Quran Reading Log**: Monitor daily reading with page counting and streak tracking
-- **Reflection Notes**: Add personal insights and spiritual reflections
-- **Motivation & Reminders**: Gentle encouragement for spiritual consistency
-
-### 🎨 **Beautiful Experience**
-- **Dark/Light Themes**: Switch between elegant light and dark modes
-- **Responsive Design**: Perfect experience on desktop, tablet, and mobile
-- **Smooth Animations**: Delightful micro-interactions and transitions
-- **Glass Morphism UI**: Modern, translucent design elements
-
-### ☁️ **Cloud Sync**
-- **Firebase Integration**: Secure cloud storage and synchronization
-- **Real-time Updates**: Changes sync instantly across all devices
-- **Offline Support**: Continue working even without internet connection
-- **Data Security**: Your personal and spiritual data is encrypted and protected
-
-## 🛠️ Technology Stack
-
-- **Frontend**: React 19.1.0 with TypeScript
-- **Styling**: Tailwind CSS with custom animations
-- **Build Tool**: Vite for fast development and optimized builds
-- **Backend**: Firebase (Authentication, Firestore, Cloud Functions)
-- **AI Integration**: Google Gemini AI for intelligent assistance
-- **State Management**: React Context API with custom hooks
-- **Charts**: Recharts for beautiful data visualizations
-
-## 📱 Quick Start
+## 🚀 **Getting Started**
 
 ### Prerequisites
-- Node.js 18+ and npm
-- Firebase account
-- Google Gemini API key (optional, for AI features)
+- Node.js 18+ 
+- npm or yarn
 
 ### Installation
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/SyedMohammedSameer/salsabil.git
+# Clone the repository
+git clone <repository-url>
 cd salsabil
-```
 
-2. **Install dependencies**
-```bash
+# Install dependencies  
 npm install
-```
 
-3. **Configure environment variables**
-
-
-4. **Start the development server**
-```bash
+# Start development server
 npm run dev
-```
 
-5. **Open your browser** and navigate to `http://localhost:5173`
-
-### Building for Production
-
-```bash
+# Build for production
 npm run build
-npm run preview
 ```
 
-## 🎯 Usage Guide
+### Firebase Setup
+1. Create a Firebase project
+2. Enable Authentication and Firestore
+3. Create a `.env` file with your Firebase config:
+```env
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-domain
+VITE_FIREBASE_PROJECT_ID=your-project-id
+# ... other Firebase config
+```
 
-### Getting Started
-1. **Create an account** or sign in with your email
-2. **Set your preferences** in the settings (theme, Pomodoro durations)
-3. **Add your first task** using the planner or calendar view
-4. **Start a focus session** with the Pomodoro timer
-5. **Log your prayers** and Quran reading in the spiritual trackers
-6. **Chat with Noor** (AI assistant) for personalized guidance
+## 🎯 **Usage**
 
-### Best Practices
-- **Start small**: Begin with 2-3 tasks per day and build consistency
-- **Use priorities**: Focus on high-priority tasks during peak energy hours
-- **Track spiritually**: Consistent small acts are better than sporadic large ones
-- **Review weekly**: Use the dashboard to reflect on progress and adjust goals
-- **Ask Noor**: Don't hesitate to seek AI guidance for productivity challenges
+### First Time Users
+1. **Sign Up**: Create your account with display name
+2. **Create Tasks**: Start with your first task in the Planner
+3. **Focus Sessions**: Use the Pomodoro timer for focused work
+4. **Watch Your Garden Grow**: Complete sessions to plant beautiful trees
+5. **Track Spiritual Growth**: Log prayers and Quran reading
 
-## 🤝 Contributing
+### Study Circles
+1. **Create/Join**: Start or join collaborative focus sessions
+2. **Share Links**: Invite friends with shareable links
+3. **Focus Together**: Synchronized timers for group productivity
+4. **Grow Together**: Collaborative virtual gardens
 
-We welcome contributions from the community! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+## 🌟 **Key Improvements in Latest Release**
 
-### Development Setup
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and test thoroughly
-4. Commit your changes: `git commit -m 'Add amazing feature'`
-5. Push to the branch: `git push origin feature/amazing-feature`
-6. Open a Pull Request
+### 🔧 **Bug Fixes**
+- ✅ **Timer Persistence**: Pomodoro timers now persist across all module switches
+- ✅ **Tree Spacing**: Beautiful organic tree placement with proper collision detection
+- ✅ **Sidebar Layout**: Theme toggle and logout buttons stack properly when sidebar is collapsed
+- ✅ **Type Safety**: Fixed all TypeScript errors for robust code
+- ✅ **Date Consistency**: Unified date handling across the entire app
 
-## 📝 License
+### 🎨 **Visual Enhancements**
+- ✅ **Enhanced Loading**: Beautiful branded loading animations
+- ✅ **Mobile Navigation**: Improved mobile bottom navigation with better feedback
+- ✅ **Custom Animations**: Added fadeIn, slideInDown, float, and glow animations
+- ✅ **Garden Landscape**: Forest app-inspired organic tree placement
+- ✅ **Icon System**: Consistent icon components with customizable sizing
+
+### 🚀 **New Features**
+- ✅ **Landscape Garden View**: Toggle between grid and beautiful landscape views
+- ✅ **Tree Collision Detection**: Proper spacing for organic garden layouts
+- ✅ **Enhanced Timer Context**: Global timer state management
+- ✅ **Vercel Routing**: Proper SPA routing for shareable study circle links
+
+## 🛣️ **Roadmap**
+
+- [ ] **Mobile App**: React Native version for iOS/Android
+- [ ] **Social Features**: Friend connections and progress sharing
+- [ ] **Habit Tracking**: Extended habit formation tools
+- [ ] **Advanced Analytics**: Detailed productivity insights
+- [ ] **Customizable Themes**: User-created color themes
+- [ ] **Offline Mode**: Full offline functionality with sync
+
+## 🤝 **Contributing**
+
+We welcome contributions! Please read our contributing guidelines and submit pull requests for any improvements.
+
+## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## 🙏 **Acknowledgments**
 
-- **Inspiration**: The name Salsabil comes from the Quran (76:18), representing the pure spring in Paradise
-- **Design**: Influenced by modern productivity apps with a spiritual touch
-- **Community**: Thanks to all beta testers and contributors
-- **Open Source**: Built with amazing open-source libraries and tools
-
-## 🌟 Support & Feedback
-
-- **🐛 Bug Reports**: [Create an issue](https://github.com/SyedMohammedSameer/salsabil/issues)
-- **💡 Feature Requests**: [Start a discussion](https://github.com/SyedMohammedSameer/salsabil/discussions)
-- **📧 Email**: 
-- **📱 Discord**: [Join our community](https://discord.gg/salsabil)
-
-## 🚧 Roadmap
-
-- [ ] **Mobile Apps**: Native iOS and Android applications
-- [ ] **Team Collaboration**: Shared workspaces and family spiritual tracking
-- [ ] **Advanced Analytics**: ML-powered insights and habit predictions
-- [ ] **Integration APIs**: Connect with other productivity and Islamic apps
-- [ ] **Offline-First**: Enhanced offline capabilities with sync
-- [ ] **Customizable Duas**: Personal prayer collections and reminders
-- [ ] **Community Features**: Share progress and encourage others
+- Inspired by Islamic values of mindful living and continuous growth
+- UI inspiration from Forest app and modern productivity tools
+- Built with love for the Muslim community worldwide
 
 ---
 
-<div align="center">
+**"And whoever strives only strives for [the benefit of] himself."** - *Quran 29:6*
 
-**Built with ❤️ and guided by Islamic values**
-
-*"And whoever desires the Hereafter and strives for it as he ought to strive and he is a believer; as for these, their striving shall surely be accepted."* - Quran 17:19
-
-
-</div>
+Made with ❤️ for mindful productivity and spiritual growth.
