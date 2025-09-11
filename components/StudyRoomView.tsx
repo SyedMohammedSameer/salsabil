@@ -113,29 +113,41 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   }, [isRoomFocusing, roomFocusStartTime, room]);
 
   const handleShareRoom = async () => {
+    if (!room) {
+      alert('Room information not available. Please try again.');
+      return;
+    }
+    
     const inviteLink = `${window.location.origin}/join/${roomId}`;
+    console.log('🔗 Generated invite link:', inviteLink);
+    console.log('🌐 Current origin:', window.location.origin);
+    console.log('🆔 Room ID:', roomId);
+    
+    const shareText = `🌳 Join "${room.name}" Study Circle!\n\nFocus together and grow your virtual garden. Duration: ${room.focusDuration} minutes\n\nJoin here: ${inviteLink}`;
     
     if (navigator.share && isMobile) {
       try {
         await navigator.share({
-          title: `Join ${room?.name} Study Circle`,
-          text: `Join our focused study session on Salsabil!`,
+          title: `Join ${room.name} Study Circle`,
+          text: `🌳 Focus together and grow your virtual garden! Duration: ${room.focusDuration} minutes`,
           url: inviteLink
         });
+        return;
       } catch (error) {
-        // Fall back to clipboard
-        copyToClipboard(inviteLink);
+        console.log('Native sharing failed, falling back to clipboard');
       }
-    } else {
-      copyToClipboard(inviteLink);
     }
+    
+    // Fall back to clipboard with full text
+    copyToClipboard(shareText);
   };
 
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setShareSuccess(true);
-      setTimeout(() => setShareSuccess(false), 2000);
+      alert('📋 Invite link copied to clipboard! Share it with your friends to join the study circle.');
+      setTimeout(() => setShareSuccess(false), 3000);
     } catch (err) {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
@@ -146,9 +158,11 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
       try {
         document.execCommand('copy');
         setShareSuccess(true);
-        setTimeout(() => setShareSuccess(false), 2000);
+        alert('📋 Invite link copied to clipboard! Share it with your friends to join the study circle.');
+        setTimeout(() => setShareSuccess(false), 3000);
       } catch (fallbackErr) {
         console.error('Failed to copy link');
+        alert('❌ Failed to copy the link. Please try again or copy the URL manually.');
       }
       document.body.removeChild(textArea);
     }

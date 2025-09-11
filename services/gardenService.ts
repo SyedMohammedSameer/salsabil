@@ -89,19 +89,31 @@ export const setupStudyRoomsListener = (callback: (rooms: StudyRoom[]) => void):
 // Join Study Room with better validation
 export const joinStudyRoom = async (roomId: string, userId: string, userName: string): Promise<void> => {
   try {
+    console.log('🔗 Attempting to join study room:', roomId, 'for user:', userId, userName);
+    
     const roomRef = doc(db, 'studyRooms', roomId);
     const roomDoc = await getDoc(roomRef);
     
     if (!roomDoc.exists()) {
+      console.error('❌ Room not found:', roomId);
       throw new Error('Study circle not found or has been closed');
     }
     
     const roomData = roomDoc.data();
+    console.log('📋 Room data loaded:', {
+      name: roomData.name,
+      isActive: roomData.isActive,
+      participantCount: roomData.participantCount,
+      maxParticipants: roomData.maxParticipants
+    });
+    
     if (!roomData.isActive) {
+      console.error('❌ Room is not active:', roomId);
       throw new Error('This study circle is no longer active');
     }
     
     if (roomData.participantCount >= roomData.maxParticipants) {
+      console.error('❌ Room is full:', roomData.participantCount, '>=', roomData.maxParticipants);
       throw new Error('Study circle is full');
     }
 
@@ -110,6 +122,7 @@ export const joinStudyRoom = async (roomId: string, userId: string, userName: st
     const participantDoc = await getDoc(participantRef);
     
     if (participantDoc.exists()) {
+      console.log('✅ User already exists in room, marking as active');
       // User is already in the room, just mark as active
       await updateDoc(participantRef, {
         isActive: true,

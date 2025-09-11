@@ -15,16 +15,36 @@ const GardenView: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const pendingRoomId = sessionStorage.getItem('pendingInvite');
+    let pendingRoomId = sessionStorage.getItem('pendingInvite') || localStorage.getItem('pendingInvite');
+    
     if (pendingRoomId && currentUser) {
-      sessionStorage.removeItem('pendingInvite'); // Clear the item
+      // Check if invite is not too old (24 hours)
+      const timestamp = localStorage.getItem('pendingInviteTimestamp');
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      
+      if (timestamp && (Date.now() - parseInt(timestamp)) > twentyFourHours) {
+        // Invite expired
+        localStorage.removeItem('pendingInvite');
+        localStorage.removeItem('pendingInviteTimestamp');
+        sessionStorage.removeItem('pendingInvite');
+        alert('The study circle invite has expired. Please ask for a new link.');
+        return;
+      }
+      
+      // Clear all invite data
+      sessionStorage.removeItem('pendingInvite');
+      localStorage.removeItem('pendingInvite');
+      localStorage.removeItem('pendingInviteTimestamp');
   
       const joinFromInvite = async () => {
         try {
-          await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.email || 'Anonymous');
-          handleJoinRoom(pendingRoomId); // Your existing function to enter the room view
+          console.log('Attempting to join study room:', pendingRoomId);
+          await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName || currentUser.email || 'Anonymous');
+          handleJoinRoom(pendingRoomId);
+          alert('🎉 Successfully joined the study circle!');
         } catch (error) {
-          alert('Could not join the study circle. It might be full.');
+          console.error('Error joining study room:', error);
+          alert('Could not join the study circle. It might be full, no longer exist, or you might already be in it.');
         }
       };
       joinFromInvite();

@@ -48,13 +48,33 @@ const AppContent: React.FC = () => {
     const path = window.location.pathname;
     if (path.startsWith('/join/')) {
       const roomId = path.split('/join/')[1];
-      if (roomId) {
+      
+      // Validate roomId format (should be a valid Firestore document ID)
+      if (roomId && roomId.length > 0 && !roomId.includes('/') && !roomId.includes('?')) {
+        console.log('📨 Processing invite link for room:', roomId);
+        
+        // Store in both sessionStorage and localStorage for persistence
         sessionStorage.setItem('pendingInvite', roomId);
+        localStorage.setItem('pendingInvite', roomId);
+        localStorage.setItem('pendingInviteTimestamp', Date.now().toString());
         setCurrentView(View.Garden);
+        
+        // Show a notification to the user
+        if (!currentUser) {
+          console.log('👤 User not logged in, showing login prompt');
+          alert('Please log in to join the study circle. You will be automatically joined after login.');
+        } else {
+          console.log('👤 User already logged in, will attempt to join room');
+        }
+        
+        window.history.replaceState({}, '', '/');
+      } else {
+        console.error('❌ Invalid room ID in invite link:', roomId);
+        alert('Invalid invite link. Please check the link and try again.');
         window.history.replaceState({}, '', '/');
       }
     }
-  }, []);
+  }, [currentUser]);
 
   // Data Loading Logic
   useEffect(() => {
