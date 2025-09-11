@@ -5,6 +5,7 @@ import { PlayIcon, PauseIcon, SkipIcon, EditIcon, CloseIcon } from './icons/NavI
 import * as firebaseService from '../services/firebaseService';
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import { useAuth } from '../context/AuthContext';
+import { useTimer } from '../context/TimerContext';
 
 interface FocusSession {
   id: string;
@@ -190,11 +191,12 @@ const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) =
     setTreePlanted(false);
   };
 
-  return { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting };
+  return { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting, getTreeVarietiesForDuration };
 };
 
 const PomodoroView: React.FC = () => {
   const { currentUser } = useAuth();
+  const { timerState, updatePomodoroTimer, resetPomodoroTimer } = useTimer();
   const [settings, setSettings] = useState<PomodoroSettings>(DEFAULT_POMODORO_SETTINGS);
   const [mode, setMode] = useState<PomodoroMode>(PomodoroMode.Work);
   const [timeLeft, setTimeLeft] = useState(DEFAULT_POMODORO_SETTINGS.workDuration * 60);
@@ -220,7 +222,7 @@ const PomodoroView: React.FC = () => {
   const hasLoadedData = useRef(false);
 
   // Garden integration hook
-  const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting } = useGardenIntegration(
+  const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting, getTreeVarietiesForDuration } = useGardenIntegration(
     sessionCompleted, 
     lastFocusMinutes
   );
@@ -266,6 +268,18 @@ const PomodoroView: React.FC = () => {
     };
     loadData();
   }, [currentUser]);
+
+  // Load state from global timer context on component mount
+  useEffect(() => {
+    if (timerState.pomodoroIsRunning) {
+      setIsRunning(true);
+      setTimeLeft(timerState.pomodoroTimeLeft);
+      setMode(timerState.pomodoroMode as PomodoroMode);
+      if (timerState.pomodoroStartTime) {
+        sessionStartTime.current = timerState.pomodoroStartTime.getTime();
+      }
+    }
+  }, []);
 
   const getDuration = useCallback((currentMode: PomodoroMode, currentSettings: PomodoroSettings) => {
     switch (currentMode) {
@@ -369,12 +383,15 @@ const PomodoroView: React.FC = () => {
       setMode(PomodoroMode.Work);
     }
 
+    // Reset global timer state
+    resetPomodoroTimer();
+    
     clearTimerInterval();
     setIsRunning(false);
     sessionStartTime.current = null;
     totalPausedTime.current = 0;
     lastPauseTime.current = null;
-  }, [getDuration, saveFocusSession, clearTimerInterval, isMobile]);
+  }, [getDuration, saveFocusSession, clearTimerInterval, isMobile, resetPomodoroTimer]);
 
   useEffect(() => {
     if (isRunning) {
@@ -398,6 +415,9 @@ const PomodoroView: React.FC = () => {
         
         const remainingSeconds = Math.ceil(remaining / 1000);
         setTimeLeft(remainingSeconds);
+        
+        // Update global timer state
+        updatePomodoroTimer(true, remainingSeconds, modeRef.current, sessionStartTime.current ? new Date(sessionStartTime.current) : null);
 
         if (remaining <= 0) {
           completeSession(false);
@@ -409,17 +429,26 @@ const PomodoroView: React.FC = () => {
       if (sessionStartTime.current && lastPauseTime.current === null) {
         lastPauseTime.current = Date.now();
       }
+      // Update global timer state when paused
+      updatePomodoroTimer(false, timeLeft, mode, sessionStartTime.current ? new Date(sessionStartTime.current) : null);
     }
 
     return () => clearTimerInterval();
-  }, [isRunning, completeSession, getDuration, clearTimerInterval]);
+  }, [isRunning, completeSession, getDuration, clearTimerInterval, updatePomodoroTimer, timeLeft, mode]);
 
   const toggleTimer = () => {
-    if (!isRunning) {
+    const newRunningState = !isRunning;
+    if (newRunningState) {
       // Starting a new session - reset tree planting
       resetTreePlanting();
+      if (!sessionStartTime.current) {
+        sessionStartTime.current = Date.now();
+      }
     }
-    setIsRunning(!isRunning);
+    setIsRunning(newRunningState);
+    
+    // Update global timer state
+    updatePomodoroTimer(newRunningState, timeLeft, mode, sessionStartTime.current ? new Date(sessionStartTime.current) : null);
   };
 
   const stopSession = async () => {

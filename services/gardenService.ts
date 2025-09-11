@@ -186,11 +186,43 @@ export const leaveStudyRoom = async (roomId: string, userId: string): Promise<vo
       // Delete the room document
       batch.delete(roomRef);
     } else {
-      // Update participant count
-      batch.update(roomRef, {
-        participantCount: newParticipantCount,
-        lastActivity: serverTimestamp()
-      });
+      // Check if the leaving user was the owner
+      if (roomData.createdBy === userId) {
+        console.log(`Room owner ${userId} left, transferring ownership...`);
+        
+        // Find the oldest remaining participant to transfer ownership
+        const participantsQuery = query(
+          collection(db, 'studyRooms', roomId, 'participants'),
+          orderBy('joinedAt', 'asc'),
+          limit(1)
+        );
+        const remainingParticipants = await getDocs(participantsQuery);
+        
+        if (!remainingParticipants.empty) {
+          const newOwner = remainingParticipants.docs[0].data();
+          console.log(`Transferring ownership to: ${newOwner.displayName}`);
+          
+          batch.update(roomRef, {
+            createdBy: newOwner.userId,
+            createdByName: newOwner.displayName,
+            participantCount: newParticipantCount,
+            lastActivity: serverTimestamp(),
+            ownershipTransferredAt: serverTimestamp()
+          });
+        } else {
+          // No remaining participants found, just update count
+          batch.update(roomRef, {
+            participantCount: newParticipantCount,
+            lastActivity: serverTimestamp()
+          });
+        }
+      } else {
+        // Non-owner leaving, just update participant count
+        batch.update(roomRef, {
+          participantCount: newParticipantCount,
+          lastActivity: serverTimestamp()
+        });
+      }
     }
 
     await batch.commit();

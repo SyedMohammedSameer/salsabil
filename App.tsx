@@ -14,12 +14,14 @@ import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal'; // Import the new modal
 import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, PrayerTrackerIcon, QuranLogIcon, GardenIcon } from './components/icons/NavIcons';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
 
 const AppContent: React.FC = () => {
   const { currentUser, loading: authLoading, logout } = useAuth();
+  const { timerState } = useTimer();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentView, setCurrentView] = useState<View>(View.Dashboard);
   const [theme, setTheme] = useState<Theme>(Theme.Light);
@@ -237,8 +239,18 @@ const AppContent: React.FC = () => {
     { view: View.Dashboard, icon: <DashboardIcon />, label: 'Home' },
     { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
     { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
-    { view: View.Pomodoro, icon: <PomodoroIcon />, label: 'Focus' },
-    { view: View.Garden, icon: <GardenIcon />, label: 'Garden' },
+    { 
+      view: View.Pomodoro, 
+      icon: <PomodoroIcon />, 
+      label: 'Focus',
+      hasActiveTimer: timerState.pomodoroIsRunning
+    },
+    { 
+      view: View.Garden, 
+      icon: <GardenIcon />, 
+      label: 'Garden',
+      hasActiveTimer: timerState.studyCircleIsRunning
+    },
     { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
   ];
 
@@ -464,7 +476,14 @@ const AppContent: React.FC = () => {
                 onClick={() => setCurrentView(item.view)}
                 className={`relative flex flex-col items-center justify-center space-y-1 transition-all ${currentView === item.view ? 'text-blue-600 dark:text-cyan-400 bg-blue-50 dark:bg-cyan-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
               >
-                <div className="scale-90">{item.icon}</div>
+                <div className="scale-90 relative">
+                  {item.icon}
+                  {item.hasActiveTimer && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                    </div>
+                  )}
+                </div>
                 <span className="text-xs font-medium">{item.label}</span>
                 {currentView === item.view && <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-blue-600 dark:bg-cyan-400 rounded-full"></div>}
               </button>
@@ -487,7 +506,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <TimerProvider>
+        <AppContent />
+      </TimerProvider>
     </AuthProvider>
   );
 };

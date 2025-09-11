@@ -10,6 +10,7 @@ import {
   stopRoomFocusSession
 } from '../services/gardenService';
 import { useAuth } from '../context/AuthContext';
+import { useTimer } from '../context/TimerContext';
 import TreeComponent from './TreeComponent';
 import { PlayIcon, PauseIcon, ChevronLeftIcon, ShareIcon, UsersIcon } from './icons/NavIcons';
 
@@ -20,10 +21,9 @@ interface StudyRoomViewProps {
 
 const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) => {
   const { currentUser } = useAuth();
+  const { timerState, updateStudyCircleTimer, resetStudyCircleTimer } = useTimer();
   const [room, setRoom] = useState<StudyRoom | null>(null);
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
-  const [isFocusing, setIsFocusing] = useState(false);
-  const [focusStartTime, setFocusStartTime] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [roomFocusStartTime, setRoomFocusStartTime] = useState<Date | null>(null);
   const [isRoomFocusing, setIsRoomFocusing] = useState(false);
@@ -69,10 +69,16 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         const remaining = Math.max(0, (updatedRoom.focusDuration * 60 * 1000) - elapsed);
         const remainingSeconds = Math.ceil(remaining / 1000);
         setTimeLeft(remainingSeconds);
+        
+        // Update global timer state
+        updateStudyCircleTimer(roomId, true, remainingSeconds, sessionStart);
       } else {
         setRoomFocusStartTime(null);
         setIsRoomFocusing(false);
         setTimeLeft(updatedRoom.focusDuration * 60);
+        
+        // Update global timer state
+        updateStudyCircleTimer(roomId, false, updatedRoom.focusDuration * 60, null);
       }
     });
     
@@ -84,6 +90,16 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     };
   }, [roomId, onLeaveRoom]);
 
+  // Load persisted timer state on component mount
+  useEffect(() => {
+    if (timerState.studyCircleRoomId === roomId && timerState.studyCircleIsRunning) {
+      setTimeLeft(timerState.studyCircleTimeLeft);
+      setIsRoomFocusing(true);
+      if (timerState.studyCircleStartTime) {
+        setRoomFocusStartTime(timerState.studyCircleStartTime);
+      }
+    }
+  }, [roomId, timerState]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -96,6 +112,9 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         
         setTimeLeft(remainingSeconds);
         
+        // Update global timer state
+        updateStudyCircleTimer(roomId, true, remainingSeconds, roomFocusStartTime);
+        
         if (remainingSeconds <= 0) {
           // Session completed
           const focusMinutes = room.focusDuration;
@@ -103,6 +122,9 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
           setShowTreePlantingModal(true);
           setIsRoomFocusing(false);
           setRoomFocusStartTime(null);
+          
+          // Reset global timer state
+          resetStudyCircleTimer();
         }
       }, 1000);
     }
@@ -110,7 +132,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRoomFocusing, roomFocusStartTime, room]);
+  }, [isRoomFocusing, roomFocusStartTime, room, updateStudyCircleTimer, resetStudyCircleTimer, roomId]);
 
   const handleShareRoom = async () => {
     if (!room) {
@@ -193,6 +215,9 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         setLastSessionMinutes(focusMinutes);
         setShowTreePlantingModal(true);
       }
+      
+      // Reset global timer state
+      resetStudyCircleTimer();
     } catch (error) {
       console.error('Failed to stop focus session:', error);
       alert('Failed to stop focus session. Please try again.');
@@ -207,6 +232,8 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     
     try {
       await leaveStudyRoom(roomId, currentUser.uid);
+      // Reset global timer state when leaving
+      resetStudyCircleTimer();
       onLeaveRoom();
     } catch (error) {
       console.error('Error leaving room:', error);
