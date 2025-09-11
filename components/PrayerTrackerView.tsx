@@ -4,6 +4,7 @@ import { DailyPrayerLog, PrayerName } from '../types';
 import { PRAYER_DEFINITIONS, PRAYER_ORDER } from '../constants';
 import * as firebaseService from '../services/firebaseService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons/NavIcons';
+import { useAuth } from '../context/AuthContext';
 
 const formatDateToYYYYMMDD = (date: Date): string => date.toISOString().split('T')[0];
 
@@ -141,6 +142,7 @@ const PrayerCard: React.FC<{
 };
 
 const PrayerTrackerView: React.FC = () => {
+  const { currentUser } = useAuth();
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [currentLog, setCurrentLog] = useState<DailyPrayerLog | null>(null);
@@ -151,7 +153,7 @@ const PrayerTrackerView: React.FC = () => {
   useEffect(() => {
     const loadLogs = async () => {
       try {
-        const logs = await firebaseService.loadPrayerLogs();
+        const logs = await firebaseService.loadPrayerLogs(currentUser?.uid || null);
         setPrayerLogs(logs);
       } catch (error) {
         console.error('Error loading prayer logs:', error);
@@ -160,7 +162,7 @@ const PrayerTrackerView: React.FC = () => {
       }
     };
     loadLogs();
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     const dateString = formatDateToYYYYMMDD(currentDate);
@@ -219,13 +221,13 @@ const PrayerTrackerView: React.FC = () => {
         newLogs = [...prevLogs, logToSave];
       }
       
-      firebaseService.savePrayerLogs(newLogs).catch(error => {
+      firebaseService.savePrayerLogs(currentUser?.uid || null, newLogs).catch(error => {
         console.error('Error saving prayer logs:', error);
       });
       
       return newLogs;
     });
-  }, []);
+  }, [currentUser]);
 
   const changeDate = (offset: number) => {
     setCurrentDate(prevDate => {

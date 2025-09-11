@@ -101,6 +101,7 @@ const playNotificationSound = (type: 'complete' | 'break') => {
 const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) => {
   const { currentUser } = useAuth();
   const [showTreePlantingModal, setShowTreePlantingModal] = useState(false);
+  const [treePlanted, setTreePlanted] = useState(false);
 
   useEffect(() => {
     if (sessionCompleted && focusMinutes >= 15) { // Only for sessions 15+ minutes
@@ -115,8 +116,48 @@ const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) =
     return TreeGrowthStage.MatureTree;
   };
 
+  const getTreeVarietiesForDuration = (minutes: number) => {
+    if (minutes >= 50) {
+      // Long session - beautiful mature trees
+      return [
+        { emoji: '🌸', name: 'Cherry Blossom', type: TreeType.GeneralFocus, color: 'from-pink-500 to-rose-500' },
+        { emoji: '🌺', name: 'Hibiscus', type: TreeType.Study, color: 'from-red-500 to-pink-500' },
+        { emoji: '🏵️', name: 'Rosette', type: TreeType.Work, color: 'from-orange-500 to-red-500' },
+        { emoji: '🌼', name: 'Daisy', type: TreeType.QuranReading, color: 'from-yellow-400 to-orange-400' },
+        { emoji: '🌻', name: 'Sunflower', type: TreeType.Dhikr, color: 'from-amber-500 to-yellow-500' },
+      ];
+    } else if (minutes >= 30) {
+      // Medium session - flowering trees
+      return [
+        { emoji: '🌻', name: 'Sunflower', type: TreeType.GeneralFocus, color: 'from-yellow-500 to-orange-500' },
+        { emoji: '🌷', name: 'Tulip Tree', type: TreeType.Study, color: 'from-purple-500 to-pink-500' },
+        { emoji: '🌹', name: 'Rose Bush', type: TreeType.Work, color: 'from-red-500 to-pink-600' },
+        { emoji: '🌺', name: 'Hibiscus', type: TreeType.QuranReading, color: 'from-emerald-500 to-teal-500' },
+        { emoji: '🌸', name: 'Cherry Blossom', type: TreeType.Dhikr, color: 'from-pink-400 to-rose-400' },
+      ];
+    } else if (minutes >= 15) {
+      // Standard session - green trees
+      return [
+        { emoji: '🌳', name: 'Oak Tree', type: TreeType.GeneralFocus, color: 'from-green-500 to-emerald-500' },
+        { emoji: '🌲', name: 'Pine Tree', type: TreeType.Study, color: 'from-emerald-500 to-teal-500' },
+        { emoji: '🌴', name: 'Palm Tree', type: TreeType.Work, color: 'from-teal-500 to-cyan-500' },
+        { emoji: '🎋', name: 'Bamboo', type: TreeType.QuranReading, color: 'from-green-400 to-emerald-400' },
+        { emoji: '🌵', name: 'Cactus Flower', type: TreeType.Dhikr, color: 'from-lime-500 to-green-500' },
+      ];
+    } else {
+      // Short session - small plants
+      return [
+        { emoji: '🌿', name: 'Herb', type: TreeType.GeneralFocus, color: 'from-green-400 to-emerald-400' },
+        { emoji: '🌱', name: 'Sprout', type: TreeType.Study, color: 'from-lime-400 to-green-400' },
+        { emoji: '🍀', name: 'Clover', type: TreeType.Work, color: 'from-emerald-400 to-green-500' },
+        { emoji: '🌾', name: 'Wheat', type: TreeType.QuranReading, color: 'from-yellow-400 to-amber-400' },
+        { emoji: '🌿', name: 'Mint', type: TreeType.Dhikr, color: 'from-green-300 to-emerald-300' },
+      ];
+    }
+  };
+
   const plantPersonalTree = async (treeType: TreeType) => {
-    if (!currentUser) return;
+    if (!currentUser || treePlanted) return;
     
     try {
       // Create personal tree object
@@ -133,16 +174,23 @@ const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) =
       
       // Save to user's personal garden in Firestore
       await firebaseService.savePersonalTree(currentUser.uid, personalTree);
+      setTreePlanted(true); // Mark tree as planted
       console.log('Tree planted in personal garden:', personalTree);
+      alert('🌳 Tree planted successfully! Your garden is growing!');
       
     } catch (error) {
       console.error('Error planting tree:', error);
+      alert('Failed to plant tree. Please try again.');
     }
     
     setShowTreePlantingModal(false);
   };
 
-  return { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree };
+  const resetTreePlanting = () => {
+    setTreePlanted(false);
+  };
+
+  return { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting };
 };
 
 const PomodoroView: React.FC = () => {
@@ -172,7 +220,7 @@ const PomodoroView: React.FC = () => {
   const hasLoadedData = useRef(false);
 
   // Garden integration hook
-  const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree } = useGardenIntegration(
+  const { showTreePlantingModal, setShowTreePlantingModal, plantPersonalTree, treePlanted, resetTreePlanting } = useGardenIntegration(
     sessionCompleted, 
     lastFocusMinutes
   );
@@ -367,6 +415,10 @@ const PomodoroView: React.FC = () => {
   }, [isRunning, completeSession, getDuration, clearTimerInterval]);
 
   const toggleTimer = () => {
+    if (!isRunning) {
+      // Starting a new session - reset tree planting
+      resetTreePlanting();
+    }
     setIsRunning(!isRunning);
   };
 
@@ -459,9 +511,9 @@ const PomodoroView: React.FC = () => {
   const getTodayStats = () => {
     const today = new Date().toDateString();
     const todaySessions = focusSessions.filter(s => s.completedAt.toDateString() === today);
-    const focusTime = todaySessions
+    const focusTime = Math.round(todaySessions
       .filter(s => s.type === PomodoroMode.Work)
-      .reduce((total, s) => total + s.actualTimeSpent, 0);
+      .reduce((total, s) => total + s.actualTimeSpent, 0));
     
     return { focusTime };
   };
@@ -734,42 +786,30 @@ const PomodoroView: React.FC = () => {
                   </p>
                 </div>
                 
-                <div className="space-y-3 mb-6">
-                  <button
-                    onClick={() => plantPersonalTree(TreeType.Work)}
-                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg transition-colors"
-                  >
-                    <span>💼</span>
-                    <span>Work Tree</span>
-                  </button>
-                  <button
-                    onClick={() => plantPersonalTree(TreeType.Study)}
-                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white rounded-lg transition-colors"
-                  >
-                    <span>📚</span>
-                    <span>Study Tree</span>
-                  </button>
-                  <button
-                    onClick={() => plantPersonalTree(TreeType.QuranReading)}
-                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-lg transition-colors"
-                  >
-                    <span>📖</span>
-                    <span>Quran Tree</span>
-                  </button>
-                  <button
-                    onClick={() => plantPersonalTree(TreeType.Dhikr)}
-                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg transition-colors"
-                  >
-                    <span>🤲</span>
-                    <span>Dhikr Tree</span>
-                  </button>
-                  <button
-                    onClick={() => plantPersonalTree(TreeType.GeneralFocus)}
-                    className="w-full flex items-center justify-center space-x-2 p-3 bg-gradient-to-r from-slate-500 to-gray-500 hover:from-slate-600 hover:to-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    <span>🎯</span>
-                    <span>Focus Tree</span>
-                  </button>
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 text-center">Choose Your Beautiful Tree:</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {getTreeVarietiesForDuration(lastFocusMinutes).map((tree, index) => (
+                      <button
+                        key={index}
+                        onClick={() => plantPersonalTree(tree.type)}
+                        disabled={treePlanted}
+                        className={`p-3 rounded-xl text-white transition-all duration-200 flex flex-col items-center space-y-1 ${
+                          treePlanted 
+                            ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                            : `bg-gradient-to-r ${tree.color} hover:shadow-lg transform hover:scale-105`
+                        }`}
+                      >
+                        <span className="text-2xl">{tree.emoji}</span>
+                        <span className="text-xs font-medium">{tree.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {treePlanted && (
+                    <div className="text-center mt-3 text-green-600 dark:text-green-400 font-medium">
+                      ✅ Tree planted successfully!
+                    </div>
+                  )}
                 </div>
                 
                 <button

@@ -5,7 +5,9 @@ import {
   setupRoomListener, 
   setupParticipantsListener, 
   leaveStudyRoom, 
-  plantTreeInRoom 
+  plantTreeInRoom,
+  startRoomFocusSession,
+  stopRoomFocusSession
 } from '../services/gardenService';
 import { useAuth } from '../context/AuthContext';
 import TreeComponent from './TreeComponent';
@@ -23,8 +25,12 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   const [isFocusing, setIsFocusing] = useState(false);
   const [focusStartTime, setFocusStartTime] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [roomFocusStartTime, setRoomFocusStartTime] = useState<Date | null>(null);
+  const [isRoomFocusing, setIsRoomFocusing] = useState(false);
   const [showTreePlantingModal, setShowTreePlantingModal] = useState(false);
   const [lastSessionMinutes, setLastSessionMinutes] = useState(0);
+  const [selectedTreeType, setSelectedTreeType] = useState<TreeType>(TreeType.GeneralFocus);
+  const [treePlanted, setTreePlanted] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -45,6 +51,29 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         return;
       }
       setRoom(updatedRoom);
+      
+      // Sync room focus session state
+      if (updatedRoom.currentSessionStart) {
+        let sessionStart: Date;
+        if (updatedRoom.currentSessionStart instanceof Date) {
+          sessionStart = updatedRoom.currentSessionStart;
+        } else {
+          sessionStart = new Date(updatedRoom.currentSessionStart);
+        }
+        
+        setRoomFocusStartTime(sessionStart);
+        setIsRoomFocusing(true);
+        
+        // Calculate time left based on room session
+        const elapsed = Date.now() - sessionStart.getTime();
+        const remaining = Math.max(0, (updatedRoom.focusDuration * 60 * 1000) - elapsed);
+        const remainingSeconds = Math.ceil(remaining / 1000);
+        setTimeLeft(remainingSeconds);
+      } else {
+        setRoomFocusStartTime(null);
+        setIsRoomFocusing(false);
+        setTimeLeft(updatedRoom.focusDuration * 60);
+      }
     });
     
     const participantsUnsub = setupParticipantsListener(roomId, setParticipants);
@@ -55,34 +84,33 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     };
   }, [roomId, onLeaveRoom]);
 
-  useEffect(() => {
-    if (room) {
-      setTimeLeft(room.focusDuration * 60);
-    }
-  }, [room]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
-    if (isFocusing && timeLeft > 0) {
+    if (isRoomFocusing && roomFocusStartTime && room) {
       interval = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            setIsFocusing(false);
-            const focusMinutes = room?.focusDuration || 25;
-            setLastSessionMinutes(focusMinutes);
-            setShowTreePlantingModal(true);
-            return 0;
-          }
-          return prev - 1;
-        });
+        const elapsed = Date.now() - roomFocusStartTime.getTime();
+        const remaining = Math.max(0, (room.focusDuration * 60 * 1000) - elapsed);
+        const remainingSeconds = Math.ceil(remaining / 1000);
+        
+        setTimeLeft(remainingSeconds);
+        
+        if (remainingSeconds <= 0) {
+          // Session completed
+          const focusMinutes = room.focusDuration;
+          setLastSessionMinutes(focusMinutes);
+          setShowTreePlantingModal(true);
+          setIsRoomFocusing(false);
+          setRoomFocusStartTime(null);
+        }
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isFocusing, timeLeft, room]);
+  }, [isRoomFocusing, roomFocusStartTime, room]);
 
   const handleShareRoom = async () => {
     const inviteLink = `${window.location.origin}/join/${roomId}`;
@@ -126,22 +154,34 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     }
   };
 
-  const handleStartFocus = () => {
-    if (!room) return;
-    setIsFocusing(true);
-    setFocusStartTime(new Date());
-    setTimeLeft(room.focusDuration * 60);
+  const handleStartFocus = async () => {
+    if (!room || isRoomFocusing) return;
+    
+    try {
+      setTreePlanted(false); // Reset tree planting for new session
+      await startRoomFocusSession(roomId);
+      // The room listener will update the local state
+    } catch (error) {
+      console.error('Failed to start focus session:', error);
+      alert('Failed to start focus session. Please try again.');
+    }
   };
 
-  const handleStopFocus = () => {
-    if (!focusStartTime) return;
-    const focusMinutes = Math.round((Date.now() - focusStartTime.getTime()) / (1000 * 60));
-    setIsFocusing(false);
-    setFocusStartTime(null);
+  const handleStopFocus = async () => {
+    if (!room || !isRoomFocusing || !roomFocusStartTime) return;
     
-    if (focusMinutes > 0) {
-      setLastSessionMinutes(focusMinutes);
-      setShowTreePlantingModal(true);
+    try {
+      await stopRoomFocusSession(roomId);
+      
+      // Calculate focus time for tree planting
+      const focusMinutes = Math.round((Date.now() - roomFocusStartTime.getTime()) / (1000 * 60));
+      if (focusMinutes > 0) {
+        setLastSessionMinutes(focusMinutes);
+        setShowTreePlantingModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to stop focus session:', error);
+      alert('Failed to stop focus session. Please try again.');
     }
   };
 
@@ -161,17 +201,20 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   };
 
   const handlePlantTree = async () => {
-    if (!currentUser || !room) return;
+    if (!currentUser || !room || treePlanted) return;
     
     try {
       await plantTreeInRoom(
         roomId, 
         currentUser.uid, 
         currentUser.displayName || 'Anonymous', 
-        room.treeType, 
+        selectedTreeType, 
         lastSessionMinutes
       );
+      setTreePlanted(true); // Mark tree as planted for this session
       setShowTreePlantingModal(false);
+      setSelectedTreeType(TreeType.GeneralFocus); // Reset for next time
+      alert('🌳 Tree planted successfully! Your focus garden is growing!');
     } catch (error) {
       console.error('Error planting tree:', error);
       alert('Failed to plant tree. Please try again.');
@@ -179,9 +222,44 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   };
 
   const formatTime = (seconds: number): string => {
+    if (isNaN(seconds) || seconds < 0) {
+      return '00:00';
+    }
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTreeVarietiesForDuration = (minutes: number) => {
+    if (minutes >= 50) {
+      // Long session - beautiful mature trees
+      return [
+        { emoji: '🌸', name: 'Cherry Blossom', type: TreeType.GeneralFocus, color: 'from-pink-500 to-rose-500' },
+        { emoji: '🌺', name: 'Hibiscus', type: TreeType.Study, color: 'from-red-500 to-pink-500' },
+        { emoji: '🏵️', name: 'Rosette', type: TreeType.Work, color: 'from-orange-500 to-red-500' },
+      ];
+    } else if (minutes >= 30) {
+      // Medium session - flowering trees
+      return [
+        { emoji: '🌻', name: 'Sunflower', type: TreeType.GeneralFocus, color: 'from-yellow-500 to-orange-500' },
+        { emoji: '🌷', name: 'Tulip Tree', type: TreeType.Study, color: 'from-purple-500 to-pink-500' },
+        { emoji: '🌹', name: 'Rose Bush', type: TreeType.Work, color: 'from-red-500 to-pink-600' },
+      ];
+    } else if (minutes >= 15) {
+      // Standard session - green trees
+      return [
+        { emoji: '🌳', name: 'Oak Tree', type: TreeType.GeneralFocus, color: 'from-green-500 to-emerald-500' },
+        { emoji: '🌲', name: 'Pine Tree', type: TreeType.Study, color: 'from-emerald-500 to-teal-500' },
+        { emoji: '🌴', name: 'Palm Tree', type: TreeType.Work, color: 'from-teal-500 to-cyan-500' },
+      ];
+    } else {
+      // Short session - small plants
+      return [
+        { emoji: '🌿', name: 'Herb', type: TreeType.GeneralFocus, color: 'from-green-400 to-emerald-400' },
+        { emoji: '🌱', name: 'Sprout', type: TreeType.Study, color: 'from-lime-400 to-green-400' },
+        { emoji: '🍀', name: 'Clover', type: TreeType.Work, color: 'from-emerald-400 to-green-500' },
+      ];
+    }
   };
 
   const getTreeTypeIcon = (type: TreeType) => {
@@ -323,12 +401,43 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 {formatTime(timeLeft)}
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                {isFocusing ? 'Focusing...' : 'Ready to focus'}
+                {isRoomFocusing ? 'Circle focusing together...' : 'Ready to focus'}
               </div>
               
-              {/* Tree preview in center */}
-              <div className="mt-3 text-3xl opacity-60">
-                {getTreeTypeIcon(room.treeType)}
+              {/* Animated growing tree in center */}
+              <div className="mt-3">
+                {isRoomFocusing ? (
+                  <div className="relative">
+                    {/* Growing tree animation */}
+                    <div 
+                      className="text-4xl transition-all duration-1000 transform"
+                      style={{
+                        transform: `scale(${0.3 + (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60) * 0.7})`,
+                        opacity: 0.6 + (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60) * 0.4
+                      }}
+                    >
+                      {/* Tree grows from seed to full tree */}
+                      {(() => {
+                        const progress = (room.focusDuration * 60 - timeLeft) / (room.focusDuration * 60);
+                        if (progress < 0.2) return '🌱'; // Seed/sprout
+                        if (progress < 0.4) return '🌿'; // Young plant
+                        if (progress < 0.6) return '🌳'; // Small tree
+                        if (progress < 0.8) return '🌲'; // Growing tree
+                        return '🌴'; // Mature tree
+                      })()}
+                    </div>
+                    {/* Floating particles around growing tree */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute top-0 left-1/2 w-1 h-1 bg-green-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
+                      <div className="absolute top-2 right-1/3 w-1 h-1 bg-emerald-400 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
+                      <div className="absolute bottom-1 left-1/3 w-1 h-1 bg-teal-400 rounded-full animate-ping" style={{animationDelay: '2s'}}></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-3xl opacity-60">
+                    🌱
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -337,23 +446,24 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         {/* Enhanced Controls */}
         <div className="flex justify-center space-x-4 mb-6">
           <button
-            onClick={isFocusing ? handleStopFocus : handleStartFocus}
-            className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
-              isFocusing 
+            onClick={isRoomFocusing ? handleStopFocus : handleStartFocus}
+            disabled={!room}
+            className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+              isRoomFocusing 
                 ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600' 
-                : `bg-gradient-to-r ${getTreeTypeColor(room.treeType)} hover:opacity-90`
+                : `bg-gradient-to-r ${getTreeTypeColor(room?.treeType || TreeType.GeneralFocus)} hover:opacity-90`
             }`}
           >
             <div className="flex items-center space-x-3">
-              {isFocusing ? (
+              {isRoomFocusing ? (
                 <>
                   <PauseIcon className="w-6 h-6" />
-                  <span>Stop Focus</span>
+                  <span>Stop Circle Focus</span>
                 </>
               ) : (
                 <>
                   <PlayIcon className="w-6 h-6" />
-                  <span>Start Focus</span>
+                  <span>Start Circle Focus</span>
                 </>
               )}
             </div>
@@ -528,9 +638,32 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                   🎉 Focus Session Complete!
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400">
-                  You focused for <strong>{lastSessionMinutes} minutes</strong> on {room.treeType.toLowerCase()}. 
-                  Plant a tree to celebrate your achievement!
+                  You focused for <strong>{lastSessionMinutes} minutes</strong>! 
+                  Choose what type of tree to plant to celebrate your achievement!
                 </p>
+              </div>
+
+              {/* Beautiful Tree Selection */}
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Choose Your Tree:</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {getTreeVarietiesForDuration(lastSessionMinutes).map((tree, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedTreeType(tree.type)}
+                      className={`p-3 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                        selectedTreeType === tree.type
+                          ? `bg-gradient-to-r ${tree.color} text-white border-transparent shadow-lg transform scale-105`
+                          : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center space-y-1">
+                        <span className="text-2xl">{tree.emoji}</span>
+                        <span className="text-xs">{tree.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <div className="flex space-x-3">
@@ -542,9 +675,14 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 </button>
                 <button
                   onClick={handlePlantTree}
-                  className={`flex-1 px-4 py-3 text-white rounded-xl transition-all shadow-lg hover:shadow-xl bg-gradient-to-r ${getTreeTypeColor(room.treeType)}`}
+                  disabled={treePlanted}
+                  className={`flex-1 px-4 py-3 text-white rounded-xl transition-all shadow-lg hover:shadow-xl ${
+                    treePlanted 
+                      ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                      : `bg-gradient-to-r ${getTreeVarietiesForDuration(lastSessionMinutes).find(t => t.type === selectedTreeType)?.color || 'from-green-500 to-emerald-500'}`
+                  }`}
                 >
-                  Plant Tree 🌱
+                  {treePlanted ? '✅ Tree Planted!' : `Plant ${getTreeVarietiesForDuration(lastSessionMinutes).find(t => t.type === selectedTreeType)?.emoji || '🌱'} Tree`}
                 </button>
               </div>
             </div>

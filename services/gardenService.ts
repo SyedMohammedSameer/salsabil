@@ -302,6 +302,7 @@ export const setupRoomListener = (roomId: string, callback: (room: StudyRoom | n
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
+        currentSessionStart: data.currentSessionStart?.toDate() || null,
         trees: data.trees || []
       } as StudyRoom;
       callback(room);
@@ -382,6 +383,35 @@ export const cleanupInactiveRooms = async (): Promise<void> => {
     await batch.commit();
   } catch (error) {
     console.error('Error cleaning up inactive rooms:', error);
+  }
+};
+
+// Room Focus Session Management
+export const startRoomFocusSession = async (roomId: string): Promise<void> => {
+  try {
+    const roomRef = doc(db, 'studyRooms', roomId);
+    await updateDoc(roomRef, {
+      currentSessionStart: serverTimestamp(),
+      lastActivity: serverTimestamp()
+    });
+    console.log(`Started focus session for room ${roomId}`);
+  } catch (error) {
+    console.error('Error starting room focus session:', error);
+    throw error;
+  }
+};
+
+export const stopRoomFocusSession = async (roomId: string): Promise<void> => {
+  try {
+    const roomRef = doc(db, 'studyRooms', roomId);
+    await updateDoc(roomRef, {
+      currentSessionStart: null,
+      lastActivity: serverTimestamp()
+    });
+    console.log(`Stopped focus session for room ${roomId}`);
+  } catch (error) {
+    console.error('Error stopping room focus session:', error);
+    throw error;
   }
 };
 

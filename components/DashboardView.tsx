@@ -4,6 +4,7 @@ import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../
 import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
 import type { FocusSession } from '../services/firebaseService';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -206,6 +207,7 @@ const StatCard: React.FC<{
 };
 
 const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
+  const { currentUser } = useAuth();
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
@@ -223,26 +225,35 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Load all data with optimized caching
+  // Set up real-time data listeners
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [prayers, quran, sessions] = await Promise.all([
-          firebaseService.loadPrayerLogs(),
-          firebaseService.loadQuranLogs(),
-          firebaseService.loadPomodoroSessions()
-        ]);
-        setPrayerLogs(prayers);
-        setQuranLogs(quran);
-        setFocusSessions(sessions);
-      } catch (error) {
-        console.error('Dashboard: Error loading data:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribers: (() => void)[] = [];
+
+    try {
+      // Set up real-time listeners for all data
+      const prayerUnsub = firebaseService.setupPrayerLogsListener(currentUser.uid, setPrayerLogs);
+      const quranUnsub = firebaseService.setupQuranLogsListener(currentUser.uid, setQuranLogs);
+      
+      unsubscribers.push(prayerUnsub, quranUnsub);
+
+      // Load Pomodoro sessions (one-time load for now)
+      firebaseService.loadPomodoroSessions(currentUser.uid).then(setFocusSessions).catch(console.error);
+
+    } catch (error) {
+      console.error('Dashboard: Error setting up listeners:', error);
+    } finally {
+      setLoading(false);
+    }
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
     };
-    loadData();
-  }, []);
+  }, [currentUser]);
 
   // Calculate comprehensive statistics
   const stats = useMemo(() => {
@@ -623,7 +634,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
                 <span className={`text-orange-800 dark:text-orange-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
                   {Math.round(focusSessions
                     .filter(s => s.completedAt.toDateString() === new Date().toDateString() && s.type === 'Work')
-                    .reduce((total, s) => total + s.actualTimeSpent / 60, 0))}m
+                    .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0))}m
                 </span>
               </div>
               

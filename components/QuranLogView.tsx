@@ -3,10 +3,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { DailyQuranLog } from '../types';
 import * as firebaseService from '../services/firebaseService';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons/NavIcons';
+import { useAuth } from '../context/AuthContext';
 
 const formatDateToYYYYMMDD = (date: Date): string => date.toISOString().split('T')[0];
 
 const QuranLogView: React.FC = () => {
+  const { currentUser } = useAuth();
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [currentLog, setCurrentLog] = useState<DailyQuranLog>({
@@ -22,7 +24,7 @@ const QuranLogView: React.FC = () => {
   useEffect(() => {
     const loadLogs = async () => {
       try {
-        const logs = await firebaseService.loadQuranLogs();
+        const logs = await firebaseService.loadQuranLogs(currentUser?.uid || null);
         setQuranLogs(logs);
         calculateStreak(logs);
       } catch (error) {
@@ -32,7 +34,7 @@ const QuranLogView: React.FC = () => {
       }
     };
     loadLogs();
-  }, []);
+  }, [currentUser]);
 
   const calculateStreak = (logs: DailyQuranLog[]) => {
     let currentStreak = 0;
@@ -95,7 +97,7 @@ const QuranLogView: React.FC = () => {
         newLogs = [...prevLogs, currentLog];
       }
       
-      firebaseService.saveQuranLogs(newLogs).then(() => {
+      firebaseService.saveQuranLogs(currentUser?.uid || null, newLogs).then(() => {
         calculateStreak(newLogs);
       }).catch(error => {
         console.error('Error saving Quran logs:', error);
@@ -103,7 +105,7 @@ const QuranLogView: React.FC = () => {
       
       return newLogs;
     });
-  }, [currentLog]);
+  }, [currentLog, currentUser]);
 
   const changeDate = (offset: number) => {
     setCurrentDate(prevDate => {

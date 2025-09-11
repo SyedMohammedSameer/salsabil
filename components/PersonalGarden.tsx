@@ -13,6 +13,7 @@ const PersonalGarden: React.FC = () => {
   const [personalTrees, setPersonalTrees] = useState<Tree[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<TreeType | 'All'>('All');
+  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -35,9 +36,39 @@ const PersonalGarden: React.FC = () => {
     }
   }, [currentUser]);
 
-  const filteredTrees = personalTrees.filter(tree => 
-    selectedFilter === 'All' || tree.type === selectedFilter
-  );
+  const getFilteredTrees = () => {
+    let filtered = personalTrees;
+
+    // Filter by type
+    if (selectedFilter !== 'All') {
+      filtered = filtered.filter(tree => tree.type === selectedFilter);
+    }
+
+    // Filter by time
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    switch (timeFilter) {
+      case 'today':
+        filtered = filtered.filter(tree => tree.plantedAt >= today);
+        break;
+      case 'week':
+        filtered = filtered.filter(tree => tree.plantedAt >= weekAgo);
+        break;
+      case 'month':
+        filtered = filtered.filter(tree => tree.plantedAt >= monthAgo);
+        break;
+      case 'all':
+        // No time filtering
+        break;
+    }
+
+    return filtered;
+  };
+
+  const filteredTrees = getFilteredTrees();
 
   const stats = {
     totalTrees: personalTrees.length,
@@ -53,6 +84,13 @@ const PersonalGarden: React.FC = () => {
     { value: TreeType.QuranReading, label: '📖 Quran', color: 'from-emerald-500 to-teal-500' },
     { value: TreeType.Dhikr, label: '🤲 Dhikr', color: 'from-amber-500 to-orange-500' },
     { value: TreeType.GeneralFocus, label: '🎯 Focus', color: 'from-slate-500 to-gray-500' },
+  ];
+
+  const timeFilters = [
+    { value: 'today' as const, label: '📅 Today', icon: '🌅' },
+    { value: 'week' as const, label: '📆 This Week', icon: '🗓️' },
+    { value: 'month' as const, label: '🗓️ This Month', icon: '📋' },
+    { value: 'all' as const, label: '🌍 All Time', icon: '♾️' },
   ];
 
   if (loading) {
@@ -135,7 +173,28 @@ const PersonalGarden: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Time Filter */}
+      <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-4 shadow-lg border border-white/20">
+        <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-3">📅 Time Period</h3>
+        <div className="flex flex-wrap gap-2">
+          {timeFilters.map((filter) => (
+            <button
+              key={filter.value}
+              onClick={() => setTimeFilter(filter.value)}
+              className={`px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium border flex items-center space-x-2 ${
+                timeFilter === filter.value
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-transparent shadow-lg transform scale-105'
+                  : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
+              }`}
+            >
+              <span>{filter.icon}</span>
+              <span>{filter.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tree Type Filter Tabs */}
       <div className="flex flex-wrap gap-2">
         {treeTypeFilters.map((filter) => (
           <button

@@ -58,21 +58,28 @@ const GardenView: React.FC = () => {
 
   return (
     <div className={`animate-fadeIn h-full bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-slate-900 dark:via-emerald-900/20 dark:to-slate-800 overflow-y-auto ${isMobile ? 'p-4' : 'p-6'}`}>
+      {/* Floating background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-32 h-32 bg-emerald-200/20 rounded-full blur-xl animate-pulse"></div>
+        <div className="absolute top-40 right-20 w-48 h-48 bg-teal-200/20 rounded-full blur-xl animate-pulse delay-1000"></div>
+        <div className="absolute bottom-20 left-1/3 w-40 h-40 bg-cyan-200/20 rounded-full blur-xl animate-pulse delay-2000"></div>
+      </div>
+
       {/* Header */}
-      <div className={`mb-${isMobile ? '6' : '8'}`}>
+      <div className={`relative mb-${isMobile ? '6' : '8'}`}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mr-4">
-              <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center mr-5 shadow-xl transform hover:scale-105 transition-transform duration-300">
+              <svg className="w-8 h-8 text-white animate-pulse" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
             </div>
             <div>
-              <h1 className={`font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent ${isMobile ? 'text-2xl' : 'text-4xl'}`}>
+              <h1 className={`font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent ${isMobile ? 'text-3xl' : 'text-5xl'} drop-shadow-sm`}>
                 Spiritual Garden
               </h1>
-              <p className={`text-slate-600 dark:text-slate-400 mt-1 ${isMobile ? 'text-sm' : 'text-base'}`}>
-                Plant trees of focus, grow gardens of knowledge
+              <p className={`text-slate-600 dark:text-slate-400 mt-2 ${isMobile ? 'text-sm' : 'text-lg'} font-medium`}>
+                🌱 Plant trees of focus, grow gardens of knowledge 🌳
               </p>
             </div>
           </div>
@@ -91,12 +98,12 @@ const GardenView: React.FC = () => {
 
         {/* Navigation Tabs */}
         {activeTab !== 'inRoom' && (
-          <div className="flex space-x-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl p-2 shadow-lg border border-white/20">
+          <div className="flex space-x-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-3 shadow-2xl border border-white/30">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 flex items-center justify-center space-x-2 rounded-lg transition-all duration-200 ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6'} ${
+                className={`flex-1 flex items-center justify-center space-x-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${isMobile ? 'py-4 px-5 text-sm' : 'py-5 px-8'} ${
                   activeTab === tab.id
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
