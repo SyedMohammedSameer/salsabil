@@ -48,9 +48,10 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
     try {
       await joinStudyRoom(roomId, currentUser.uid, currentUser.displayName);
       onJoinRoom(roomId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error joining room:', error);
-      alert('Failed to join room. It might be full.');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      alert(`Failed to join room: ${errorMessage}`);
     } finally {
       setJoining(null);
     }
@@ -63,9 +64,10 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
     try {
       await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName!);
       onJoinRoom(pendingRoomId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error joining room:', error);
-      alert('Failed to join room. It might be full.');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      alert(`Failed to join room: ${errorMessage}`);
     } finally {
       setJoining(null);
       setPendingRoomId('');

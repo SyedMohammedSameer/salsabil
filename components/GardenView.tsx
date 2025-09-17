@@ -53,9 +53,10 @@ const GardenView: React.FC = () => {
           await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName);
           handleJoinRoom(pendingRoomId);
           alert('🎉 Successfully joined the study circle!');
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error joining study room:', error);
-          alert('Could not join the study circle. It might be full, no longer exist, or you might already be in it.');
+          const errorMessage = error?.message || 'Unknown error occurred';
+          alert(`Could not join the study circle: ${errorMessage}`);
         }
       };
       joinFromInvite();
@@ -89,9 +90,10 @@ const GardenView: React.FC = () => {
         await joinStudyRoom(roomId, currentUser!.uid, currentUser!.displayName!);
         handleJoinRoom(roomId);
         alert('🎉 Successfully joined the study circle!');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error joining study room:', error);
-        alert('Could not join the study circle.');
+        const errorMessage = error?.message || 'Unknown error occurred';
+        alert(`Could not join the study circle: ${errorMessage}`);
       }
     } else if (pendingAction === 'create-room') {
       setShowCreateModal(true);

@@ -86,17 +86,15 @@ export const setupStudyRoomsListener = (callback: (rooms: StudyRoom[]) => void):
 };
 
 // Join Study Room with better validation
-// OPTIMIZED: Join Study Room with improved error handling and reduced database calls
+// DEBUGGED: Join Study Room with better error reporting and participant count sync
 export const joinStudyRoom = async (roomId: string, userId: string, userName: string): Promise<void> => {
   try {
-    console.log('🔗 Fast join attempt for room:', roomId, 'user:', userName);
+    console.log('🔗 Join attempt - Room:', roomId, 'User:', userName);
 
-    // Use batch to reduce database round trips
-    const batch = writeBatch(db);
     const roomRef = doc(db, 'studyRooms', roomId);
     const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
 
-    // Get both documents in parallel
+    // Get room and participant data
     const [roomDoc, participantDoc] = await Promise.all([
       getDoc(roomRef),
       getDoc(participantRef)
@@ -108,28 +106,65 @@ export const joinStudyRoom = async (roomId: string, userId: string, userName: st
     }
 
     const roomData = roomDoc.data();
+    console.log('📊 Room data:', {
+      name: roomData.name,
+      isActive: roomData.isActive,
+      participantCount: roomData.participantCount,
+      maxParticipants: roomData.maxParticipants
+    });
 
     if (!roomData.isActive) {
       console.error('❌ Room is not active:', roomId);
       throw new Error('This study circle is no longer active');
     }
 
+    // Count actual active participants to verify the count
+    const participantsQuery = query(
+      collection(db, 'studyRooms', roomId, 'participants'),
+      where('isActive', '==', true)
+    );
+    const activeParticipantsSnapshot = await getDocs(participantsQuery);
+    const actualActiveCount = activeParticipantsSnapshot.size;
+
+    console.log('📈 Participant count verification:', {
+      storedCount: roomData.participantCount,
+      actualActiveCount: actualActiveCount,
+      maxParticipants: roomData.maxParticipants,
+      userAlreadyExists: participantDoc.exists()
+    });
+
+    const batch = writeBatch(db);
+
     if (participantDoc.exists()) {
-      console.log('✅ User rejoining room, updating status');
-      // User is already in the room, just mark as active
+      const participantData = participantDoc.data();
+      if (participantData.isActive) {
+        console.log('✅ User already active in room');
+        return; // User is already active, no need to do anything
+      }
+
+      console.log('✅ Reactivating existing participant');
       batch.update(participantRef, {
         isActive: true,
         rejoiningAt: serverTimestamp()
       });
+
+      // Update participant count if needed (in case it was out of sync)
+      const correctedCount = actualActiveCount + 1;
+      if (correctedCount !== roomData.participantCount) {
+        console.log('🔧 Correcting participant count:', roomData.participantCount, '->', correctedCount);
+        batch.update(roomRef, {
+          participantCount: correctedCount,
+          lastActivity: serverTimestamp()
+        });
+      }
     } else {
-      // Check room capacity before adding new participant
-      if (roomData.participantCount >= roomData.maxParticipants) {
-        console.error('❌ Room is full:', roomData.participantCount, '>=', roomData.maxParticipants);
+      // Check capacity using actual count
+      if (actualActiveCount >= roomData.maxParticipants) {
+        console.error('❌ Room actually full:', actualActiveCount, '>=', roomData.maxParticipants);
         throw new Error('Study circle is full');
       }
 
-      console.log('✅ Adding new participant to room');
-      // Add new participant
+      console.log('✅ Adding new participant');
       batch.set(participantRef, {
         userId,
         displayName: userName,
@@ -139,14 +174,14 @@ export const joinStudyRoom = async (roomId: string, userId: string, userName: st
         treesPlanted: 0
       });
 
-      // Update participant count
+      // Update with corrected count
+      const newCount = actualActiveCount + 1;
       batch.update(roomRef, {
-        participantCount: roomData.participantCount + 1,
+        participantCount: newCount,
         lastActivity: serverTimestamp()
       });
     }
 
-    // Commit all operations at once
     await batch.commit();
     console.log('✅ Successfully joined study circle');
   } catch (error) {
@@ -528,6 +563,53 @@ export const stopRoomFocusSession = async (roomId: string, killTrees: boolean = 
   } catch (error) {
     console.error('Error stopping room focus session:', error);
     throw error;
+  }
+};
+
+// UTILITY: Sync participant count for a room (fixes data inconsistencies)
+export const syncRoomParticipantCount = async (roomId: string): Promise<void> => {
+  try {
+    console.log('🔄 Syncing participant count for room:', roomId);
+
+    const roomRef = doc(db, 'studyRooms', roomId);
+    const participantsQuery = query(
+      collection(db, 'studyRooms', roomId, 'participants'),
+      where('isActive', '==', true)
+    );
+
+    const [roomDoc, activeParticipantsSnapshot] = await Promise.all([
+      getDoc(roomRef),
+      getDocs(participantsQuery)
+    ]);
+
+    if (!roomDoc.exists()) {
+      console.log('Room does not exist, nothing to sync');
+      return;
+    }
+
+    const roomData = roomDoc.data();
+    const actualActiveCount = activeParticipantsSnapshot.size;
+    const storedCount = roomData.participantCount || 0;
+
+    if (actualActiveCount !== storedCount) {
+      console.log('🔧 Fixing participant count mismatch:', {
+        stored: storedCount,
+        actual: actualActiveCount,
+        roomId
+      });
+
+      await updateDoc(roomRef, {
+        participantCount: actualActiveCount,
+        lastActivity: serverTimestamp(),
+        countSyncedAt: serverTimestamp()
+      });
+
+      console.log('✅ Participant count synced successfully');
+    } else {
+      console.log('✅ Participant count already accurate');
+    }
+  } catch (error) {
+    console.error('❌ Error syncing participant count:', error);
   }
 };
 
