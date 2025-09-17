@@ -1,14 +1,13 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  getDocs,
   setDoc,
   getDoc,
-  query, 
-  where, 
+  query,
+  where,
   orderBy,
   serverTimestamp,
   limit,
@@ -87,80 +86,90 @@ export const setupStudyRoomsListener = (callback: (rooms: StudyRoom[]) => void):
 };
 
 // Join Study Room with better validation
+// OPTIMIZED: Join Study Room with improved error handling and reduced database calls
 export const joinStudyRoom = async (roomId: string, userId: string, userName: string): Promise<void> => {
   try {
-    console.log('🔗 Attempting to join study room:', roomId, 'for user:', userId, userName);
-    
+    console.log('🔗 Fast join attempt for room:', roomId, 'user:', userName);
+
+    // Use batch to reduce database round trips
+    const batch = writeBatch(db);
     const roomRef = doc(db, 'studyRooms', roomId);
-    const roomDoc = await getDoc(roomRef);
-    
+    const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
+
+    // Get both documents in parallel
+    const [roomDoc, participantDoc] = await Promise.all([
+      getDoc(roomRef),
+      getDoc(participantRef)
+    ]);
+
     if (!roomDoc.exists()) {
       console.error('❌ Room not found:', roomId);
       throw new Error('Study circle not found or has been closed');
     }
-    
+
     const roomData = roomDoc.data();
-    console.log('📋 Room data loaded:', {
-      name: roomData.name,
-      isActive: roomData.isActive,
-      participantCount: roomData.participantCount,
-      maxParticipants: roomData.maxParticipants
-    });
-    
+
     if (!roomData.isActive) {
       console.error('❌ Room is not active:', roomId);
       throw new Error('This study circle is no longer active');
     }
-    
-    if (roomData.participantCount >= roomData.maxParticipants) {
-      console.error('❌ Room is full:', roomData.participantCount, '>=', roomData.maxParticipants);
-      throw new Error('Study circle is full');
-    }
 
-    // Check if user is already a participant
-    const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
-    const participantDoc = await getDoc(participantRef);
-    
     if (participantDoc.exists()) {
-      console.log('✅ User already exists in room, marking as active');
+      console.log('✅ User rejoining room, updating status');
       // User is already in the room, just mark as active
-      await updateDoc(participantRef, {
+      batch.update(participantRef, {
         isActive: true,
         rejoiningAt: serverTimestamp()
       });
-      return;
+    } else {
+      // Check room capacity before adding new participant
+      if (roomData.participantCount >= roomData.maxParticipants) {
+        console.error('❌ Room is full:', roomData.participantCount, '>=', roomData.maxParticipants);
+        throw new Error('Study circle is full');
+      }
+
+      console.log('✅ Adding new participant to room');
+      // Add new participant
+      batch.set(participantRef, {
+        userId,
+        displayName: userName,
+        joinedAt: serverTimestamp(),
+        isActive: true,
+        totalFocusMinutes: 0,
+        treesPlanted: 0
+      });
+
+      // Update participant count
+      batch.update(roomRef, {
+        participantCount: roomData.participantCount + 1,
+        lastActivity: serverTimestamp()
+      });
     }
 
-    // Add new participant
-    await setDoc(participantRef, {
-      userId,
-      displayName: userName,
-      joinedAt: serverTimestamp(),
-      isActive: true,
-      totalFocusMinutes: 0,
-      treesPlanted: 0
-    });
-
-    // Update participant count
-    await updateDoc(roomRef, {
-      participantCount: roomData.participantCount + 1
-    });
+    // Commit all operations at once
+    await batch.commit();
+    console.log('✅ Successfully joined study circle');
   } catch (error) {
-    console.error('Error joining study room:', error);
+    console.error('❌ Error joining study room:', error);
     throw error;
   }
 };
 
-// FIXED: Leave Study Room with proper cleanup
+// OPTIMIZED: Fast Leave Study Room with minimal database operations
 export const leaveStudyRoom = async (roomId: string, userId: string): Promise<void> => {
   try {
-    const batch = writeBatch(db);
-    
-    const roomRef = doc(db, 'studyRooms', roomId);
+    console.log(`🚪 Fast leaving room ${roomId} for user ${userId}`);
+
+    // Step 1: Immediate participant removal for instant UI feedback
     const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
 
-    // Get current room data
+    // Delete participant immediately for fast UI response
+    await updateDoc(participantRef, { isActive: false, leftAt: serverTimestamp() });
+
+    // Step 2: Get room data and perform cleanup/ownership transfer asynchronously
+    const roomRef = doc(db, 'studyRooms', roomId);
     const roomDoc = await getDoc(roomRef);
+
     if (!roomDoc.exists()) {
       console.warn('Room does not exist, nothing to leave');
       return;
@@ -169,67 +178,83 @@ export const leaveStudyRoom = async (roomId: string, userId: string): Promise<vo
     const roomData = roomDoc.data();
     const newParticipantCount = Math.max(0, roomData.participantCount - 1);
 
-    // Remove the participant
+    // Step 3: Use batch for final cleanup operations
+    const batch = writeBatch(db);
+
+    // Always delete the participant document
     batch.delete(participantRef);
 
-    // If this was the last participant, delete the entire room and all its data
     if (newParticipantCount === 0) {
-      console.log(`Last participant left room ${roomId}, cleaning up...`);
-      
-      // Delete all participants subcollection (though should be empty now)
-      const participantsQuery = query(collection(db, 'studyRooms', roomId, 'participants'));
-      const participantsSnapshot = await getDocs(participantsQuery);
-      participantsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      
-      // Delete the room document
+      // Last participant - delete entire room
+      console.log(`🗑️ Last participant left room ${roomId}, scheduling cleanup...`);
       batch.delete(roomRef);
     } else {
-      // Check if the leaving user was the owner
+      // Update participant count immediately
+      const updateData: any = {
+        participantCount: newParticipantCount,
+        lastActivity: serverTimestamp()
+      };
+
+      // Handle ownership transfer if needed (simplified)
       if (roomData.createdBy === userId) {
-        console.log(`Room owner ${userId} left, transferring ownership...`);
-        
-        // Find the oldest remaining participant to transfer ownership
-        const participantsQuery = query(
-          collection(db, 'studyRooms', roomId, 'participants'),
-          orderBy('joinedAt', 'asc'),
-          limit(1)
-        );
-        const remainingParticipants = await getDocs(participantsQuery);
-        
-        if (!remainingParticipants.empty) {
-          const newOwner = remainingParticipants.docs[0].data();
-          console.log(`Transferring ownership to: ${newOwner.displayName}`);
-          
-          batch.update(roomRef, {
-            createdBy: newOwner.userId,
-            createdByName: newOwner.displayName,
-            participantCount: newParticipantCount,
-            lastActivity: serverTimestamp(),
-            ownershipTransferredAt: serverTimestamp()
-          });
-        } else {
-          // No remaining participants found, just update count
-          batch.update(roomRef, {
-            participantCount: newParticipantCount,
-            lastActivity: serverTimestamp()
-          });
-        }
-      } else {
-        // Non-owner leaving, just update participant count
-        batch.update(roomRef, {
-          participantCount: newParticipantCount,
-          lastActivity: serverTimestamp()
-        });
+        console.log(`👑 Owner left room ${roomId}, marking for ownership transfer...`);
+        updateData.needsOwnershipTransfer = true;
+        updateData.previousOwner = userId;
       }
+
+      batch.update(roomRef, updateData);
     }
 
+    // Commit batch operations
     await batch.commit();
-    console.log(`Successfully left room ${roomId}. Remaining participants: ${newParticipantCount}`);
+
+    // Step 4: Handle ownership transfer asynchronously (non-blocking)
+    if (newParticipantCount > 0 && roomData.createdBy === userId) {
+      // Do ownership transfer in background without blocking user
+      transferOwnershipAsync(roomId).catch(error => {
+        console.error('Background ownership transfer failed:', error);
+      });
+    }
+
+    console.log(`✅ Successfully left room ${roomId}. Remaining participants: ${newParticipantCount}`);
   } catch (error) {
-    console.error('Error leaving study room:', error);
+    console.error('❌ Error leaving study room:', error);
     throw error;
+  }
+};
+
+// Async ownership transfer (non-blocking)
+const transferOwnershipAsync = async (roomId: string): Promise<void> => {
+  try {
+    console.log(`🔄 Transferring ownership for room ${roomId}...`);
+
+    // Find oldest active participant
+    const participantsQuery = query(
+      collection(db, 'studyRooms', roomId, 'participants'),
+      where('isActive', '==', true),
+      orderBy('joinedAt', 'asc'),
+      limit(1)
+    );
+
+    const snapshot = await getDocs(participantsQuery);
+
+    if (!snapshot.empty) {
+      const newOwner = snapshot.docs[0].data();
+      console.log(`👑 Transferring ownership to: ${newOwner.displayName}`);
+
+      await updateDoc(doc(db, 'studyRooms', roomId), {
+        createdBy: newOwner.userId,
+        createdByName: newOwner.displayName,
+        needsOwnershipTransfer: false,
+        ownershipTransferredAt: serverTimestamp()
+      });
+
+      console.log(`✅ Ownership transferred successfully`);
+    } else {
+      console.warn(`⚠️ No active participants found for ownership transfer`);
+    }
+  } catch (error) {
+    console.error('❌ Async ownership transfer failed:', error);
   }
 };
 
@@ -380,14 +405,18 @@ export const setupRoomListener = (roomId: string, callback: (room: StudyRoom | n
   });
 };
 
-// Real-time Participants Listener with better error handling
+// OPTIMIZED: Real-time Participants Listener - only active participants
 export const setupParticipantsListener = (
-  roomId: string, 
+  roomId: string,
   callback: (participants: RoomParticipant[]) => void
 ): Unsubscribe => {
-  const participantsRef = collection(db, 'studyRooms', roomId, 'participants');
-  
-  return onSnapshot(participantsRef, (snapshot) => {
+  // Only listen for active participants to reduce unnecessary updates
+  const participantsQuery = query(
+    collection(db, 'studyRooms', roomId, 'participants'),
+    where('isActive', '==', true)
+  );
+
+  return onSnapshot(participantsQuery, (snapshot) => {
     const participants: RoomParticipant[] = [];
     snapshot.forEach(doc => {
       const data = doc.data();
@@ -397,6 +426,10 @@ export const setupParticipantsListener = (
         currentFocusStart: data.currentFocusStart?.toDate()
       } as RoomParticipant);
     });
+
+    // Sort by join time for consistent ordering
+    participants.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
+
     callback(participants);
   }, (error) => {
     console.error('Error in participants listener:', error);
@@ -420,8 +453,6 @@ export const cleanupInactiveRooms = async (): Promise<void> => {
     const batch = writeBatch(db);
 
     for (const roomDoc of snapshot.docs) {
-      const roomData = roomDoc.data();
-      
       // Check if room has any active participants
       const participantsQuery = query(
         collection(db, 'studyRooms', roomDoc.id, 'participants'),
@@ -464,14 +495,36 @@ export const startRoomFocusSession = async (roomId: string): Promise<void> => {
   }
 };
 
-export const stopRoomFocusSession = async (roomId: string): Promise<void> => {
+export const stopRoomFocusSession = async (roomId: string, killTrees: boolean = false): Promise<void> => {
   try {
     const roomRef = doc(db, 'studyRooms', roomId);
-    await updateDoc(roomRef, {
-      currentSessionStart: null,
-      lastActivity: serverTimestamp()
-    });
-    console.log(`Stopped focus session for room ${roomId}`);
+
+    if (killTrees) {
+      // Get current room data and mark all alive trees as dead
+      const roomDoc = await getDoc(roomRef);
+      if (roomDoc.exists()) {
+        const roomData = roomDoc.data();
+        const updatedTrees = (roomData.trees || []).map((tree: any) => ({
+          ...tree,
+          isAlive: false,
+          diedAt: new Date(),
+          deathReason: 'Session interrupted'
+        }));
+
+        await updateDoc(roomRef, {
+          currentSessionStart: null,
+          lastActivity: serverTimestamp(),
+          trees: updatedTrees
+        });
+      }
+    } else {
+      await updateDoc(roomRef, {
+        currentSessionStart: null,
+        lastActivity: serverTimestamp()
+      });
+    }
+
+    console.log(`Stopped focus session for room ${roomId}${killTrees ? ' (trees killed)' : ''}`);
   } catch (error) {
     console.error('Error stopping room focus session:', error);
     throw error;

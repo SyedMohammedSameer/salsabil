@@ -31,6 +31,7 @@ export enum View {
   Pomodoro = 'Pomodoro',
   PrayerTracker = 'Prayer Tracker',
   QuranLog = 'Quran Log',
+  Garden = 'Garden',
 }
 
 export enum Theme {
@@ -161,14 +162,3 @@ export interface RoomParticipant {
   treesPlanted: number;
 }
 
-// MODIFY YOUR EXISTING View ENUM TO ADD Garden:
-export enum View {
-  Planner = 'Planner',
-  Calendar = 'Calendar',
-  AIAssistant = 'AI Assistant',
-  Dashboard = 'Dashboard',
-  Pomodoro = 'Pomodoro',
-  PrayerTracker = 'Prayer Tracker',
-  QuranLog = 'Quran Log',
-  Garden = 'Garden',  // <-- ADD THIS LINE
-}

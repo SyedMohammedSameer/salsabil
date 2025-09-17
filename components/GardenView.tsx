@@ -4,6 +4,7 @@ import StudyRoomsList from './StudyRoomsList';
 import StudyRoomView from './StudyRoomView';
 import PersonalGarden from './PersonalGarden';
 import CreateRoomModal from './CreateRoomModal';
+import UsernamePromptModal from './UsernamePromptModal';
 import { PlusIcon } from './icons/NavIcons';
 import { joinStudyRoom } from '../services/gardenService'
 
@@ -12,6 +13,8 @@ const GardenView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'personal' | 'rooms' | 'inRoom'>('personal');
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string>('');
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -39,7 +42,15 @@ const GardenView: React.FC = () => {
       const joinFromInvite = async () => {
         try {
           console.log('Attempting to join study room:', pendingRoomId);
-          await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName || currentUser.email || 'Anonymous');
+
+          // Check if user has displayName, if not prompt for username
+          if (!currentUser.displayName || currentUser.displayName.trim() === '') {
+            setPendingAction(`join-${pendingRoomId}`);
+            setShowUsernamePrompt(true);
+            return;
+          }
+
+          await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName);
           handleJoinRoom(pendingRoomId);
           alert('🎉 Successfully joined the study circle!');
         } catch (error) {
@@ -69,6 +80,32 @@ const GardenView: React.FC = () => {
   const handleLeaveRoom = () => {
     setCurrentRoomId(null);
     setActiveTab('rooms');
+  };
+
+  const handleUsernameSet = async () => {
+    if (pendingAction.startsWith('join-')) {
+      const roomId = pendingAction.replace('join-', '');
+      try {
+        await joinStudyRoom(roomId, currentUser!.uid, currentUser!.displayName!);
+        handleJoinRoom(roomId);
+        alert('🎉 Successfully joined the study circle!');
+      } catch (error) {
+        console.error('Error joining study room:', error);
+        alert('Could not join the study circle.');
+      }
+    } else if (pendingAction === 'create-room') {
+      setShowCreateModal(true);
+    }
+    setPendingAction('');
+  };
+
+  const handleCreateRoomClick = () => {
+    if (!currentUser?.displayName || currentUser.displayName.trim() === '') {
+      setPendingAction('create-room');
+      setShowUsernamePrompt(true);
+      return;
+    }
+    setShowCreateModal(true);
   };
 
   const tabs = [
@@ -106,7 +143,7 @@ const GardenView: React.FC = () => {
 
           {activeTab === 'rooms' && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={handleCreateRoomClick}
               className={`rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center space-x-2
                          ${isMobile ? 'px-4 py-3 text-sm' : 'px-6 py-3'}`}
             >
@@ -153,6 +190,17 @@ const GardenView: React.FC = () => {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onRoomCreated={handleJoinRoom}
+      />
+
+      {/* Username Prompt Modal */}
+      <UsernamePromptModal
+        isOpen={showUsernamePrompt}
+        onClose={() => {
+          setShowUsernamePrompt(false);
+          setPendingAction('');
+        }}
+        onUsernameSet={handleUsernameSet}
+        actionContext={pendingAction.startsWith('join-') ? "join study circles" : "create and join study circles"}
       />
     </div>
   );

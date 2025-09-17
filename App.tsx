@@ -355,11 +355,11 @@ const AppContent: React.FC = () => {
             <button onClick={() => setIsProfileModalOpen(true)} className="w-full text-left p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl hover:shadow-lg transition-shadow">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  {(currentUser.displayName || currentUser.email)?.charAt(0).toUpperCase()}
+                  {(currentUser.displayName || 'A')?.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                    {currentUser.displayName || currentUser.email}
+                    {currentUser.displayName || 'Anonymous'}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Blessed User • {tasks.length} tasks
@@ -424,7 +424,7 @@ const AppContent: React.FC = () => {
               <button onClick={() => setIsProfileModalOpen(true)} className="w-full text-left p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                    {(currentUser.displayName || currentUser.email)?.charAt(0).toUpperCase()}
+                    {(currentUser.displayName || 'A')?.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{currentUser.displayName || currentUser.email}</p>

@@ -170,7 +170,7 @@ const useGardenIntegration = (sessionCompleted: boolean, focusMinutes: number) =
         focusMinutes,
         isAlive: true,
         plantedBy: currentUser.uid,
-        plantedByName: currentUser.email || 'Anonymous'
+        plantedByName: currentUser.displayName || 'Anonymous'
       };
       
       // Save to user's personal garden in Firestore

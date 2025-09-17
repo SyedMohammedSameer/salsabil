@@ -3,27 +3,25 @@ import { Task, Theme, PomodoroSettings, DailyPrayerLog, DailyQuranLog, ChatMessa
 import { DEFAULT_POMODORO_SETTINGS } from '../constants';
 import * as firestore from '../lib/firestore';
 import * as localStorage from './localStorageService';
-import { onSnapshot, collection, doc, Unsubscribe } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Tree, TreeType } from '../types';
 import { Tree, TreeType, TreeGrowthStage } from '../types';
-import { 
-    collection, 
-    doc, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    getDocs, 
+import {
+    collection,
+    doc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    getDocs,
     setDoc,
     getDoc,
-    query, 
-    where, 
+    query,
+    where,
     orderBy,
     serverTimestamp,
     limit,
     onSnapshot,
-    Unsubscribe 
-    } from 'firebase/firestore';
+    Unsubscribe
+} from 'firebase/firestore';
 
 export interface FocusSession {
   id: string;

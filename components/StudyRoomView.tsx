@@ -57,7 +57,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         return;
       }
       setRoom(updatedRoom);
-      
+
       // Sync room focus session state
       if (updatedRoom.currentSessionStart) {
         let sessionStart: Date;
@@ -66,35 +66,35 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         } else {
           sessionStart = new Date(updatedRoom.currentSessionStart);
         }
-        
+
         setRoomFocusStartTime(sessionStart);
         setIsRoomFocusing(true);
-        
+
         // Calculate time left based on room session
         const elapsed = Date.now() - sessionStart.getTime();
         const remaining = Math.max(0, (updatedRoom.focusDuration * 60 * 1000) - elapsed);
         const remainingSeconds = Math.ceil(remaining / 1000);
         setTimeLeft(remainingSeconds);
-        
+
         // Update global timer state
         updateStudyCircleTimer(roomId, true, remainingSeconds, sessionStart);
       } else {
         setRoomFocusStartTime(null);
         setIsRoomFocusing(false);
         setTimeLeft(updatedRoom.focusDuration * 60);
-        
+
         // Update global timer state
         updateStudyCircleTimer(roomId, false, updatedRoom.focusDuration * 60, null);
       }
     });
-    
+
     const participantsUnsub = setupParticipantsListener(roomId, setParticipants);
 
     return () => {
       roomUnsub();
       participantsUnsub();
     };
-  }, [roomId, onLeaveRoom]);
+  }, [roomId]); // Remove onLeaveRoom dependency to prevent unnecessary re-renders
 
   // Load persisted timer state on component mount
   useEffect(() => {
@@ -118,54 +118,66 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
+    let isMounted = true; // Prevent state updates after unmount
 
     if (isRoomFocusing && roomFocusStartTime && room) {
-      interval = setInterval(async () => {
+      interval = setInterval(() => {
+        if (!isMounted) return; // Skip if component unmounted
+
         const elapsed = Date.now() - roomFocusStartTime.getTime();
         const remaining = Math.max(0, (room.focusDuration * 60 * 1000) - elapsed);
         const remainingSeconds = Math.ceil(remaining / 1000);
-        
+
         setTimeLeft(remainingSeconds);
-        
+
         // Update global timer state
         updateTimerRef.current(roomId, true, remainingSeconds, roomFocusStartTime);
-        
+
         if (remainingSeconds <= 0) {
           // Clear the interval first to prevent multiple calls
           if (interval) {
             clearInterval(interval);
             interval = null;
           }
-          
-          // Session completed - auto-stop and auto-plant tree
-          const focusMinutes = room.focusDuration;
-          
-          try {
-            // Auto-stop the session first
-            await stopRoomFocusSession(roomId);
-          } catch (error) {
-            console.error('Failed to stop room session:', error);
-          }
-          
-          // Then update UI state
-          setIsRoomFocusing(false);
-          setRoomFocusStartTime(null);
-          setSessionCompleted(true);
-          resetTimerRef.current();
-          
-          // Show confirmation to plant tree
-          if (currentUserRef.current && focusMinutes > 0) {
-            setLastSessionMinutes(focusMinutes);
-            setShowTreePlantingModal(true);
-          }
+
+          // Session completed - handle auto-stop async
+          const handleSessionComplete = async () => {
+            if (!isMounted) return;
+
+            const focusMinutes = room.focusDuration;
+
+            try {
+              // Auto-stop the session first
+              await stopRoomFocusSession(roomId);
+            } catch (error) {
+              console.error('Failed to stop room session:', error);
+            }
+
+            if (!isMounted) return; // Check again before state updates
+
+            // Then update UI state
+            setIsRoomFocusing(false);
+            setRoomFocusStartTime(null);
+            setSessionCompleted(true);
+            resetTimerRef.current();
+
+            // Show confirmation to plant tree
+            if (currentUserRef.current && focusMinutes > 0) {
+              setLastSessionMinutes(focusMinutes);
+              setShowTreePlantingModal(true);
+            }
+          };
+
+          handleSessionComplete();
         }
       }, 1000);
     }
 
     return () => {
+      isMounted = false; // Mark as unmounted
       if (interval) clearInterval(interval);
     };
-  }, [isRoomFocusing, roomFocusStartTime, room, roomId]);
+  }, [isRoomFocusing, roomFocusStartTime, room?.focusDuration, roomId]); // More specific dependencies
 
   const handleShareRoom = async () => {
     if (!room) {
@@ -225,7 +237,13 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 
   const handleStartFocus = async () => {
     if (!room || isRoomFocusing || isStartingFocus) return;
-    
+
+    // Check if current user is the room owner
+    if (!currentUser || currentUser.uid !== room.createdBy) {
+      alert('⚠️ Only the circle owner can start the focus session. The current owner is ' + room.createdByName + '.');
+      return;
+    }
+
     setIsStartingFocus(true);
     try {
       setTreePlanted(false); // Reset tree planting for new session
@@ -243,20 +261,44 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 
   const handleStopFocus = async () => {
     if (!room || !isRoomFocusing || !roomFocusStartTime || isStoppingFocus) return;
-    
+
+    // Check if current user is the room owner
+    if (!currentUser || currentUser.uid !== room.createdBy) {
+      alert('⚠️ Only the circle owner can stop the focus session. The current owner is ' + room.createdByName + '.');
+      return;
+    }
+
     setIsStoppingFocus(true);
     try {
-      await stopRoomFocusSession(roomId);
-      
-      // Show confirmation to plant tree after manual stop
+      // Calculate elapsed time
       const focusMinutes = Math.round((Date.now() - roomFocusStartTime.getTime()) / (1000 * 60));
-      if (focusMinutes > 0 && currentUser) {
+      const plannedMinutes = room.focusDuration;
+      const isEarlyStop = focusMinutes < plannedMinutes;
+
+      // Ask user if they want to kill trees for early stop
+      let killTrees = false;
+      if (isEarlyStop) {
+        const userChoice = window.confirm(
+          `⚠️ You're stopping the session early (${focusMinutes}/${plannedMinutes} minutes completed).\n\n` +
+          `Do you want to kill all trees in the garden as a consequence?\n\n` +
+          `• Click "OK" to kill trees (represents failed commitment)\n` +
+          `• Click "Cancel" to keep trees alive (lenient mode)`
+        );
+        killTrees = userChoice;
+      }
+
+      await stopRoomFocusSession(roomId, killTrees);
+
+      // Show confirmation to plant tree after manual stop (only if trees weren't killed)
+      if (focusMinutes > 0 && currentUser && !killTrees) {
         setLastSessionMinutes(focusMinutes);
         setShowTreePlantingModal(true);
+      } else if (killTrees) {
+        alert('⚰️ Session stopped early. All trees in the garden have died as a consequence of the broken commitment.');
       } else {
         alert('⏸️ Session stopped.');
       }
-      
+
       // Reset global timer state
       resetStudyCircleTimer();
     } catch (error) {
@@ -298,21 +340,26 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 
   const handleLeaveRoom = async () => {
     if (!currentUser || isLeavingRoom) return;
-    
+
     const confirmLeave = window.confirm('Are you sure you want to leave this study circle?');
     if (!confirmLeave) return;
-    
+
     setIsLeavingRoom(true);
+
     try {
-      await leaveStudyRoom(roomId, currentUser.uid);
-      // Reset global timer state when leaving
+      // Immediate UI feedback - navigate away first for instant response
       resetStudyCircleTimer();
-      onLeaveRoom();
+      onLeaveRoom(); // Navigate immediately for better UX
+
+      // Then perform the database operation in background
+      await leaveStudyRoom(roomId, currentUser.uid);
+      console.log('✅ Successfully left study circle');
     } catch (error) {
-      console.error('Error leaving room:', error);
-      alert('Failed to leave the circle. Please try again.');
-      setIsLeavingRoom(false); // Reset loading state on error
+      console.error('❌ Error leaving room:', error);
+      // Show error but don't navigate back since user already left the view
+      // This is intentional - better to complete the UI action and handle errors in background
     }
+    // Note: Don't reset isLeavingRoom since component will unmount
   };
 
   const handlePlantTree = async () => {
@@ -508,7 +555,17 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 {formatTime(timeLeft)}
               </div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                {isRoomFocusing ? '' : ''}
+                {isRoomFocusing ?
+                  <span className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Session in progress...</span>
+                  </span>
+                  :
+                  <span className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                    <span>Ready to focus</span>
+                  </span>
+                }
               </div>
               
               {/* Animated growing tree in center */}
@@ -578,13 +635,30 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         )}
 
         {/* Enhanced Controls */}
-        <div className="flex justify-center space-x-4 mb-6">
+        <div className="flex flex-col items-center space-y-4 mb-6">
+          {/* Owner information */}
+          <div className="text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Circle Owner: <span className="font-medium text-slate-800 dark:text-slate-200">{room.createdByName}</span>
+              {currentUser?.uid === room.createdBy && (
+                <span className="ml-2 px-2 py-1 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs rounded-full">
+                  You
+                </span>
+              )}
+            </p>
+            {currentUser?.uid !== room.createdBy && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚠️ Only the owner can start/stop the timer
+              </p>
+            )}
+          </div>
+
           <button
             onClick={isRoomFocusing ? handleStopFocus : handleStartFocus}
-            disabled={!room || isStartingFocus || isStoppingFocus}
+            disabled={!room || isStartingFocus || isStoppingFocus || (currentUser?.uid !== room.createdBy)}
             className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-              isRoomFocusing 
-                ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600' 
+              isRoomFocusing
+                ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600'
                 : `bg-gradient-to-r ${selectedTreeVariety.color} hover:opacity-90`
             }`}
           >
@@ -611,19 +685,40 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
           </button>
         </div>
 
-        {/* Focus Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {participants.reduce((total, p) => total + p.totalFocusMinutes, 0)}m
+        {/* Enhanced Focus Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200/50 dark:border-emerald-700/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {participants.reduce((total, p) => total + p.totalFocusMinutes, 0)}m
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Total Group Focus</div>
+              </div>
+              <div className="text-2xl">🌱</div>
             </div>
-            <div className="text-sm text-slate-500 dark:text-slate-400">Total Group Focus</div>
           </div>
-          <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {participants.filter(p => p.isActive).length}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200/50 dark:border-blue-700/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {participants.filter(p => p.isActive).length}
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Active Members</div>
+              </div>
+              <div className="text-2xl">👥</div>
             </div>
-            <div className="text-sm text-slate-500 dark:text-slate-400">Active Members</div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-amber-200/50 dark:border-amber-700/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {room.trees.filter(t => t.isAlive).length}
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">Living Trees</div>
+              </div>
+              <div className="text-2xl">🌳</div>
+            </div>
           </div>
         </div>
       </div>
@@ -747,17 +842,51 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
               ))}
             </div>
             
-            {/* Floating particles effect */}
+            {/* Enhanced floating particles effect */}
             <div className="absolute inset-0 pointer-events-none">
-              {[...Array(6)].map((_, i) => (
+              {/* Magic sparkles */}
+              {[...Array(8)].map((_, i) => (
                 <div
                   key={i}
-                  className="absolute w-1 h-1 bg-emerald-400/40 rounded-full animate-pulse"
+                  className="absolute animate-float opacity-60"
                   style={{
-                    left: `${20 + (i * 15)}%`,
-                    top: `${30 + (i % 3) * 20}%`,
-                    animationDelay: `${i * 0.5}s`,
-                    animationDuration: `${2 + (i % 3)}s`
+                    left: `${15 + (i * 12)}%`,
+                    top: `${25 + (i % 4) * 15}%`,
+                    animationDelay: `${i * 0.7}s`,
+                    animationDuration: `${3 + (i % 3)}s`
+                  }}
+                >
+                  <span className="text-emerald-400/50 text-xs">✨</span>
+                </div>
+              ))}
+
+              {/* Gentle flowing leaves */}
+              {room.trees.length > 0 && [...Array(4)].map((_, i) => (
+                <div
+                  key={`leaf-${i}`}
+                  className="absolute animate-bounce opacity-30"
+                  style={{
+                    left: `${30 + (i * 20)}%`,
+                    top: `${20 + (i % 2) * 30}%`,
+                    animationDelay: `${i * 1.2}s`,
+                    animationDuration: `${4 + (i % 2)}s`
+                  }}
+                >
+                  <span className="text-green-400 text-sm">🍃</span>
+                </div>
+              ))}
+
+              {/* Energy streams when focusing */}
+              {isRoomFocusing && [...Array(3)].map((_, i) => (
+                <div
+                  key={`energy-${i}`}
+                  className="absolute w-0.5 bg-gradient-to-t from-emerald-400/20 to-transparent animate-pulse"
+                  style={{
+                    left: `${40 + (i * 10)}%`,
+                    top: '0%',
+                    height: '100%',
+                    animationDelay: `${i * 0.8}s`,
+                    animationDuration: '2s'
                   }}
                 />
               ))}

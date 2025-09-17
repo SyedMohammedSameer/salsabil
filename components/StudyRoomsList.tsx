@@ -4,8 +4,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { StudyRoom, TreeType } from '../types';
-import { setupStudyRoomsListener, joinStudyRoom, getStudyRooms } from '../services/gardenService'
+import { setupStudyRoomsListener, joinStudyRoom } from '../services/gardenService'
 import { useAuth } from '../context/AuthContext';
+import UsernamePromptModal from './UsernamePromptModal';
 
 interface StudyRoomsListProps {
   onJoinRoom: (roomId: string) => void;
@@ -17,6 +18,8 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
   const [filter, setFilter] = useState<TreeType | 'All'>('All');
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [pendingRoomId, setPendingRoomId] = useState<string>('');
 
   useEffect(() => {
     setLoading(true);
@@ -32,17 +35,40 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
 
 
   const handleJoinRoom = async (roomId: string) => {
-    if (!currentUser) return;
-    
+    if (!currentUser || joining) return; // Prevent double-clicking
+
+    // Check if user has displayName, if not prompt for username
+    if (!currentUser.displayName || currentUser.displayName.trim() === '') {
+      setPendingRoomId(roomId);
+      setShowUsernamePrompt(true);
+      return;
+    }
+
     setJoining(roomId);
     try {
-      await joinStudyRoom(roomId, currentUser.uid, currentUser.email || 'Anonymous');
+      await joinStudyRoom(roomId, currentUser.uid, currentUser.displayName);
       onJoinRoom(roomId);
     } catch (error) {
       console.error('Error joining room:', error);
       alert('Failed to join room. It might be full.');
     } finally {
       setJoining(null);
+    }
+  };
+
+  const handleUsernameSet = async () => {
+    if (!currentUser || !pendingRoomId) return;
+
+    setJoining(pendingRoomId);
+    try {
+      await joinStudyRoom(pendingRoomId, currentUser.uid, currentUser.displayName!);
+      onJoinRoom(pendingRoomId);
+    } catch (error) {
+      console.error('Error joining room:', error);
+      alert('Failed to join room. It might be full.');
+    } finally {
+      setJoining(null);
+      setPendingRoomId('');
     }
   };
 
@@ -130,8 +156,11 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
           {filteredRooms.map((room) => (
             <div
               key={room.id}
-              className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-300"
+              className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl hover:scale-105 transition-all duration-300 group relative overflow-hidden"
             >
+              {/* Subtle background gradient */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${getTreeTypeColor(room.treeType)} opacity-5 group-hover:opacity-10 transition-opacity duration-300`}></div>
+              <div className="relative z-10">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center">
                   <div className={`w-12 h-12 bg-gradient-to-r ${getTreeTypeColor(room.treeType)} rounded-xl flex items-center justify-center mr-3`}>
@@ -177,10 +206,22 @@ const StudyRoomsList: React.FC<StudyRoomsListProps> = ({ onJoinRoom }) => {
                   : 'Join Circle'
                 }
               </button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Username Prompt Modal */}
+      <UsernamePromptModal
+        isOpen={showUsernamePrompt}
+        onClose={() => {
+          setShowUsernamePrompt(false);
+          setPendingRoomId('');
+        }}
+        onUsernameSet={handleUsernameSet}
+        actionContext="join study circles"
+      />
     </div>
   );
 };
