@@ -240,17 +240,21 @@ export const savePersonalTree = async (userId: string, tree: Tree): Promise<void
       console.warn('🔥 Firebase: No user ID provided, cannot save personal tree.');
       return;
     }
-    
+
     try {
+      console.log('🌱 Saving personal tree:', tree.id, 'for user:', userId);
       const treeRef = doc(db, 'users', userId, 'garden', tree.id);
+
+      // Use Firestore timestamp for proper sorting
       await setDoc(treeRef, {
         ...tree,
-        plantedAt: tree.plantedAt.toISOString(), // Convert Date to string for Firestore
+        plantedAt: serverTimestamp(), // Use Firestore timestamp for proper ordering
+        originalPlantedAt: tree.plantedAt.toISOString(), // Keep original date as string backup
         createdAt: serverTimestamp()
       });
-      console.log('🌳 Personal tree saved successfully:', tree.id);
+      console.log('✅ Personal tree saved successfully:', tree.id);
     } catch (error) {
-      console.error('Error saving personal tree:', error);
+      console.error('❌ Error saving personal tree:', error);
       throw error;
     }
   };
@@ -293,29 +297,50 @@ export const savePersonalTree = async (userId: string, tree: Tree): Promise<void
     console.log(`🔥 Firebase: Setting up personal garden listener for user: ${userId}`);
     const gardenRef = collection(db, 'users', userId, 'garden');
     const gardenQuery = query(gardenRef, orderBy('plantedAt', 'desc'), limit(100));
-    
+
     const unsubscribe = onSnapshot(gardenQuery, (snapshot) => {
       const trees: Tree[] = [];
       snapshot.forEach(doc => {
         const data = doc.data();
+
+        // Handle both Firestore timestamp and string dates
+        let plantedAtDate: Date;
+        if (data.plantedAt?.toDate) {
+          // Firestore timestamp
+          plantedAtDate = data.plantedAt.toDate();
+        } else if (data.originalPlantedAt) {
+          // Fallback to string date
+          plantedAtDate = new Date(data.originalPlantedAt);
+        } else if (typeof data.plantedAt === 'string') {
+          plantedAtDate = new Date(data.plantedAt);
+        } else {
+          // Fallback to creation time
+          plantedAtDate = data.createdAt?.toDate() || new Date();
+        }
+
         trees.push({
           id: data.id,
           type: data.type as TreeType,
-          plantedAt: new Date(data.plantedAt),
+          plantedAt: plantedAtDate,
           growthStage: data.growthStage,
           focusMinutes: data.focusMinutes,
           isAlive: data.isAlive,
           plantedBy: data.plantedBy,
-          plantedByName: data.plantedByName
+          plantedByName: data.plantedByName,
+          // Include variety data if present
+          varietyName: data.varietyName,
+          varietyEmoji: data.varietyEmoji,
+          varietyColor: data.varietyColor
         });
       });
-      console.log(`🌳 Personal garden listener received ${trees.length} trees.`);
+
+      console.log(`🌳 Personal garden listener received ${trees.length} trees for user ${userId}`);
       callback(trees);
     }, (error) => {
-      console.error('🔥 Firebase: Personal garden listener error:', error);
+      console.error('❌ Personal garden listener error:', error);
       callback([]);
     });
-  
+
     return unsubscribe;
   };
   

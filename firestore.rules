@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access on all documents to any user signed in to the application
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // GARDEN MODULE: Study Rooms and participants
+    match /studyRooms/{roomId} {
+      // Allow authenticated users to read all study rooms
+      allow read: if request.auth != null;
+
+      // Allow authenticated users to create study rooms
+      allow create: if request.auth != null
+        && request.auth.uid == resource.data.createdBy;
+
+      // Allow room creator and participants to update room
+      allow update: if request.auth != null
+        && (request.auth.uid == resource.data.createdBy
+            || exists(/databases/$(database)/documents/studyRooms/$(roomId)/participants/$(request.auth.uid)));
+
+      // Allow room creator to delete room
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.createdBy;
+
+      // Participants subcollection
+      match /participants/{participantId} {
+        // Allow authenticated users to read participants
+        allow read: if request.auth != null;
+
+        // Allow users to create/update their own participant document
+        allow create, update: if request.auth != null
+          && request.auth.uid == participantId;
+
+        // Allow room owner and the participant themselves to delete
+        allow delete: if request.auth != null
+          && (request.auth.uid == participantId
+              || request.auth.uid == get(/databases/$(database)/documents/studyRooms/$(roomId)).data.createdBy);
+      }
+    }
+
+    // Personal user data collections
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Personal gardens subcollection
+      match /personalGarden/{treeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Personal tasks subcollection
+      match /tasks/{taskId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Focus sessions subcollection
+      match /focusSessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Prayer logs subcollection
+      match /prayerLogs/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Quran logs subcollection
+      match /quranLogs/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Allow users to read and write their own settings
+    match /settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

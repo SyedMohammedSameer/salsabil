@@ -361,26 +361,39 @@ export const plantTreeInRoom = async (
       });
     }
     
+    console.log('🌱 Executing tree planting operations...');
+
     // Execute batch operation and personal garden save in parallel
     const [batchResult, personalTreeResult] = await Promise.allSettled([
       batch.commit(),
       firebaseService.savePersonalTree(userId, newTree)
     ]);
-    
-    // Check if batch operation failed (this is critical)
+
+    // Check if batch operation failed (this is critical for room trees)
     if (batchResult.status === 'rejected') {
-      throw batchResult.reason;
-    }
-    
-    // Warn if personal garden save failed (not critical)
-    if (personalTreeResult.status === 'rejected') {
-      console.warn('Failed to save tree to personal garden:', personalTreeResult.reason);
+      console.error('❌ Failed to plant tree in study room:', batchResult.reason);
+      throw new Error(`Failed to plant tree in study circle: ${batchResult.reason?.message || 'Unknown error'}`);
     }
 
-    console.log(`Tree planted successfully in room ${roomId} by ${userName}`);
-  } catch (error) {
-    console.error('Error planting tree:', error);
-    throw error;
+    // Check personal tree result
+    if (personalTreeResult.status === 'rejected') {
+      console.warn('⚠️ Failed to save personal tree (study room tree still planted):', personalTreeResult.reason);
+    } else {
+      console.log('✅ Personal tree saved successfully');
+    }
+
+    console.log(`🌳 Tree planted successfully in room ${roomId} by ${userName}`);
+  } catch (error: any) {
+    console.error('❌ Error planting tree:', error);
+
+    // Provide more specific error messages
+    if (error?.message?.includes('Missing or insufficient permissions')) {
+      throw new Error('Permission denied: Cannot plant tree in this study circle. Make sure you are a participant.');
+    } else if (error?.message?.includes('not found')) {
+      throw new Error('Study circle no longer exists or you are not a member.');
+    } else {
+      throw new Error(error?.message || 'Failed to plant tree. Please try again.');
+    }
   }
 };
 

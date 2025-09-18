@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can only read and write to their own data in the 'users' collection.
+    // The {userId} wildcard matches the authenticated user's ID.
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Study Rooms for Garden/Forest functionality
+    match /studyRooms/{roomId} {
+      // Anyone authenticated can read study rooms (to browse and join)
+      allow read: if request.auth != null;
+
+      // Allow creation if the user is authenticated and is the creator
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
+
+      // FIXED: Allow updates by the creator, OR allow anyone to update only specific fields
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.createdBy ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participantCount',
+          'trees',
+          'lastActivity',
+          'currentSessionStart',
+          'needsOwnershipTransfer',
+          'previousOwner',
+          'ownershipTransferredAt',
+          'countSyncedAt',
+          'lastTreePlanted'  // <- ADDED THIS - Required for tree planting!
+        ])
+      );
+
+      // Only the creator can delete the room, OR allow deletion if it's empty
+      allow delete: if request.auth != null && (
+        // Allow the creator to delete it anytime
+        request.auth.uid == resource.data.createdBy ||
+        // Allow anyone to delete it ONLY IF it's the last participant leaving
+        resource.data.participantCount <= 1
+      );
+
+      // Participants subcollection rules
+      match /participants/{participantId} {
+        // Anyone authenticated can read participants (to see who's in circles)
+        allow read: if request.auth != null;
+
+        // Users can create/update/delete their own participant document
+        allow create, update, delete: if request.auth != null && request.auth.uid == participantId;
+
+        // Room creators can also manage participants (for ownership transfer)
+        allow update, delete: if request.auth != null &&
+          request.auth.uid == get(/databases/$(database)/documents/studyRooms/$(roomId)).data.createdBy;
+      }
+    }
+
+    // Personal Gardens (extend user data structure)
+    match /users/{userId}/garden/{treeId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Personal Garden Stats
+    match /users/{userId}/gardenStats/summary {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Personal Trees Collection (for Pomodoro trees)
+    match /users/{userId}/personalTrees/{treeId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Focus Sessions (for Pomodoro tracking)
+    match /users/{userId}/focusSessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Task Management
+    match /users/{userId}/tasks/{taskId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Prayer Logs
+    match /users/{userId}/prayerLogs/{logId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Quran Logs
+    match /users/{userId}/quranLogs/{logId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // User Settings
+    match /users/{userId}/settings/{settingDoc} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Chat/AI Assistant messages
+    match /users/{userId}/chatMessages/{messageId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
