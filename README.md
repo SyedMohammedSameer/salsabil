@@ -257,15 +257,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Islamic Values**: Inspired by principles of mindful living and continuous growth
 - **Community**: Built with love for the global Muslim community
 - **Open Source**: Standing on the shoulders of amazing open-source projects
-- **Modern Design**: UI inspiration from Forest app and contemporary productivity tools
 
 ---
 
 ## 📱 **Connect & Share**
 
 🔗 **LinkedIn**: *Share your productivity journey and inspire others*
-🌐 **Demo**: *[Live demo link]*
-📧 **Contact**: *[Your professional email]*
+🌐 **Demo**: 
+📧 **Contact**: *mohammedsameersyed1@gmail.com*
 
 ---
 
@@ -279,4 +278,4 @@ Made with ❤️ for mindful productivity and spiritual growth.
 
 **Star ⭐ this repository** if Salsabil helped you grow your productivity garden!
 
-*Built by developers, for developers, with Islamic values at heart.*
+*Built by Mohammed Sameer Syed, with Islamic values at heart.*
