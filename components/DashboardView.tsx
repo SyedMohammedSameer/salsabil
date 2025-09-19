@@ -1,7 +1,7 @@
 // Mobile-Optimized DashboardView.tsx with responsive design
 import React, { useMemo, useEffect, useState } from 'react';
 import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../types';
-import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon } from './icons/NavIcons';
+import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon, AdhkarIcon } from './icons/NavIcons';
 import * as firebaseService from '../services/firebaseService';
 import type { FocusSession } from '../services/firebaseService';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,31 @@ import { useAuth } from '../context/AuthContext';
 interface DashboardViewProps {
   tasks: Task[];
 }
+
+// Adhkar tracking interfaces
+interface AdhkarCategory {
+  id: string;
+  name: string;
+  icon: string;
+  totalCount: number;
+}
+
+interface DailyAdhkarProgress {
+  date: string;
+  categories: {
+    [categoryId: string]: {
+      completed: number;
+      total: number;
+    };
+  };
+}
+
+// Adhkar categories data
+const ADHKAR_CATEGORIES: AdhkarCategory[] = [
+  { id: 'morning', name: 'Morning', icon: '🌅', totalCount: 10 },
+  { id: 'evening', name: 'Evening', icon: '🌆', totalCount: 10 },
+  { id: 'sleep', name: 'Sleep', icon: '🌙', totalCount: 8 }
+];
 
 // Enhanced Chart Components with mobile optimization
 const ProgressRing: React.FC<{ 
@@ -211,6 +236,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [adhkarProgress, setAdhkarProgress] = useState<DailyAdhkarProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -243,6 +269,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
 
       // Load Pomodoro sessions (one-time load for now)
       firebaseService.loadPomodoroSessions(currentUser.uid).then(setFocusSessions).catch(console.error);
+
+      // Initialize mock adhkar progress for today (temporary until Firebase integration)
+      const today = new Date().toISOString().split('T')[0];
+      const mockAdhkarProgress: DailyAdhkarProgress = {
+        date: today,
+        categories: {
+          morning: { completed: Math.floor(Math.random() * 8), total: 10 },
+          evening: { completed: Math.floor(Math.random() * 6), total: 10 },
+          sleep: { completed: Math.floor(Math.random() * 4), total: 8 }
+        }
+      };
+      setAdhkarProgress([mockAdhkarProgress]);
 
     } catch (error) {
       console.error('Dashboard: Error setting up listeners:', error);
@@ -340,6 +378,21 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     const todayTasks = tasks.filter(t => t.date === today).length;
     const todayCompletedTasks = tasks.filter(t => t.date === today && t.completed).length;
 
+    // Adhkar calculations
+    const todayAdhkar = adhkarProgress.find(p => p.date === today);
+    const adhkarStats = ADHKAR_CATEGORIES.map(category => {
+      const progress = todayAdhkar?.categories[category.id] || { completed: 0, total: category.totalCount };
+      return {
+        ...category,
+        completed: progress.completed,
+        total: progress.total,
+        percentage: Math.round((progress.completed / progress.total) * 100)
+      };
+    });
+    const totalAdhkarCompleted = adhkarStats.reduce((sum, stat) => sum + stat.completed, 0);
+    const totalAdhkarCount = adhkarStats.reduce((sum, stat) => sum + stat.total, 0);
+    const adhkarCompletionPercentage = totalAdhkarCount > 0 ? Math.round((totalAdhkarCompleted / totalAdhkarCount) * 100) : 0;
+
     function calculateQuranStreak(): number {
       let streak = 0;
       const today = new Date();
@@ -379,9 +432,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       todayCompletedTasks,
       last7Days,
       weeklyFocusTime,
-      focusHeatmapData
+      focusHeatmapData,
+      adhkarStats,
+      totalAdhkarCompleted,
+      adhkarCompletionPercentage
     };
-  }, [tasks, prayerLogs, quranLogs, focusSessions]);
+  }, [tasks, prayerLogs, quranLogs, focusSessions, adhkarProgress]);
 
   if (loading) {
     return (
@@ -413,9 +469,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
         </div>
       </div>
 
-      {/* Quick Stats Cards */}
+      {/* Consolidated Stats Cards - Responsive Grid */}
       <div className={`grid gap-${isMobile ? '3' : '4'} mb-${isMobile ? '4' : '6'}
-                      ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5'}`}>
+                      grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`}>
         <StatCard 
           title="Tasks" 
           value={stats.totalTasks} 
@@ -431,65 +487,40 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           trend={stats.todayCompletedTasks > 0 ? 15 : -5}
           isMobile={isMobile}
         />
-        {!isMobile && (
-          <>
-            <StatCard 
-              title="Prayers" 
-              value={stats.todayPrayerCount} 
-              icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
-              color="from-purple-500 to-purple-600"
-              suffix="/5"
-              isMobile={isMobile}
-            />
-            <StatCard 
-              title="Streak" 
-              value={stats.quranStreak} 
-              icon={<QuranLogIcon className="w-5 h-5 text-white" />}
-              color="from-teal-500 to-teal-600"
-              suffix="d"
-              isMobile={isMobile}
-            />
-            <StatCard 
-              title="Focus Time" 
-              value={stats.weeklyFocusTime} 
-              icon={<PomodoroIcon className="w-5 h-5 text-white" />}
-              color="from-orange-500 to-red-600"
-              suffix="m"
-              isMobile={isMobile}
-            />
-          </>
-        )}
+        <StatCard
+          title="Prayers"
+          value={stats.todayPrayerCount}
+          icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
+          color="from-purple-500 to-purple-600"
+          suffix="/5"
+          isMobile={isMobile}
+        />
+        <StatCard
+          title="Streak"
+          value={stats.quranStreak}
+          icon={<QuranLogIcon className="w-5 h-5 text-white" />}
+          color="from-teal-500 to-teal-600"
+          suffix="d"
+          isMobile={isMobile}
+        />
+        <StatCard
+          title="Adhkar"
+          value={stats.adhkarCompletionPercentage}
+          icon={<AdhkarIcon className="w-5 h-5 text-white" />}
+          color="from-pink-500 to-pink-600"
+          suffix="%"
+          isMobile={isMobile}
+        />
+        <StatCard
+          title="Focus"
+          value={stats.weeklyFocusTime}
+          icon={<PomodoroIcon className="w-5 h-5 text-white" />}
+          color="from-orange-500 to-red-600"
+          suffix="m"
+          isMobile={isMobile}
+        />
       </div>
 
-      {/* Mobile-specific additional stats */}
-      {isMobile && (
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <StatCard 
-            title="Prayers" 
-            value={stats.todayPrayerCount} 
-            icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
-            color="from-purple-500 to-purple-600"
-            suffix="/5"
-            isMobile={isMobile}
-          />
-          <StatCard 
-            title="Streak" 
-            value={stats.quranStreak} 
-            icon={<QuranLogIcon className="w-5 h-5 text-white" />}
-            color="from-teal-500 to-teal-600"
-            suffix="d"
-            isMobile={isMobile}
-          />
-          <StatCard 
-            title="Focus" 
-            value={stats.weeklyFocusTime} 
-            icon={<PomodoroIcon className="w-5 h-5 text-white" />}
-            color="from-orange-500 to-red-600"
-            suffix="m"
-            isMobile={isMobile}
-          />
-        </div>
-      )}
 
       {/* Main Analytics - Mobile optimized layout */}
       <div className={`mb-${isMobile ? '4' : '6'}`}>
@@ -591,6 +622,48 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
               </div>
             </div>
 
+            {/* Adhkar Progress Section */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Today's Adhkar</span>
+                <span className={`font-bold text-pink-600 dark:text-pink-400 ${isMobile ? 'text-base' : 'text-lg'}`}>
+                  {stats.totalAdhkarCompleted}/{stats.adhkarStats.reduce((sum, stat) => sum + stat.total, 0)}
+                </span>
+              </div>
+              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'} mb-3`}>
+                <div
+                  className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full transition-all duration-1000"
+                  style={{ width: `${stats.adhkarCompletionPercentage}%` }}
+                />
+              </div>
+
+              {/* Individual Adhkar Categories */}
+              <div className={`space-y-2`}>
+                {stats.adhkarStats.map(category => (
+                  <div key={category.id} className={`flex items-center justify-between bg-pink-50 dark:bg-pink-900/20 rounded-lg
+                                                     ${isMobile ? 'p-2' : 'p-3'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>{category.icon}</span>
+                      <span className={`text-pink-700 dark:text-pink-300 font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                        {category.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-pink-800 dark:text-pink-200 font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                        {category.completed}/{category.total}
+                      </span>
+                      <div className={`w-12 lg:w-16 h-1.5 bg-pink-200 dark:bg-pink-800 rounded-full`}>
+                        <div
+                          className="h-full bg-pink-500 rounded-full transition-all"
+                          style={{ width: `${category.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className={`pt-4 border-t border-slate-200 dark:border-slate-600`}>
               <div className="text-center">
                 <div className={`font-bold text-emerald-600 dark:text-emerald-400 mb-1 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
@@ -654,7 +727,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
       <div className={`bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl text-white shadow-xl
                       ${isMobile ? 'p-4' : 'p-6'}`}>
         <h3 className={`font-bold mb-${isMobile ? '3' : '4'} ${isMobile ? 'text-lg' : 'text-xl'}`}>Weekly Insights</h3>
-        <div className={`grid gap-${isMobile ? '3' : '4'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
+        <div className={`grid gap-${isMobile ? '3' : '4'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'}`}>
           <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
             <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>📋 Productivity</h4>
             <p className={`text-indigo-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
@@ -685,9 +758,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
           <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
             <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>📖 Quran</h4>
             <p className={`text-pink-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
-              {stats.quranStreak > 7 ? "Amazing streak! Your dedication is inspiring! 🌙" : 
-               stats.quranStreak > 0 ? "Great start! Keep building that habit! 📚" : 
+              {stats.quranStreak > 7 ? "Amazing streak! Your dedication is inspiring! 🌙" :
+               stats.quranStreak > 0 ? "Great start! Keep building that habit! 📚" :
                "Every verse matters. Start with just one page today! 🌱"}
+            </p>
+          </div>
+
+          <div className={`bg-white/20 backdrop-blur-sm rounded-lg ${isMobile ? 'p-3' : 'p-4'}`}>
+            <h4 className={`font-bold mb-2 ${isMobile ? 'text-sm' : 'text-base'}`}>💝 Adhkar</h4>
+            <p className={`text-pink-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
+              {stats.adhkarCompletionPercentage > 80 ? "Subhan Allah! Your heart is full of remembrance! 💫" :
+               stats.adhkarCompletionPercentage > 50 ? "Beautiful progress! Each dhikr brings you closer! 🌸" :
+               "Start your day with morning adhkar for spiritual strength! ☀️"}
             </p>
           </div>
         </div>

@@ -31,6 +31,7 @@ export enum View {
   Pomodoro = 'Pomodoro',
   PrayerTracker = 'Prayer Tracker',
   QuranLog = 'Quran Log',
+  Adhkar = 'Adhkar',
   Garden = 'Garden',
 }
 

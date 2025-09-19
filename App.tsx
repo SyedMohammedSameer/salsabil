@@ -8,11 +8,12 @@ import DashboardView from './components/DashboardView';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
 import QuranLogView from './components/QuranLogView';
+import AdhkarView from './components/AdhkarView';
 import ThemeToggle from './components/ThemeToggle';
 import NavItem from './components/NavItem';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal'; // Import the new modal
-import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, PrayerTrackerIcon, QuranLogIcon, GardenIcon } from './components/icons/NavIcons';
+import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, PrayerTrackerIcon, QuranLogIcon, GardenIcon, AdhkarIcon } from './components/icons/NavIcons';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
@@ -182,7 +183,8 @@ const AppContent: React.FC = () => {
       [View.Pomodoro]: 'Focus Timer',
       [View.Garden]: 'Garden',
       [View.PrayerTracker]: 'Prayer Tracker',
-      [View.QuranLog]: 'Quran Reading Log'
+      [View.QuranLog]: 'Quran Reading Log',
+      [View.Adhkar]: 'Adhkar'
     };
     return titles[view] || 'Salsabil';
   };
@@ -251,6 +253,8 @@ const AppContent: React.FC = () => {
         return <PrayerTrackerView />;
       case View.QuranLog:
         return <QuranLogView />;
+      case View.Adhkar:
+        return <AdhkarView />;
       default:
         return <DashboardView tasks={tasks} />;
     }
@@ -278,6 +282,7 @@ const AppContent: React.FC = () => {
   const spiritualNavItems = [
     { view: View.PrayerTracker, icon: <PrayerTrackerIcon />, label: 'Prayers' },
     { view: View.QuranLog, icon: <QuranLogIcon />, label: 'Quran' },
+    { view: View.Adhkar, icon: <AdhkarIcon />, label: 'Adhkar' },
   ];
 
   if (!authLoading && !currentUser) {
