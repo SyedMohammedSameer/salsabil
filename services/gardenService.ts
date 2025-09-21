@@ -635,6 +635,21 @@ const getGrowthStage = (focusMinutes: number): TreeGrowthStage => {
   return TreeGrowthStage.MatureTree;
 };
 
+// Toggle participant ready status
+export const toggleParticipantReady = async (roomId: string, userId: string, isReady: boolean): Promise<void> => {
+  try {
+    const participantRef = doc(db, 'studyRooms', roomId, 'participants', userId);
+    await updateDoc(participantRef, {
+      isReady: isReady,
+      lastReadyUpdate: serverTimestamp()
+    });
+    console.log(`User ${userId} ready status set to: ${isReady}`);
+  } catch (error) {
+    console.error('Error updating ready status:', error);
+    throw error;
+  }
+};
+
 // Get room statistics
 export const getRoomStats = async (roomId: string): Promise<{
   totalFocusTime: number;

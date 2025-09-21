@@ -161,5 +161,6 @@ export interface RoomParticipant {
   currentFocusStart?: Date;
   totalFocusMinutes: number;
   treesPlanted: number;
+  isReady?: boolean;
 }
 

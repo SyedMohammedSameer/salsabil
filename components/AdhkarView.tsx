@@ -95,6 +95,48 @@ const ADHKAR_DATA: AdhkarCategory[] = [
         transliteration: 'Astaghfirullaha-l\'azeem al-ladhi la ilaha illa huwa-l-hayyu-l-qayyumu wa atubu ilayh',
         translation: 'I seek forgiveness from Allah the Mighty, whom there is no god but He, the Living, the Eternal, and I repent to Him.',
         count: 3
+      },
+      {
+        id: 'morning-11',
+        arabic: 'قُلْ هُوَ اللَّهُ أَحَدٌ * اللَّهُ الصَّمَدُ * لَمْ يَلِدْ وَلَمْ يُولَدْ * وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ',
+        transliteration: 'Qul huwa Allahu ahad. Allahu as-samad. Lam yalid wa lam yulad. Wa lam yakun lahu kufuwan ahad.',
+        translation: 'Say: He is Allah, the One! Allah, the Eternal, Absolute; He begets not, nor is He begotten; And there is none like unto Him. (Surah Al-Ikhlas)',
+        count: 3
+      },
+      {
+        id: 'morning-12',
+        arabic: 'قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ * مِن شَرِّ مَا خَلَقَ * وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ * وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ * وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
+        transliteration: 'Qul a\'udhu bi rabbi-l-falaq. Min sharri ma khalaq. Wa min sharri ghasiqin idha waqab. Wa min sharri-n-naffathati fi-l-\'uqad. Wa min sharri hasidin idha hasad.',
+        translation: 'Say: I seek refuge with the Lord of the Daybreak, From the mischief of created things; From the mischief of Darkness as it overspreads; From the mischief of those who practise secret arts; And from the mischief of the envious one as he practises envy. (Surah Al-Falaq)',
+        count: 3
+      },
+      {
+        id: 'morning-13',
+        arabic: 'قُلْ أَعُوذُ بِرَبِّ النَّاسِ * مَلِكِ النَّاسِ * إِلَهِ النَّاسِ * مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ * الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ * مِنَ الْجِنَّةِ وَ النَّاسِ',
+        transliteration: 'Qul a\'udhu bi rabbi-n-nas. Maliki-n-nas. Ilahi-n-nas. Min sharri-l-waswasi-l-khannas. Al-ladhi yuwaswisu fi suduri-n-nas. Min al-jinnati wa-n-nas.',
+        translation: 'Say: I seek refuge with the Lord and Cherisher of Mankind, The King (or Ruler) of Mankind, The god (or judge) of Mankind,- From the mischief of the Whisperer (of Evil), who withdraws (after his whisper),- (The same) who whispers into the hearts of Mankind,- Among Jinns and among men. (Surah An-Nas)',
+        count: 3
+      },
+      {
+        id: 'morning-14',
+        arabic: 'اللَّهُمَّ عَافِنِي فِي بَدَنِي، اللَّهُمَّ عَافِنِي فِي سَمْعِي، اللَّهُمَّ عَافِنِي فِي بَصَرِي، لَا إِلَهَ إِلَّا أَنْتَ',
+        transliteration: 'Allahumma \'afini fi badani, Allahumma \'afini fi sam\'i, Allahumma \'afini fi basari, la ilaha illa ant',
+        translation: 'O Allah, grant me well-being in my body, O Allah, grant me well-being in my hearing, O Allah, grant me well-being in my sight, there is no god but You.',
+        count: 3
+      },
+      {
+        id: 'morning-15',
+        arabic: 'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْكُفْرِ وَالْفَقْرِ، وَأَعُوذُ بِكَ مِنْ عَذَابِ الْقَبْرِ، لَا إِلَهَ إِلَّا أَنْتَ',
+        transliteration: 'Allahumma inni a\'udhu bika min al-kufri wa-l-faqr, wa a\'udhu bika min \'adhab al-qabr, la ilaha illa ant',
+        translation: 'O Allah, I seek refuge in You from disbelief and poverty, and I seek refuge in You from the punishment of the grave, there is no god but You.',
+        count: 3
+      },
+      {
+        id: 'morning-16',
+        arabic: 'اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ',
+        transliteration: 'Allahu la ilaha illa huwa-l-hayyu-l-qayyum, la ta\'khudhuhu sinatun wa la nawm, lahu ma fi\'s-samawati wa ma fi\'l-ard, man dha-l-ladhi yashfa\'u \'indahu illa bi-idhnih, ya\'lamu ma bayna aydihim wa ma khalfahum, wa la yuhituna bi-shay\'in min \'ilmihi illa bima sha\'a, wasi\'a kursiyyuhu\'s-samawati wa\'l-ard, wa la ya\'uduhu hifzuhuma wa huwa-l-\'aliyyu-l-\'azim',
+        translation: 'Allah - there is no deity except Him, the Ever-Living, the Sustainer of existence. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass not a thing of His knowledge except for what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great. (Ayatul Kursi)',
+        count: 1
       }
     ]
   },
@@ -173,6 +215,48 @@ const ADHKAR_DATA: AdhkarCategory[] = [
         transliteration: 'Allahumma a\'inni ala dhikrika wa shukrika wa husni \'ibadatik',
         translation: 'O Allah, help me remember You, to be grateful to You, and to worship You in an excellent manner.',
         count: 1
+      },
+      {
+        id: 'evening-11',
+        arabic: 'قُلْ هُوَ اللَّهُ أَحَدٌ * اللَّهُ الصَّمَدُ * لَمْ يَلِدْ وَلَمْ يُولَدْ * وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ',
+        transliteration: 'Qul huwa Allahu ahad. Allahu as-samad. Lam yalid wa lam yulad. Wa lam yakun lahu kufuwan ahad.',
+        translation: 'Say: He is Allah, the One! Allah, the Eternal, Absolute; He begets not, nor is He begotten; And there is none like unto Him. (Surah Al-Ikhlas)',
+        count: 3
+      },
+      {
+        id: 'evening-12',
+        arabic: 'قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ * مِن شَرِّ مَا خَلَقَ * وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ * وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ * وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
+        transliteration: 'Qul a\'udhu bi rabbi-l-falaq. Min sharri ma khalaq. Wa min sharri ghasiqin idha waqab. Wa min sharri-n-naffathati fi-l-\'uqad. Wa min sharri hasidin idha hasad.',
+        translation: 'Say: I seek refuge with the Lord of the Daybreak, From the mischief of created things; From the mischief of Darkness as it overspreads; From the mischief of those who practise secret arts; And from the mischief of the envious one as he practises envy. (Surah Al-Falaq)',
+        count: 3
+      },
+      {
+        id: 'evening-13',
+        arabic: 'قُلْ أَعُوذُ بِرَبِّ النَّاسِ * مَلِكِ النَّاسِ * إِلَهِ النَّاسِ * مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ * الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ * مِنَ الْجِنَّةِ وَ النَّاسِ',
+        transliteration: 'Qul a\'udhu bi rabbi-n-nas. Maliki-n-nas. Ilahi-n-nas. Min sharri-l-waswasi-l-khannas. Al-ladhi yuwaswisu fi suduri-n-nas. Min al-jinnati wa-n-nas.',
+        translation: 'Say: I seek refuge with the Lord and Cherisher of Mankind, The King (or Ruler) of Mankind, The god (or judge) of Mankind,- From the mischief of the Whisperer (of Evil), who withdraws (after his whisper),- (The same) who whispers into the hearts of Mankind,- Among Jinns and among men. (Surah An-Nas)',
+        count: 3
+      },
+      {
+        id: 'evening-14',
+        arabic: 'اللَّهُمَّ عَافِنِي فِي بَدَنِي، اللَّهُمَّ عَافِنِي فِي سَمْعِي، اللَّهُمَّ عَافِنِي فِي بَصَرِي، لَا إِلَهَ إِلَّا أَنْتَ',
+        transliteration: 'Allahumma \'afini fi badani, Allahumma \'afini fi sam\'i, Allahumma \'afini fi basari, la ilaha illa ant',
+        translation: 'O Allah, grant me well-being in my body, O Allah, grant me well-being in my hearing, O Allah, grant me well-being in my sight, there is no god but You.',
+        count: 3
+      },
+      {
+        id: 'evening-15',
+        arabic: 'اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْكُفْرِ وَالْفَقْرِ، وَأَعُوذُ بِكَ مِنْ عَذَابِ الْقَبْرِ، لَا إِلَهَ إِلَّا أَنْتَ',
+        transliteration: 'Allahumma inni a\'udhu bika min al-kufri wa-l-faqr, wa a\'udhu bika min \'adhab al-qabr, la ilaha illa ant',
+        translation: 'O Allah, I seek refuge in You from disbelief and poverty, and I seek refuge in You from the punishment of the grave, there is no god but You.',
+        count: 3
+      },
+      {
+        id: 'evening-16',
+        arabic: 'اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ',
+        transliteration: 'Allahu la ilaha illa huwa-l-hayyu-l-qayyum, la ta\'khudhuhu sinatun wa la nawm, lahu ma fi\'s-samawati wa ma fi\'l-ard, man dha-l-ladhi yashfa\'u \'indahu illa bi-idhnih, ya\'lamu ma bayna aydihim wa ma khalfahum, wa la yuhituna bi-shay\'in min \'ilmihi illa bima sha\'a, wasi\'a kursiyyuhu\'s-samawati wa\'l-ard, wa la ya\'uduhu hifzuhuma wa huwa-l-\'aliyyu-l-\'azim',
+        translation: 'Allah - there is no deity except Him, the Ever-Living, the Sustainer of existence. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass not a thing of His knowledge except for what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great. (Ayatul Kursi)',
+        count: 1
       }
     ]
   },
@@ -237,6 +321,91 @@ const ADHKAR_DATA: AdhkarCategory[] = [
         transliteration: 'Allahumma qini \'adhabaka yawma tab\'athu \'ibadak',
         translation: 'O Allah, protect me from Your punishment on the Day You resurrect Your servants.',
         count: 3
+      },
+      {
+        id: 'sleep-9',
+        arabic: 'اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ وَلَا يَئُودُهُ حِفْظُهُمَا وَهُوَ الْعَلِيُّ الْعَظِيمُ',
+        transliteration: 'Allahu la ilaha illa huwa-l-hayyu-l-qayyum, la ta\'khudhuhu sinatun wa la nawm, lahu ma fi\'s-samawati wa ma fi\'l-ard, man dha-l-ladhi yashfa\'u \'indahu illa bi-idhnih, ya\'lamu ma bayna aydihim wa ma khalfahum, wa la yuhituna bi-shay\'in min \'ilmihi illa bima sha\'a, wasi\'a kursiyyuhu\'s-samawati wa\'l-ard, wa la ya\'uduhu hifzuhuma wa huwa-l-\'aliyyu-l-\'azim',
+        translation: 'Allah - there is no deity except Him, the Ever-Living, the Sustainer of existence. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass not a thing of His knowledge except for what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great. (Ayatul Kursi)',
+        count: 1
+      }
+    ]
+  },
+  {
+    id: 'palestine',
+    name: 'Dua for Palestine/Gaza',
+    icon: '🇵🇸',
+    description: 'Supplications for our brothers and sisters in Palestine',
+    adhkar: [
+      {
+        id: 'palestine-1',
+        arabic: 'اللَّهُمَّ انصُرْ إِخْوَانَنَا فِي فِلَسْطِينَ وَغَزَّةَ وَفِي كُلِّ مَكَانٍ',
+        transliteration: 'Allahumma-nsur ikhwanana fi Filastin wa Ghazza wa fi kulli makan',
+        translation: 'O Allah, help our brothers and sisters in Palestine and Gaza and in every place.',
+        count: 1
+      },
+      {
+        id: 'palestine-2',
+        arabic: 'اللَّهُمَّ ارْحَمْ شُهَدَاءَ فِلَسْطِينَ وَاغْفِرْ لَهُمْ وَأَدْخِلْهُمُ الْجَنَّةَ',
+        transliteration: 'Allahumma-rham shuhada\' Filastin wa-ghfir lahum wa adkhilhum al-jannah',
+        translation: 'O Allah, have mercy on the martyrs of Palestine, forgive them, and admit them to Paradise.',
+        count: 1
+      },
+      {
+        id: 'palestine-3',
+        arabic: 'اللَّهُمَّ اشْفِ جَرْحَى فِلَسْطِينَ وَعَافِ مَرْضَاهُمْ وَفَرِّجْ عَنْ مُبْتَلَاهُمْ',
+        transliteration: 'Allahumma-shfi jarha Filastin wa \'afi mardahum wa farrij \'an mubtalahum',
+        translation: 'O Allah, heal the wounded of Palestine, cure their sick, and relieve those who are afflicted.',
+        count: 1
+      },
+      {
+        id: 'palestine-4',
+        arabic: 'اللَّهُمَّ اكْشِفْ الْغُمَّةَ عَنْ أَهْلِ فِلَسْطِينَ وَغَزَّةَ وَفَرِّجْ عَنْهُمْ',
+        transliteration: 'Allahumma-kshif al-ghummata \'an ahli Filastin wa Ghazza wa farrij \'anhum',
+        translation: 'O Allah, remove the distress from the people of Palestine and Gaza and grant them relief.',
+        count: 1
+      },
+      {
+        id: 'palestine-5',
+        arabic: 'اللَّهُمَّ اجْعَلْ لَهُمْ مِنْ كُلِّ هَمٍّ فَرَجًا وَمِنْ كُلِّ ضِيقٍ مَخْرَجًا',
+        transliteration: 'Allahumma-j\'al lahum min kulli hammin farajan wa min kulli diqin makhrajan',
+        translation: 'O Allah, grant them relief from every worry and a way out from every difficulty.',
+        count: 1
+      },
+      {
+        id: 'palestine-6',
+        arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
+        transliteration: 'Rabbana atina fi\'d-dunya hasanatan wa fi\'l-akhirati hasanatan wa qina \'adhab an-nar',
+        translation: 'Our Lord, give us good in this world and good in the next world, and save us from the punishment of the Fire.',
+        count: 7
+      },
+      {
+        id: 'palestine-7',
+        arabic: 'اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ وَفِي كُلِّ مَكَانٍ',
+        transliteration: 'Allahumma aslih ahwal al-muslimin fi Filastin wa fi kulli makan',
+        translation: 'O Allah, improve the conditions of the Muslims in Palestine and everywhere.',
+        count: 1
+      },
+      {
+        id: 'palestine-8',
+        arabic: 'اللَّهُمَّ عَلَيْكَ بِالظَّالِمِينَ الْمُعْتَدِينَ وَاجْعَلْ تَدْبِيرَهُمْ تَدْمِيرَهُمْ',
+        transliteration: 'Allahumma \'alayka bi\'z-zalimin al-mu\'tadin wa-j\'al tadbirahum tadmirahum',
+        translation: 'O Allah, deal with the wrongdoing oppressors and make their plotting their own destruction.',
+        count: 1
+      },
+      {
+        id: 'palestine-9',
+        arabic: 'حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ نِعْمَ الْمَوْلَى وَنِعْمَ النَّصِيرُ',
+        transliteration: 'Hasbuna Allah wa ni\'ma al-wakil, ni\'ma al-mawla wa ni\'ma an-nasir',
+        translation: 'Allah is sufficient for us and He is the best disposer of affairs, the best protector and the best helper.',
+        count: 3
+      },
+      {
+        id: 'palestine-10',
+        arabic: 'اللَّهُمَّ اجْمَعْ كَلِمَةَ الْمُسْلِمِينَ وَوَحِّدْ صُفُوفَهُمْ وَانْصُرْهُمْ عَلَى عَدُوِّهِمْ',
+        transliteration: 'Allahumma-jma\' kalimata al-muslimin wa wahhid sufufahum wa-nsurhum \'ala \'aduwwihim',
+        translation: 'O Allah, unite the word of the Muslims, unify their ranks, and grant them victory over their enemies.',
+        count: 1
       }
     ]
   }

@@ -1,13 +1,14 @@
 // Enhanced StudyRoomView.tsx with Forest-app inspired design
 import React, { useState, useEffect, useRef } from 'react';
 import { StudyRoom, RoomParticipant, TreeType } from '../types';
-import { 
-  setupRoomListener, 
-  setupParticipantsListener, 
-  leaveStudyRoom, 
+import {
+  setupRoomListener,
+  setupParticipantsListener,
+  leaveStudyRoom,
   plantTreeInRoom,
   startRoomFocusSession,
-  stopRoomFocusSession
+  stopRoomFocusSession,
+  toggleParticipantReady
 } from '../services/gardenService';
 import { useAuth } from '../context/AuthContext';
 import { useTimer } from '../context/TimerContext';
@@ -31,6 +32,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   const [lastSessionMinutes, setLastSessionMinutes] = useState(0);
   const [selectedTreeVariety, setSelectedTreeVariety] = useState({ emoji: '🌳', name: 'Oak Tree', color: 'from-green-500 to-emerald-500' });
   const [treePlanted, setTreePlanted] = useState(false);
+  const [plantedInCurrentSession, setPlantedInCurrentSession] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isPlantingTree, setIsPlantingTree] = useState(false);
@@ -38,7 +40,11 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
   const [isStartingFocus, setIsStartingFocus] = useState(false);
   const [isStoppingFocus, setIsStoppingFocus] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [sessionJustEnded, setSessionJustEnded] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [isTogglingReady, setIsTogglingReady] = useState(false);
   const hasAutoStoppedRef = useRef(false);
+  const previousSessionRef = useRef<Date | null>(null);
 
   // Detect mobile
   useEffect(() => {
@@ -69,6 +75,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
 
         setRoomFocusStartTime(sessionStart);
         setIsRoomFocusing(true);
+        previousSessionRef.current = sessionStart;
 
         // Calculate time left based on room session
         const elapsed = Date.now() - sessionStart.getTime();
@@ -79,16 +86,41 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
         // Update global timer state
         updateStudyCircleTimer(roomId, true, remainingSeconds, sessionStart);
       } else {
+        // Session ended - check if we just completed a session
+        if (previousSessionRef.current && isRoomFocusing) {
+          const sessionDuration = updatedRoom.focusDuration;
+          const sessionId = previousSessionRef.current.toISOString();
+          setLastSessionMinutes(sessionDuration);
+          setSessionJustEnded(true);
+          setSessionCompleted(true);
+
+          // Show tree planting modal for all participants who haven't planted for this session
+          if (currentUser && sessionDuration > 0 && plantedInCurrentSession !== sessionId) {
+            setShowTreePlantingModal(true);
+          }
+        }
+
         setRoomFocusStartTime(null);
         setIsRoomFocusing(false);
         setTimeLeft(updatedRoom.focusDuration * 60);
+        previousSessionRef.current = null;
 
         // Update global timer state
         updateStudyCircleTimer(roomId, false, updatedRoom.focusDuration * 60, null);
       }
     });
 
-    const participantsUnsub = setupParticipantsListener(roomId, setParticipants);
+    const participantsUnsub = setupParticipantsListener(roomId, (updatedParticipants) => {
+      setParticipants(updatedParticipants);
+
+      // Update current user's ready state
+      if (currentUser) {
+        const currentUserParticipant = updatedParticipants.find(p => p.userId === currentUser.uid);
+        if (currentUserParticipant) {
+          setIsReady(currentUserParticipant.isReady || false);
+        }
+      }
+    });
 
     return () => {
       roomUnsub();
@@ -161,7 +193,7 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
             setSessionCompleted(true);
             resetTimerRef.current();
 
-            // Show confirmation to plant tree
+            // Show confirmation to plant tree - allow all participants
             if (currentUserRef.current && focusMinutes > 0) {
               setLastSessionMinutes(focusMinutes);
               setShowTreePlantingModal(true);
@@ -247,8 +279,16 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     setIsStartingFocus(true);
     try {
       setTreePlanted(false); // Reset tree planting for new session
+      setPlantedInCurrentSession(null); // Reset session tracking
       setSessionCompleted(false); // Reset session completion state
+      setIsReady(false); // Reset ready status for new session
       hasAutoStoppedRef.current = false; // allow auto-stop for the new session
+
+      // Reset ready status for current user
+      if (currentUser) {
+        await toggleParticipantReady(roomId, currentUser.uid, false);
+      }
+
       await startRoomFocusSession(roomId);
       // The room listener will update the local state
     } catch (error) {
@@ -362,20 +402,42 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
     // Note: Don't reset isLeavingRoom since component will unmount
   };
 
+  const handleToggleReady = async () => {
+    if (!currentUser || !room || isTogglingReady) return;
+
+    setIsTogglingReady(true);
+    try {
+      const newReadyState = !isReady;
+      await toggleParticipantReady(roomId, currentUser.uid, newReadyState);
+      // Note: setIsReady will be updated via the participants listener
+    } catch (error) {
+      console.error('Error toggling ready state:', error);
+      alert('Failed to update ready status. Please try again.');
+    } finally {
+      setIsTogglingReady(false);
+    }
+  };
+
   const handlePlantTree = async () => {
     if (!currentUser || !room || treePlanted || isPlantingTree) return;
-    
+
     setIsPlantingTree(true);
     try {
       await plantTreeInRoom(
-        roomId, 
-        currentUser.uid, 
-        currentUser.displayName || 'Anonymous', 
-        TreeType.GeneralFocus, // Use default type for now
+        roomId,
+        currentUser.uid,
+        currentUser.displayName || 'Anonymous',
+        room.treeType, // Use the room's tree type instead of hardcoded GeneralFocus
         lastSessionMinutes,
         selectedTreeVariety // Pass the selected tree variety
       );
-      setTreePlanted(true); // Mark tree as planted for this session
+
+      // Mark tree as planted for this session
+      setTreePlanted(true);
+      if (previousSessionRef.current) {
+        setPlantedInCurrentSession(previousSessionRef.current.toISOString());
+      }
+
       setShowTreePlantingModal(false);
       setSelectedTreeVariety({ emoji: '🌳', name: 'Oak Tree', color: 'from-green-500 to-emerald-500' }); // Reset to default
       alert('🌳 Tree planted successfully! Your focus garden is growing!');
@@ -651,38 +713,67 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                 ⚠️ Only the owner can start/stop the timer
               </p>
             )}
+            {currentUser?.uid === room.createdBy && !isRoomFocusing && participants.length > 1 && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                📊 Ready: {participants.filter(p => p.isReady && p.userId !== currentUser.uid).length}/{participants.length - 1} participants
+              </p>
+            )}
           </div>
 
-          <button
-            onClick={isRoomFocusing ? handleStopFocus : handleStartFocus}
-            disabled={!room || isStartingFocus || isStoppingFocus || (currentUser?.uid !== room.createdBy)}
-            className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-              isRoomFocusing
-                ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600'
-                : `bg-gradient-to-r ${selectedTreeVariety.color} hover:opacity-90`
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              {isRoomFocusing ? (
-                <>
-                  <PauseIcon className="w-6 h-6" />
-                  <span>{isStoppingFocus ? 'Stopping...' : 'Stop Circle Focus'}</span>
-                </>
-              ) : sessionCompleted ? (
-                <>
-                  <span className="text-2xl mr-1">🔄</span>
-                  <PlayIcon className="w-6 h-6" />
-                  <span>{isStartingFocus ? 'Starting New Session...' : 'Start New Session'}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-2xl mr-1">{selectedTreeVariety.emoji}</span>
-                  <PlayIcon className="w-6 h-6" />
-                  <span>{isStartingFocus ? 'Starting...' : 'Start Circle Focus'}</span>
-                </>
-              )}
-            </div>
-          </button>
+          <div className="flex flex-col space-y-3 w-full">
+            <button
+              onClick={isRoomFocusing ? handleStopFocus : handleStartFocus}
+              disabled={!room || isStartingFocus || isStoppingFocus || (currentUser?.uid !== room.createdBy)}
+              className={`px-8 py-4 rounded-2xl text-white font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isRoomFocusing
+                  ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600'
+                  : `bg-gradient-to-r ${selectedTreeVariety.color} hover:opacity-90`
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-3">
+                {isRoomFocusing ? (
+                  <>
+                    <PauseIcon className="w-6 h-6" />
+                    <span>{isStoppingFocus ? 'Stopping...' : 'Stop Circle Focus'}</span>
+                  </>
+                ) : sessionCompleted ? (
+                  <>
+                    <span className="text-2xl mr-1">🔄</span>
+                    <PlayIcon className="w-6 h-6" />
+                    <span>{isStartingFocus ? 'Starting New Session...' : 'Start New Session'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl mr-1">{selectedTreeVariety.emoji}</span>
+                    <PlayIcon className="w-6 h-6" />
+                    <span>{isStartingFocus ? 'Starting...' : 'Start Circle Focus'}</span>
+                  </>
+                )}
+              </div>
+            </button>
+
+            {/* Ready Button for non-owners */}
+            {currentUser?.uid !== room.createdBy && !isRoomFocusing && (
+              <button
+                onClick={handleToggleReady}
+                disabled={isTogglingReady}
+                className={`px-6 py-3 rounded-xl text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isReady
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'
+                    : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <span className="text-lg">
+                    {isReady ? '✓' : '⏳'}
+                  </span>
+                  <span>
+                    {isTogglingReady ? 'Updating...' : isReady ? 'Ready!' : 'Mark as Ready'}
+                  </span>
+                </div>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Enhanced Focus Stats */}
@@ -780,6 +871,12 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                   <div className="flex items-center space-x-4 text-sm text-slate-500 dark:text-slate-400">
                     <span>🌳 {participant.treesPlanted}</span>
                     <span>⏰ {participant.totalFocusMinutes}m</span>
+                    {participant.isReady && !isRoomFocusing && (
+                      <span className="flex items-center space-x-1 text-green-600 dark:text-green-400">
+                        <span>✓</span>
+                        <span>Ready</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -925,11 +1022,11 @@ const StudyRoomView: React.FC<StudyRoomViewProps> = ({ roomId, onLeaveRoom }) =>
                   disabled={treePlanted || isPlantingTree}
                   className={`flex-1 px-4 py-3 text-white rounded-xl transition-all shadow-lg hover:shadow-xl ${
                     treePlanted || isPlantingTree
-                      ? 'bg-gray-400 cursor-not-allowed opacity-50' 
-                      : `bg-gradient-to-r ${selectedTreeVariety.color}`
+                      ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                      : `bg-gradient-to-r ${selectedTreeVariety.color} hover:opacity-90`
                   }`}
                 >
-                  {treePlanted ? '✅ Tree Planted!' : 
+                  {treePlanted ? '✅ Tree Planted!' :
                    isPlantingTree ? '🌱 Planting...' :
                    `Plant ${selectedTreeVariety.emoji} Tree`}
                 </button>
