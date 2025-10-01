@@ -290,7 +290,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500">
+    <div className="flex flex-col h-screen min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500 overflow-hidden">
       
       {isMobile && (
         <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40">
@@ -469,7 +469,7 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      <main className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ease-in-out ${!isMobile ? (sidebarCollapsed ? 'ml-20' : 'ml-80') : ''}`}>
+      <main className={`flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden transition-all duration-300 ease-in-out ${!isMobile ? (sidebarCollapsed ? 'ml-20' : 'ml-80') : ''}`}>
         {!isMobile && (
           <header className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 px-6 py-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -488,7 +488,7 @@ const AppContent: React.FC = () => {
             </div>
           </header>
         )}
-        <div className={`flex-1 overflow-auto ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`}>
+        <div className={`flex-1 overflow-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`} style={{ minHeight: '0' }}>
           {renderView()}
         </div>
       </main>
@@ -496,7 +496,7 @@ const AppContent: React.FC = () => {
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-t border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-40">
           <div className="grid grid-cols-5 h-16">
-            {mainNavItems.map(item => (
+            {mainNavItems.slice(0, 5).map(item => (
               <button
                 key={item.view}
                 onClick={() => setCurrentView(item.view)}
