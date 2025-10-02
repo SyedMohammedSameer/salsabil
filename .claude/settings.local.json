@@ -4,7 +4,10 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
-      "WebFetch(domain:lifewithallah.com)"
+      "WebFetch(domain:lifewithallah.com)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm install:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

@@ -31,8 +31,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "firebase": "^11.8.1",
+    "groq-sdk": "^0.33.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

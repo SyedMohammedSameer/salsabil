@@ -32,7 +32,7 @@ const AppContent: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for the profile modal
   
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY || '';
 
   // Detect mobile screen size
   useEffect(() => {

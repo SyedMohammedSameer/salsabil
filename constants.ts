@@ -2,8 +2,8 @@ import { Task, Priority, PrayerName, PrayerDetail, PomodoroSettings } from './ty
 
 export const APP_NAME = "Salsabil";
 
-// FIXED: Updated to use current stable Gemini model
-export const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-lite'; // Was: gemini-2.5-flash-preview-04-17
+// Groq model configuration
+export const GROQ_MODEL = 'llama-3.3-70b-versatile'; // Best free model with high rate limits
 
 export const DAYS_OF_WEEK_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const SHORT_DAYS_OF_WEEK_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

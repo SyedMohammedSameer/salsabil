@@ -1,7 +1,7 @@
 // Enhanced AIAssistantView.tsx with full database access and chat persistence
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, ChatMessage as ChatMessageType, DailyPrayerLog, DailyQuranLog, PomodoroSettings } from '../types';
-import * as GeminiService from '../services/geminiService';
+import * as GroqService from '../services/groqService';
 import * as firebaseService from '../services/firebaseService';
 import ChatMessage from './ChatMessage';
 import LoadingSpinner from './LoadingSpinner';
@@ -272,10 +272,10 @@ Please use this comprehensive context to provide personalized, relevant assistan
 
     try {
       const contextualPrompt = buildComprehensiveContext(contextData);
-      const aiResponse = await GeminiService.getEnhancedAiResponse(
-        userInput, 
+      const aiResponse = await GroqService.getEnhancedAiResponse(
+        userInput,
         contextualPrompt,
-        chatHistoryRef.current, 
+        chatHistoryRef.current,
         apiKey
       );
       await addMessage(aiResponse, 'ai');
@@ -324,7 +324,7 @@ Please use this comprehensive context to provide personalized, relevant assistan
 
       await addMessage(actionText, 'user');
       
-      const aiResponse = await GeminiService.getEnhancedAiResponse(
+      const aiResponse = await GroqService.getEnhancedAiResponse(
         prompt,
         context,
         chatHistoryRef.current,
