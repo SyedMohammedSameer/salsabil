@@ -10,7 +10,6 @@ import { useAuth } from '../context/AuthContext';
 
 interface AIAssistantViewProps {
   tasks: Task[];
-  apiKey: string;
 }
 
 interface ContextData {
@@ -28,7 +27,7 @@ interface ContextData {
   };
 }
 
-const AIAssistantView: React.FC<AIAssistantViewProps> = ({ tasks, apiKey }) => {
+const AIAssistantView: React.FC<AIAssistantViewProps> = ({ tasks }) => {
   const { currentUser } = useAuth();
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [input, setInput] = useState('');
@@ -275,8 +274,7 @@ Please use this comprehensive context to provide personalized, relevant assistan
       const aiResponse = await GroqService.getEnhancedAiResponse(
         userInput,
         contextualPrompt,
-        chatHistoryRef.current,
-        apiKey
+        chatHistoryRef.current
       );
       await addMessage(aiResponse, 'ai');
     } catch (error) {
@@ -327,8 +325,7 @@ Please use this comprehensive context to provide personalized, relevant assistan
       const aiResponse = await GroqService.getEnhancedAiResponse(
         prompt,
         context,
-        chatHistoryRef.current,
-        apiKey
+        chatHistoryRef.current
       );
       
       await addMessage(aiResponse, 'ai');

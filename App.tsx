@@ -31,8 +31,6 @@ const AppContent: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for the profile modal
-  
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY || '';
 
   // Detect mobile screen size
   useEffect(() => {
@@ -242,7 +240,7 @@ const AppContent: React.FC = () => {
       case View.Calendar:
         return <CalendarView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
       case View.AIAssistant:
-        return <AIAssistantView tasks={tasks} apiKey={apiKey} />;
+        return <AIAssistantView tasks={tasks} />;
       case View.Dashboard:
         return <DashboardView tasks={tasks} />;
       case View.Pomodoro:
