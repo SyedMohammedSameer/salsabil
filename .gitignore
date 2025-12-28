@@ -26,5 +26,8 @@ dist-ssr
 .claude
 .env
 
+# Generated files
+public/firebase-messaging-sw.js
+
 # Local Netlify folder
 .netlify

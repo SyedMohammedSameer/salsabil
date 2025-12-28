@@ -1,4 +1,12 @@
-// Firebase Cloud Messaging Service Worker
+// Generate firebase-messaging-sw.js with environment variables
+import { writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const swContent = `// Firebase Cloud Messaging Service Worker
 // Handles background push notifications
 // This file is auto-generated at build time - do not edit manually
 
@@ -7,12 +15,12 @@ importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-comp
 
 // Initialize Firebase with config from environment variables
 const firebaseConfig = {
-  apiKey: 'undefined',
-  authDomain: 'undefined',
-  projectId: 'undefined',
-  storageBucket: 'undefined',
-  messagingSenderId: 'undefined',
-  appId: 'undefined'
+  apiKey: '${process.env.VITE_FIREBASE_API_KEY}',
+  authDomain: '${process.env.VITE_FIREBASE_AUTH_DOMAIN}',
+  projectId: '${process.env.VITE_FIREBASE_PROJECT_ID}',
+  storageBucket: '${process.env.VITE_FIREBASE_STORAGE_BUCKET}',
+  messagingSenderId: '${process.env.VITE_FIREBASE_MESSAGING_SENDER_ID}',
+  appId: '${process.env.VITE_FIREBASE_APP_ID}'
 };
 
 // Initialize Firebase
@@ -102,3 +110,9 @@ self.addEventListener('push', (event) => {
 });
 
 console.log('[firebase-messaging-sw.js] Service Worker loaded and ready');
+`;
+
+// Write to public directory
+const outputPath = join(__dirname, '../public/firebase-messaging-sw.js');
+writeFileSync(outputPath, swContent, 'utf8');
+console.log('✅ Generated firebase-messaging-sw.js with environment variables');

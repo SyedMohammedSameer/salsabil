@@ -68,6 +68,44 @@ service cloud.firestore {
       match /quranLogs/{logId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Workouts collection structure: workouts/{userId}/entries/{entryId}
+    match /workouts/{userId} {
+      match /entries/{entryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Challenges collection structure: challenges/{userId}/items/{challengeId}
+    match /challenges/{userId} {
+      match /items/{challengeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Challenge days collection structure: challenge_days/{userId}/days/{dayId}
+    match /challenge_days/{userId} {
+      match /days/{dayId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // AI threads collection structure: ai_threads/{userId}/threads/{threadId}
+    match /ai_threads/{userId} {
+      match /threads/{threadId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Allow users to read and write their own settings
