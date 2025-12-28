@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+
+# Note: If Netlify blocks deployment due to "exposed secrets":
+# These Firebase config values are PUBLIC by design and SAFE to expose
+# Security comes from Firestore Rules, not from hiding API keys
+# Go to Netlify UI and click "Allow" on the secret detection warning
