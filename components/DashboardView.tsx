@@ -1,257 +1,22 @@
-// Mobile-Optimized DashboardView.tsx with responsive design
-import React, { useMemo, useEffect, useState } from 'react';
-import { Task, Priority, DailyPrayerLog, DailyQuranLog, PomodoroMode } from '../types';
-import { DashboardIcon, CheckCircleIcon, ListIcon, PrayerTrackerIcon, QuranLogIcon, PomodoroIcon, AdhkarIcon } from './icons/NavIcons';
+// Completely Revamped Dashboard - Clean, Simple, Live Data
+import React, { useEffect, useState } from 'react';
+import { Task, DailyPrayerLog, DailyQuranLog, WorkoutEntry, Challenge } from '../types';
 import * as firebaseService from '../services/firebaseService';
-import type { FocusSession } from '../services/firebaseService';
 import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
   tasks: Task[];
 }
 
-// Adhkar tracking interfaces
-interface AdhkarCategory {
-  id: string;
-  name: string;
-  icon: string;
-  totalCount: number;
-}
-
-interface DailyAdhkarProgress {
-  date: string;
-  categories: {
-    [categoryId: string]: {
-      completed: number;
-      total: number;
-    };
-  };
-}
-
-// Adhkar categories data
-const ADHKAR_CATEGORIES: AdhkarCategory[] = [
-  { id: 'morning', name: 'Morning', icon: '🌅', totalCount: 10 },
-  { id: 'evening', name: 'Evening', icon: '🌆', totalCount: 10 },
-  { id: 'sleep', name: 'Sleep', icon: '🌙', totalCount: 8 }
-];
-
-// Enhanced Chart Components with mobile optimization
-const ProgressRing: React.FC<{ 
-  percentage: number; 
-  size?: number; 
-  strokeWidth?: number; 
-  color?: string;
-  isMobile?: boolean;
-}> = ({ 
-  percentage, 
-  size = 120, 
-  strokeWidth = 8, 
-  color = '#10b981',
-  isMobile = false
-}) => {
-  const mobileSize = isMobile ? Math.min(size, 100) : size;
-  const mobileStroke = isMobile ? Math.max(strokeWidth - 2, 4) : strokeWidth;
-  const radius = (mobileSize - mobileStroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDasharray = circumference;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
-  return (
-    <div className="relative" style={{ width: mobileSize, height: mobileSize }}>
-      <svg
-        width={mobileSize}
-        height={mobileSize}
-        className="transform -rotate-90"
-      >
-        <circle
-          cx={mobileSize / 2}
-          cy={mobileSize / 2}
-          r={radius}
-          stroke="currentColor"
-          strokeWidth={mobileStroke}
-          fill="transparent"
-          className="text-slate-200 dark:text-slate-700"
-        />
-        <circle
-          cx={mobileSize / 2}
-          cy={mobileSize / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={mobileStroke}
-          fill="transparent"
-          strokeDasharray={strokeDasharray}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className={`font-bold text-slate-700 dark:text-slate-200 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
-          {Math.round(percentage)}%
-        </span>
-      </div>
-    </div>
-  );
-};
-
-const AnimatedCounter: React.FC<{ 
-  end: number; 
-  duration?: number; 
-  suffix?: string;
-  isMobile?: boolean;
-}> = ({ 
-  end, 
-  duration = 1000, 
-  suffix = '',
-  isMobile = false
-}) => {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let startTime: number;
-    const startValue = 0;
-    const endValue = end;
-
-    const animate = (currentTime: number) => {
-      if (!startTime) startTime = currentTime;
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      const easeOut = 1 - Math.pow(1 - progress, 3);
-      const current = startValue + (endValue - startValue) * easeOut;
-      
-      setCount(Math.floor(current));
-      
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    requestAnimationFrame(animate);
-  }, [end, duration]);
-
-  return <span className={isMobile ? 'text-xl' : 'text-2xl'}>{count}{suffix}</span>;
-};
-
-const GradientBar: React.FC<{ 
-  data: { name: string; value: number; color: string; maxValue?: number }[];
-  isMobile?: boolean;
-}> = ({ data, isMobile = false }) => {
-  const maxValue = Math.max(...data.map(d => d.maxValue || d.value));
-  
-  return (
-    <div className={`space-y-${isMobile ? '3' : '4'}`}>
-      {data.map((item, index) => (
-        <div key={index} className="flex items-center">
-          <span className={`font-medium text-slate-600 dark:text-slate-400 truncate ${isMobile ? 'w-16 text-xs' : 'w-20 text-sm'}`}>
-            {item.name}
-          </span>
-          <div className={`flex-1 bg-slate-200 dark:bg-slate-700 rounded-full relative overflow-hidden ${isMobile ? 'mx-2 h-2' : 'mx-4 h-3'}`}>
-            <div 
-              className={`h-full rounded-full transition-all duration-1000 ease-out ${item.color}`}
-              style={{ 
-                width: `${maxValue > 0 ? Math.min((item.value / maxValue) * 100, 100) : 0}%`,
-                animationDelay: `${index * 100}ms`
-              }}
-            />
-          </div>
-          <span className={`font-bold text-slate-600 dark:text-slate-400 text-right ${isMobile ? 'w-8 text-xs' : 'w-12 text-sm'}`}>
-            {item.value}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const WeeklyHeatmap: React.FC<{ 
-  weeklyData: { day: string; value: number; max: number }[];
-  isMobile?: boolean;
-}> = ({ weeklyData, isMobile = false }) => {
-  return (
-    <div className={`grid grid-cols-7 ${isMobile ? 'gap-1' : 'gap-2'}`}>
-      {weeklyData.map((day, index) => {
-        const intensity = day.max > 0 ? (day.value / day.max) * 100 : 0;
-        const opacityClass = intensity > 75 ? 'opacity-100' : intensity > 50 ? 'opacity-75' : intensity > 25 ? 'opacity-50' : intensity > 0 ? 'opacity-25' : 'opacity-10';
-        
-        return (
-          <div key={index} className="text-center">
-            <div 
-              className={`mx-auto rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${opacityClass} transition-all duration-300 hover:scale-110 flex items-center justify-center mb-2
-                         ${isMobile ? 'w-6 h-6' : 'w-8 h-8'}`}
-              title={`${day.day}: ${day.value}`}
-            >
-              <span className={`text-white font-bold ${isMobile ? 'text-xs' : 'text-xs'}`}>{day.value}</span>
-            </div>
-            <span className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>{day.day}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const StatCard: React.FC<{
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  trend?: number;
-  color?: string;
-  suffix?: string;
-  isMobile?: boolean;
-}> = ({ title, value, icon, trend, color = 'from-blue-500 to-indigo-600', suffix = '', isMobile = false }) => {
-  return (
-    <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20 hover:shadow-lg transition-all duration-300
-                    ${isMobile ? 'p-2' : 'p-2.5'}`}>
-      <div className="flex items-center justify-between mb-1">
-        <div className={`bg-gradient-to-br ${color} rounded flex items-center justify-center
-                        ${isMobile ? 'w-5 h-5' : 'w-6 h-6'}`}>
-          <div className={isMobile ? 'scale-75' : 'scale-75'}>
-            {icon}
-          </div>
-        </div>
-        {trend !== undefined && (
-          <div className={`flex items-center font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}
-                          text-xs`}>
-            <svg className={`mr-0.5 ${trend >= 0 ? 'rotate-0' : 'rotate-180'} w-2 h-2`} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 4l8 8h-6v8h-4v-8H4l8-8z"/>
-            </svg>
-            {Math.abs(trend)}%
-          </div>
-        )}
-      </div>
-      <h3 className={`font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-0.5
-                     text-xs`}>
-        {title}
-      </h3>
-      <p className={`font-bold text-slate-800 dark:text-slate-100 ${isMobile ? 'text-lg' : 'text-xl'}`}>
-        <AnimatedCounter end={value} suffix={suffix} isMobile={isMobile} />
-      </p>
-    </div>
-  );
-};
-
 const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
   const { currentUser } = useAuth();
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
-  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
-  const [adhkarProgress, setAdhkarProgress] = useState<DailyAdhkarProgress[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutEntry[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
 
-  // Detect mobile screen size
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Set up real-time data listeners
+  // Real-time data listeners
   useEffect(() => {
     if (!currentUser?.uid) {
       setLoading(false);
@@ -261,27 +26,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     const unsubscribers: (() => void)[] = [];
 
     try {
-      // Set up real-time listeners for all data
       const prayerUnsub = firebaseService.setupPrayerLogsListener(currentUser.uid, setPrayerLogs);
       const quranUnsub = firebaseService.setupQuranLogsListener(currentUser.uid, setQuranLogs);
-      
-      unsubscribers.push(prayerUnsub, quranUnsub);
+      const workoutsUnsub = firebaseService.setupWorkoutsListener(currentUser.uid, setWorkouts);
+      const challengesUnsub = firebaseService.setupChallengesListener(currentUser.uid, setChallenges);
 
-      // Load Pomodoro sessions (one-time load for now)
-      firebaseService.loadPomodoroSessions(currentUser.uid).then(setFocusSessions).catch(console.error);
-
-      // Initialize mock adhkar progress for today (temporary until Firebase integration)
-      const today = new Date().toISOString().split('T')[0];
-      const mockAdhkarProgress: DailyAdhkarProgress = {
-        date: today,
-        categories: {
-          morning: { completed: Math.floor(Math.random() * 8), total: 10 },
-          evening: { completed: Math.floor(Math.random() * 6), total: 10 },
-          sleep: { completed: Math.floor(Math.random() * 4), total: 8 }
-        }
-      };
-      setAdhkarProgress([mockAdhkarProgress]);
-
+      unsubscribers.push(prayerUnsub, quranUnsub, workoutsUnsub, challengesUnsub);
     } catch (error) {
       console.error('Dashboard: Error setting up listeners:', error);
     } finally {
@@ -293,484 +43,268 @@ const DashboardView: React.FC<DashboardViewProps> = ({ tasks }) => {
     };
   }, [currentUser]);
 
-  // Calculate comprehensive statistics
-  const stats = useMemo(() => {
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(task => task.completed).length;
-    const completionPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-    
-    const priorityStats = {
-      high: tasks.filter(t => t.priority === Priority.High).length,
-      medium: tasks.filter(t => t.priority === Priority.Medium).length,
-      low: tasks.filter(t => t.priority === Priority.Low).length
-    };
+  // Calculate today's stats
+  const today = new Date().toISOString().split('T')[0];
+  const todayPrayers = prayerLogs.find(l => l.date === today);
+  const todayPrayerCount = todayPrayers ? Object.values(todayPrayers.prayers).filter(p => p?.fardh).length : 0;
+  const todayQuran = quranLogs.find(l => l.date === today);
+  const todayQuranPages = todayQuran?.pagesRead || 0;
+  const todayTasks = tasks.filter(t => t.date === today);
+  const completedTasks = todayTasks.filter(t => t.completed).length;
+  const todayWorkouts = workouts.filter(w => w.date === today && w.completed);
+  const activeChallenges = challenges.filter(c => c.active);
 
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      return date.toISOString().split('T')[0];
-    }).reverse();
-
-    const prayerCompletionRate = last7Days.map(date => {
-      const log = prayerLogs.find(l => l.date === date);
-      if (!log) return 0;
-      const totalPrayers = 5;
-      const completedPrayers = Object.values(log.prayers).filter(p => p?.fardh).length;
-      return (completedPrayers / totalPrayers) * 100;
-    });
-
-    const avgPrayerCompletion = prayerCompletionRate.reduce((sum, rate) => sum + rate, 0) / 7;
-
-    const quranReadingData = last7Days.map(date => {
-      const log = quranLogs.find(l => l.date === date);
-      return log?.pagesRead || 0;
-    });
-
-    const totalQuranPages = quranReadingData.reduce((sum, pages) => sum + pages, 0);
-    const quranStreak = calculateQuranStreak();
-
-    const weeklyFocusTime = focusSessions
-      .filter(s => {
-        const sessionDate = s.completedAt.toDateString();
-        return last7Days.some(date => new Date(date).toDateString() === sessionDate) &&
-               s.type === 'Work';
-      })
-      .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
-
-    const focusHeatmapData = last7Days.map(date => {
-      const dayFocusTime = focusSessions.filter(s => 
-        s.completedAt.toDateString() === new Date(date).toDateString() &&
-        s.type === 'Work'
-      ).reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
-      
-      return {
-        day: new Date(date).toLocaleDateString(undefined, { weekday: 'short' }),
-        value: dayFocusTime,
-        max: Math.max(...last7Days.map(d => {
-          return focusSessions.filter(s => 
-            s.completedAt.toDateString() === new Date(d).toDateString() &&
-            s.type === 'Work'
-          ).reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0);
-        }), 1)
-      };
-    });
-
-    const today = new Date().toISOString().split('T')[0];
-    const todayPrayers = prayerLogs.find(l => l.date === today);
-    const todayPrayerCount = todayPrayers ? Object.values(todayPrayers.prayers).filter(p => p?.fardh).length : 0;
-    const todayQuran = quranLogs.find(l => l.date === today);
-    const todayQuranPages = todayQuran?.pagesRead || 0;
-
-    const weeklyTaskData = last7Days.map(date => {
-      const dayTasks = tasks.filter(t => t.date === date);
-      const completedDayTasks = dayTasks.filter(t => t.completed).length;
-      return {
-        day: new Date(date).toLocaleDateString(undefined, { weekday: 'short' }),
-        value: completedDayTasks,
-        max: Math.max(...last7Days.map(d => {
-          const dt = tasks.filter(t => t.date === d);
-          return dt.filter(t => t.completed).length;
-        }), 1)
-      };
-    });
-
-    const overdueTasks = tasks.filter(t => !t.completed && new Date(t.date) < new Date()).length;
-    const todayTasks = tasks.filter(t => t.date === today).length;
-    const todayCompletedTasks = tasks.filter(t => t.date === today && t.completed).length;
-
-    // Adhkar calculations
-    const todayAdhkar = adhkarProgress.find(p => p.date === today);
-    const adhkarStats = ADHKAR_CATEGORIES.map(category => {
-      const progress = todayAdhkar?.categories[category.id] || { completed: 0, total: category.totalCount };
-      return {
-        ...category,
-        completed: progress.completed,
-        total: progress.total,
-        percentage: Math.round((progress.completed / progress.total) * 100)
-      };
-    });
-    const totalAdhkarCompleted = adhkarStats.reduce((sum, stat) => sum + stat.completed, 0);
-    const totalAdhkarCount = adhkarStats.reduce((sum, stat) => sum + stat.total, 0);
-    const adhkarCompletionPercentage = totalAdhkarCount > 0 ? Math.round((totalAdhkarCompleted / totalAdhkarCount) * 100) : 0;
-
-    function calculateQuranStreak(): number {
-      let streak = 0;
-      const today = new Date();
-      
-      for (let i = 0; i < 30; i++) {
-        const checkDate = new Date(today);
-        checkDate.setDate(today.getDate() - i);
-        const dateString = checkDate.toISOString().split('T')[0];
-        const log = quranLogs.find(l => l.date === dateString);
-        
-        if (log && log.readQuran) {
-          streak++;
-        } else if (i === 0 && (!log || !log.readQuran)) {
-          continue;
-        } else {
-          break;
-        }
-      }
-      return streak;
-    }
-
-    return {
-      totalTasks,
-      completedTasks,
-      completionPercentage,
-      priorityStats,
-      prayerCompletionRate,
-      avgPrayerCompletion,
-      quranReadingData,
-      totalQuranPages,
-      quranStreak,
-      todayPrayerCount,
-      todayQuranPages,
-      weeklyTaskData,
-      overdueTasks,
-      todayTasks,
-      todayCompletedTasks,
-      last7Days,
-      weeklyFocusTime,
-      focusHeatmapData,
-      adhkarStats,
-      totalAdhkarCompleted,
-      adhkarCompletionPercentage
-    };
-  }, [tasks, prayerLogs, quranLogs, focusSessions, adhkarProgress]);
+  // Recent workouts (last 7)
+  const recentWorkouts = workouts
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 7);
 
   if (loading) {
     return (
-      <div className="animate-fadeIn flex items-center justify-center h-full">
-        <div className="text-center p-4">
-          <div className={`animate-spin rounded-full border-b-2 border-primary mx-auto mb-4 ${isMobile ? 'h-8 w-8' : 'h-12 w-12'}`}></div>
-          <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-base'}`}>Loading dashboard...</p>
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`animate-fadeIn min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 ${isMobile ? 'p-1.5' : 'p-2.5'}`}>
-      {/* Header - COMPACTED */}
-      <div className={`mb-${isMobile ? '2' : '3'}`}>
-        <div className={`flex items-center mb-${isMobile ? '2' : '2.5'}`}>
-          <div className={`bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center mr-2
-                          ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`}>
-            <DashboardIcon />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 p-4 md:p-6">
+
+      {/* Header with Quick Stats */}
+      <div className="mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1">
+          As-salamu alaykum! 👋
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        </p>
+
+        {/* Today's Quick Stats - Horizontal Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border-l-4 border-purple-500">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{todayPrayerCount}/5</div>
+            <div className="text-xs text-slate-600 dark:text-slate-400 uppercase">Prayers</div>
           </div>
-          <div>
-            <h1 className={`font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent
-                           ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-              Dashboard
-            </h1>
-            <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>Your productivity and spiritual journey</p>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border-l-4 border-teal-500">
+            <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">{todayQuranPages}</div>
+            <div className="text-xs text-slate-600 dark:text-slate-400 uppercase">Quran Pages</div>
           </div>
-        </div>
-      </div>
-
-      {/* Consolidated Stats Cards - COMPACTED */}
-      <div className={`grid gap-${isMobile ? '2' : '2.5'} mb-${isMobile ? '3' : '4'}
-                      grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`}>
-        <StatCard 
-          title="Tasks" 
-          value={stats.totalTasks} 
-          icon={<ListIcon className="w-5 h-5 text-white" />}
-          color="from-blue-500 to-blue-600"
-          isMobile={isMobile}
-        />
-        <StatCard 
-          title="Today" 
-          value={stats.todayCompletedTasks} 
-          icon={<CheckCircleIcon className="w-5 h-5 text-white" />}
-          color="from-emerald-500 to-emerald-600"
-          trend={stats.todayCompletedTasks > 0 ? 15 : -5}
-          isMobile={isMobile}
-        />
-        <StatCard
-          title="Prayers"
-          value={stats.todayPrayerCount}
-          icon={<PrayerTrackerIcon className="w-5 h-5 text-white" />}
-          color="from-purple-500 to-purple-600"
-          suffix="/5"
-          isMobile={isMobile}
-        />
-        <StatCard
-          title="Streak"
-          value={stats.quranStreak}
-          icon={<QuranLogIcon className="w-5 h-5 text-white" />}
-          color="from-teal-500 to-teal-600"
-          suffix="d"
-          isMobile={isMobile}
-        />
-        <StatCard
-          title="Adhkar"
-          value={stats.adhkarCompletionPercentage}
-          icon={<AdhkarIcon className="w-5 h-5 text-white" />}
-          color="from-pink-500 to-pink-600"
-          suffix="%"
-          isMobile={isMobile}
-        />
-        <StatCard
-          title="Focus"
-          value={stats.weeklyFocusTime}
-          icon={<PomodoroIcon className="w-5 h-5 text-white" />}
-          color="from-orange-500 to-red-600"
-          suffix="m"
-          isMobile={isMobile}
-        />
-      </div>
-
-
-      {/* Main Analytics - COMPACTED */}
-      <div className={`mb-${isMobile ? '3' : '4'}`}>
-        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20
-                        ${isMobile ? 'p-2.5' : 'p-3.5'}`}>
-          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '2' : '3'}
-                         ${isMobile ? 'text-sm' : 'text-base'}`}>Task Completion Overview</h3>
-          <div className={`grid gap-${isMobile ? '4' : '6'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
-            <div className="text-center">
-              <ProgressRing 
-                percentage={stats.completionPercentage} 
-                size={isMobile ? 100 : 120}
-                color="#10b981"
-                isMobile={isMobile}
-              />
-              <p className={`mt-3 text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Overall Completion</p>
-            </div>
-            <div className={`space-y-${isMobile ? '3' : '4'}`}>
-              <div>
-                <h4 className={`font-semibold text-slate-700 dark:text-slate-200 mb-3 ${isMobile ? 'text-sm' : 'text-base'}`}>Priority Breakdown</h4>
-                <GradientBar 
-                  data={[
-                    { name: 'High', value: stats.priorityStats.high, color: 'bg-gradient-to-r from-red-500 to-red-600' },
-                    { name: 'Medium', value: stats.priorityStats.medium, color: 'bg-gradient-to-r from-amber-500 to-amber-600' },
-                    { name: 'Low', value: stats.priorityStats.low, color: 'bg-gradient-to-r from-emerald-500 to-emerald-600' }
-                  ]}
-                  isMobile={isMobile}
-                />
-              </div>
-              <div className={`pt-3 border-t border-slate-200 dark:border-slate-600`}>
-                <div className={`flex justify-between ${isMobile ? 'text-sm' : 'text-sm'}`}>
-                  <span className="text-slate-600 dark:text-slate-400">Overdue Tasks</span>
-                  <span className="font-bold text-red-600">{stats.overdueTasks}</span>
-                </div>
-              </div>
-            </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border-l-4 border-blue-500">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{completedTasks}/{todayTasks.length}</div>
+            <div className="text-xs text-slate-600 dark:text-slate-400 uppercase">Tasks</div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border-l-4 border-orange-500">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{todayWorkouts.length}</div>
+            <div className="text-xs text-slate-600 dark:text-slate-400 uppercase">Workouts</div>
           </div>
         </div>
       </div>
 
-      {/* Weekly Trends - COMPACTED */}
-      <div className={`grid gap-${isMobile ? '2.5' : '3'} mb-${isMobile ? '3' : '4'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20
-                        ${isMobile ? 'p-2.5' : 'p-3.5'}`}>
-          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '2' : '2.5'}
-                         ${isMobile ? 'text-sm' : 'text-base'}`}>Weekly Task Activity</h3>
-          <WeeklyHeatmap weeklyData={stats.weeklyTaskData} isMobile={isMobile} />
-        </div>
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20
-                        ${isMobile ? 'p-2.5' : 'p-3.5'}`}>
-          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '2' : '2.5'} flex items-center
-                         ${isMobile ? 'text-sm' : 'text-base'}`}>
-            <PomodoroIcon className={`mr-1.5 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-            Focus Time
-          </h3>
-          <WeeklyHeatmap weeklyData={stats.focusHeatmapData} isMobile={isMobile} />
-          <div className="mt-4 text-center">
-            <div className={`p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg`}>
-              <p className={`font-bold text-orange-600 dark:text-orange-400 ${isMobile ? 'text-lg' : 'text-lg'}`}>{stats.weeklyFocusTime}m</p>
-              <p className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-xs' : 'text-xs'}`}>This week</p>
-            </div>
-          </div>
-        </div>
-      </div>
+        {/* Left Column */}
+        <div className="space-y-6">
 
-      {/* Spiritual Progress and Today's Focus - COMPACTED */}
-      <div className={`grid gap-${isMobile ? '2.5' : '3'} mb-${isMobile ? '3' : '4'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20
-                        ${isMobile ? 'p-2.5' : 'p-3.5'}`}>
-          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '2' : '2.5'}
-                         ${isMobile ? 'text-sm' : 'text-base'}`}>Spiritual Progress</h3>
-          <div className={`space-y-${isMobile ? '3' : '4'}`}>
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Prayer Completion (7 days avg)</span>
-                <span className={`font-bold text-purple-600 dark:text-purple-400 ${isMobile ? 'text-base' : 'text-lg'}`}>
-                  {Math.round(stats.avgPrayerCompletion)}%
-                </span>
-              </div>
-              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'}`}>
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full transition-all duration-1000"
-                  style={{ width: `${stats.avgPrayerCompletion}%` }}
-                />
-              </div>
+          {/* Active Challenges */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Active Challenges 🎯</h2>
+              <span className="text-sm text-slate-500">{activeChallenges.length} active</span>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Quran Pages This Week</span>
-                <span className={`font-bold text-teal-600 dark:text-teal-400 ${isMobile ? 'text-base' : 'text-lg'}`}>{stats.totalQuranPages}</span>
+            {activeChallenges.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-2">🎯</div>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">No active challenges</p>
+                <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Start a challenge to track your progress!</p>
               </div>
-              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'}`}>
-                <div 
-                  className="h-full bg-gradient-to-r from-teal-400 to-teal-600 rounded-full transition-all duration-1000"
-                  style={{ width: `${Math.min((stats.totalQuranPages / 35) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {activeChallenges.map(challenge => {
+                  const startDate = new Date(challenge.startDate);
+                  const today = new Date();
+                  const daysPassed = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  const progress = Math.min((daysPassed / challenge.durationDays) * 100, 100);
 
-            {/* Adhkar Progress Section */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className={`font-medium text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>Today's Adhkar</span>
-                <span className={`font-bold text-pink-600 dark:text-pink-400 ${isMobile ? 'text-base' : 'text-lg'}`}>
-                  {stats.totalAdhkarCompleted}/{stats.adhkarStats.reduce((sum, stat) => sum + stat.total, 0)}
-                </span>
-              </div>
-              <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden ${isMobile ? 'h-2' : 'h-3'} mb-3`}>
-                <div
-                  className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full transition-all duration-1000"
-                  style={{ width: `${stats.adhkarCompletionPercentage}%` }}
-                />
-              </div>
-
-              {/* Individual Adhkar Categories */}
-              <div className={`space-y-2`}>
-                {stats.adhkarStats.map(category => (
-                  <div key={category.id} className={`flex items-center justify-between bg-pink-50 dark:bg-pink-900/20 rounded-lg
-                                                     ${isMobile ? 'p-2' : 'p-3'}`}>
-                    <div className="flex items-center space-x-2">
-                      <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>{category.icon}</span>
-                      <span className={`text-pink-700 dark:text-pink-300 font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                        {category.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-pink-800 dark:text-pink-200 font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                        {category.completed}/{category.total}
-                      </span>
-                      <div className={`w-12 lg:w-16 h-1.5 bg-pink-200 dark:bg-pink-800 rounded-full`}>
+                  return (
+                    <div key={challenge.id} className="p-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-sm">{challenge.name}</h3>
+                        <span className="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-full">
+                          Day {daysPassed}/{challenge.durationDays}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                         <div
-                          className="h-full bg-pink-500 rounded-full transition-all"
-                          style={{ width: `${category.percentage}%` }}
+                          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all"
+                          style={{ width: `${progress}%` }}
                         />
                       </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">{challenge.rules.length} daily rules</p>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Tasks */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Today's Tasks 📋</h2>
+              <span className="text-sm text-slate-500">{completedTasks}/{todayTasks.length}</span>
+            </div>
+
+            {todayTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-2">📝</div>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">No tasks for today</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {todayTasks.slice(0, 5).map(task => (
+                  <div key={task.id} className={`flex items-center space-x-3 p-2 rounded-lg ${task.completed ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-700/50'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${task.completed ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                      {task.completed && <span className="text-white text-xs">✓</span>}
+                    </div>
+                    <span className={`text-sm flex-1 ${task.completed ? 'line-through text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                      {task.title}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className={`pt-4 border-t border-slate-200 dark:border-slate-600`}>
-              <div className="text-center">
-                <div className={`font-bold text-emerald-600 dark:text-emerald-400 mb-1 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-                  {stats.quranStreak}
-                </div>
-                <div className={`text-slate-600 dark:text-slate-400 ${isMobile ? 'text-sm' : 'text-sm'}`}>
-                  Day reading streak
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        <div className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-lg shadow-md border border-white/20
-                        ${isMobile ? 'p-2.5' : 'p-3.5'}`}>
-          <h3 className={`font-semibold text-slate-700 dark:text-slate-200 mb-${isMobile ? '2' : '2.5'}
-                         ${isMobile ? 'text-sm' : 'text-base'}`}>Today's Focus</h3>
-          <div className={`space-y-${isMobile ? '3' : '4'}`}>
-            <div className={`text-center bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white
-                            ${isMobile ? 'p-3' : 'p-4'}`}>
-              <div className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`}>{stats.todayTasks}</div>
-              <div className={`text-blue-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>Tasks Planned</div>
+        {/* Right Column */}
+        <div className="space-y-6">
+
+          {/* Recent Workouts */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Recent Workouts 💪</h2>
+              <span className="text-sm text-slate-500">{recentWorkouts.length} logged</span>
             </div>
-            
-            <div className={`space-y-${isMobile ? '2' : '3'}`}>
-              <div className={`flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg
-                              ${isMobile ? 'p-2' : 'p-3'}`}>
-                <span className={`text-emerald-700 dark:text-emerald-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Prayers</span>
-                <span className={`text-emerald-800 dark:text-emerald-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>{stats.todayPrayerCount}/5</span>
+
+            {recentWorkouts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-2">💪</div>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">No workouts logged yet</p>
+                <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">Start tracking your fitness journey!</p>
               </div>
-              
-              <div className={`flex items-center justify-between bg-teal-50 dark:bg-teal-900/20 rounded-lg
-                              ${isMobile ? 'p-2' : 'p-3'}`}>
-                <span className={`text-teal-700 dark:text-teal-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Quran Pages</span>
-                <span className={`text-teal-800 dark:text-teal-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>{stats.todayQuranPages}</span>
+            ) : (
+              <div className="space-y-2">
+                {recentWorkouts.map(workout => (
+                  <div key={workout.id} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">{workout.type}</span>
+                        <span className="text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full">
+                          {workout.durationMinutes}min
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                        {new Date(workout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      {workout.notes && (
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1 truncate">{workout.notes}</p>
+                      )}
+                    </div>
+                    {workout.completed && (
+                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">✓</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              
-              <div className={`flex items-center justify-between bg-orange-50 dark:bg-orange-900/20 rounded-lg
-                              ${isMobile ? 'p-2' : 'p-3'}`}>
-                <span className={`text-orange-700 dark:text-orange-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Focus Time</span>
-                <span className={`text-orange-800 dark:text-orange-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
-                  {Math.round(focusSessions
-                    .filter(s => s.completedAt.toDateString() === new Date().toDateString() && s.type === 'Work')
-                    .reduce((total, s) => total + Math.round(s.actualTimeSpent / 60), 0))}m
-                </span>
+            )}
+          </div>
+
+          {/* Spiritual Progress */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Spiritual Progress 🌙</h2>
+
+            <div className="space-y-4">
+              {/* Prayer Progress */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Today's Prayers</span>
+                  <span className="text-sm font-bold text-purple-600 dark:text-purple-400">{todayPrayerCount}/5</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
+                    style={{ width: `${(todayPrayerCount / 5) * 100}%` }}
+                  />
+                </div>
+                {todayPrayers && (
+                  <div className="flex gap-1 mt-2">
+                    {['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].map(prayer => (
+                      <div
+                        key={prayer}
+                        className={`flex-1 h-1.5 rounded-full ${
+                          todayPrayers.prayers[prayer]?.fardh
+                            ? 'bg-purple-500'
+                            : 'bg-slate-300 dark:bg-slate-600'
+                        }`}
+                        title={prayer}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              <div className={`flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded-lg
-                              ${isMobile ? 'p-2' : 'p-3'}`}>
-                <span className={`text-purple-700 dark:text-purple-300 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>Completion Rate</span>
-                <span className={`text-purple-800 dark:text-purple-200 font-bold ${isMobile ? 'text-sm' : 'text-base'}`}>
-                  {stats.todayTasks > 0 ? Math.round((stats.todayCompletedTasks / stats.todayTasks) * 100) : 0}%
-                </span>
+
+              {/* Quran Progress */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Quran Pages Today</span>
+                  <span className="text-sm font-bold text-teal-600 dark:text-teal-400">{todayQuranPages}</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-teal-500 to-emerald-500 h-2 rounded-full"
+                    style={{ width: `${Math.min((todayQuranPages / 5) * 100, 100)}%` }}
+                  />
+                </div>
               </div>
+
+              {/* Streak */}
+              {todayQuran && todayQuran.readQuran && (
+                <div className="mt-4 p-3 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 rounded-lg border border-teal-200 dark:border-teal-700 text-center">
+                  <div className="text-sm text-slate-600 dark:text-slate-400">Keep your streak going! 🔥</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Weekly Insights - COMPACTED */}
-      <div className={`bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg text-white shadow-lg
-                      ${isMobile ? 'p-2.5' : 'p-4'}`}>
-        <h3 className={`font-bold mb-${isMobile ? '2' : '3'} ${isMobile ? 'text-base' : 'text-lg'}`}>Weekly Insights</h3>
-        <div className={`grid gap-${isMobile ? '2' : '2.5'} ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'}`}>
-          <div className={`bg-white/20 backdrop-blur-sm rounded ${isMobile ? 'p-2' : 'p-3'}`}>
-            <h4 className={`font-bold mb-1.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>📋 Productivity</h4>
-            <p className={`text-indigo-100 ${isMobile ? 'text-sm' : 'text-sm'}`}>
-              {stats.completionPercentage > 80 ? "Outstanding progress! You're crushing your goals! 🚀" : 
-               stats.completionPercentage > 60 ? "Great momentum! Keep the energy going! ⚡" : 
-               "Room for growth. Try breaking tasks into smaller steps! 💪"}
+      {/* Bottom Insight */}
+      <div className="mt-6 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl p-4 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-lg">Today's Summary</h3>
+            <p className="text-sm text-indigo-100 mt-1">
+              {completedTasks === todayTasks.length && todayTasks.length > 0
+                ? "Mashallah! All tasks completed! 🎉"
+                : todayPrayerCount === 5
+                ? "All prayers on time! Keep it up! ✨"
+                : todayWorkouts.length > 0
+                ? "Great workout session today! 💪"
+                : "Start your day with small wins! 🌟"
+              }
             </p>
           </div>
-
-          <div className={`bg-white/20 backdrop-blur-sm rounded ${isMobile ? 'p-2' : 'p-3'}`}>
-            <h4 className={`font-bold mb-1.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>🍅 Focus</h4>
-            <p className={`text-purple-100 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              {stats.weeklyFocusTime > 120 ? "Excellent focus this week! Your concentration is on point! 🎯" :
-               stats.weeklyFocusTime > 60 ? "Good focus sessions! Keep building that habit! ⏰" :
-               "Try using the Pomodoro timer to improve your focus! 🍅"}
-            </p>
-          </div>
-
-          <div className={`bg-white/20 backdrop-blur-sm rounded ${isMobile ? 'p-2' : 'p-3'}`}>
-            <h4 className={`font-bold mb-1.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>🤲 Prayers</h4>
-            <p className={`text-purple-100 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              {stats.avgPrayerCompletion > 80 ? "Mashallah! Your spiritual routine is excellent! ✨" :
-               stats.avgPrayerCompletion > 50 ? "Good progress! Consistency is key! 🌟" :
-               "Consider setting prayer reminders to build consistency! ⏰"}
-            </p>
-          </div>
-
-          <div className={`bg-white/20 backdrop-blur-sm rounded ${isMobile ? 'p-2' : 'p-3'}`}>
-            <h4 className={`font-bold mb-1.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>📖 Quran</h4>
-            <p className={`text-pink-100 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              {stats.quranStreak > 7 ? "Amazing streak! Your dedication is inspiring! 🌙" :
-               stats.quranStreak > 0 ? "Great start! Keep building that habit! 📚" :
-               "Every verse matters. Start with just one page today! 🌱"}
-            </p>
-          </div>
-
-          <div className={`bg-white/20 backdrop-blur-sm rounded ${isMobile ? 'p-2' : 'p-3'}`}>
-            <h4 className={`font-bold mb-1.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>💝 Adhkar</h4>
-            <p className={`text-pink-100 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-              {stats.adhkarCompletionPercentage > 80 ? "Subhan Allah! Your heart is full of remembrance! 💫" :
-               stats.adhkarCompletionPercentage > 50 ? "Beautiful progress! Each dhikr brings you closer! 🌸" :
-               "Start your day with morning adhkar for spiritual strength! ☀️"}
-            </p>
+          <div className="text-4xl">
+            {completedTasks === todayTasks.length && todayTasks.length > 0 ? "🎉" :
+             todayPrayerCount === 5 ? "✨" :
+             todayWorkouts.length > 0 ? "💪" : "🌟"}
           </div>
         </div>
       </div>

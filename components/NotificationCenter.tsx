@@ -74,11 +74,22 @@ const NotificationCenter: React.FC = () => {
     return 'Just now';
   };
 
+  const [buttonRect, setButtonRect] = React.useState<DOMRect | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleToggle = () => {
+    if (buttonRef.current) {
+      setButtonRect(buttonRef.current.getBoundingClientRect());
+    }
+    setIsOpen(!isOpen);
+  };
+
   return (
-    <div className="relative" ref={panelRef}>
+    <>
       {/* Bell Icon */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="relative p-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -94,9 +105,18 @@ const NotificationCenter: React.FC = () => {
         )}
       </button>
 
-      {/* Notification Panel */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-[999] max-h-[500px] flex flex-col">
+      {/* Notification Panel - Fixed positioning to break out of stacking context */}
+      {isOpen && buttonRect && (
+        <div
+          ref={panelRef}
+          className="fixed bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[500px] flex flex-col"
+          style={{
+            top: `${buttonRect.bottom + 8}px`,
+            right: `${window.innerWidth - buttonRect.right}px`,
+            width: '320px',
+            zIndex: 9999
+          }}
+        >
           {/* Header */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
             <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>
@@ -153,7 +173,7 @@ const NotificationCenter: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
