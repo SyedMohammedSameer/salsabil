@@ -368,30 +368,33 @@ const AppContent: React.FC = () => {
       )}
 
       {!isMobile && (
-        <nav className={`fixed left-0 top-0 h-full bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-700/50 shadow-2xl z-10 overflow-y-auto transition-all duration-300 ease-in-out
+        <nav className={`fixed left-0 top-0 h-full bg-gradient-to-b from-white/95 via-white/90 to-slate-50/95 dark:from-slate-900/95 dark:via-slate-800/90 dark:to-slate-900/95 backdrop-blur-2xl border-r border-gradient-to-b border-slate-200/60 dark:border-slate-700/60 shadow-2xl z-10 overflow-y-auto transition-all duration-300 ease-in-out
                         ${sidebarCollapsed ? 'w-20' : 'w-80'}`}>
-          <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+
+          {/* Header */}
+          <div className="p-6 border-b border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-r from-blue-50/50 via-cyan-50/50 to-emerald-50/50 dark:from-blue-900/10 dark:via-cyan-900/10 dark:to-emerald-900/10">
             <div className="flex items-center justify-between">
               {!sidebarCollapsed && (
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-lg ring-2 ring-blue-100 dark:ring-blue-900/50">
                     <img src="/salsabil-original.jpg" alt="Salsabil" className="w-full h-full object-cover"/>
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"></div>
                   </div>
                   <div>
                     <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-600 bg-clip-text text-transparent">
                       Salsabil
                     </h1>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">A Spring of Growth</p>
+                    <p className="text-xs font-medium bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">A Spring of Growth</p>
                   </div>
                 </div>
               )}
-              
+
               <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                className="p-2.5 rounded-xl bg-white dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-slate-600 transition-all shadow-sm hover:shadow-md border border-slate-200 dark:border-slate-600"
                 title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
-                <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} 
+                <svg className={`w-5 h-5 transition-transform duration-300 text-blue-600 dark:text-blue-400 ${sidebarCollapsed ? 'rotate-180' : ''}`}
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                 </svg>
@@ -399,69 +402,124 @@ const AppContent: React.FC = () => {
             </div>
           </div>
 
+          {/* Profile Card */}
           {!sidebarCollapsed && currentUser && (
-            <button onClick={() => setIsProfileModalOpen(true)} className="w-full text-left p-4 bg-gradient-to-r from-cyan-50 to-emerald-50 dark:from-cyan-900/20 dark:to-emerald-900/20 mx-4 mt-4 rounded-xl hover:shadow-lg transition-shadow">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                  {(currentUser.displayName || 'A')?.charAt(0).toUpperCase()}
+            <div className="px-4 pt-5 pb-3">
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="w-full text-left p-4 bg-gradient-to-br from-blue-50 via-cyan-50 to-emerald-50 dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-emerald-900/20 rounded-2xl hover:shadow-lg transition-all duration-300 border border-blue-100/50 dark:border-blue-900/50 group relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-200/30 to-cyan-200/30 dark:from-blue-800/20 dark:to-cyan-800/20 rounded-bl-full opacity-50"></div>
+                <div className="flex items-center space-x-3 relative z-10">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg ring-2 ring-white dark:ring-slate-800">
+                    {(currentUser.displayName || 'A')?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
+                      {currentUser.displayName || 'Anonymous'}
+                    </p>
+                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {tasks.length} active tasks
+                    </p>
+                  </div>
+                  <svg className="w-5 h-5 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
-                    {currentUser.displayName || 'Anonymous'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Blessed User • {tasks.length} tasks
-                  </p>
-                </div>
-              </div>
-            </button>
+              </button>
+            </div>
           )}
-          
-          <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Main</p>}
-            {mainNavItems.map(item => (
-              <NavItem
-                key={item.view}
-                icon={item.icon}
-                label={item.label}
-                isActive={currentView === item.view}
-                onClick={() => setCurrentView(item.view)}
-                isCollapsed={sidebarCollapsed}
-                hasActiveTimer={item.hasActiveTimer}
-              />
-            ))}
 
-            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">💪 Activity</p>}
-            {activityNavItems.map(item => (
-              <NavItem
-                key={item.view}
-                icon={item.icon}
-                label={item.label}
-                isActive={currentView === item.view}
-                onClick={() => setCurrentView(item.view)}
-                isCollapsed={sidebarCollapsed}
-              />
-            ))}
+          {/* Navigation */}
+          <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+            {/* Main Section */}
+            {!sidebarCollapsed && (
+              <div className="px-3 py-2 mb-2 flex items-center space-x-2">
+                <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full"></div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Main</p>
+              </div>
+            )}
+            <div className="space-y-1 mb-6">
+              {mainNavItems.map(item => (
+                <NavItem
+                  key={item.view}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={currentView === item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  isCollapsed={sidebarCollapsed}
+                  hasActiveTimer={item.hasActiveTimer}
+                />
+              ))}
+            </div>
 
-            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">🌙 Spiritual</p>}
-            {spiritualNavItems.map(item => (
-              <NavItem
-                key={item.view}
-                icon={item.icon}
-                label={item.label}
-                isActive={currentView === item.view}
-                onClick={() => setCurrentView(item.view)}
-                isCollapsed={sidebarCollapsed}
-              />
-            ))}
+            {/* Activity Section */}
+            {!sidebarCollapsed && (
+              <div className="px-3 py-2 mb-2 flex items-center space-x-2">
+                <div className="w-1 h-5 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
+                <span className="text-lg">💪</span>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Activity</p>
+              </div>
+            )}
+            <div className="space-y-1 mb-6">
+              {activityNavItems.map(item => (
+                <NavItem
+                  key={item.view}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={currentView === item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  isCollapsed={sidebarCollapsed}
+                />
+              ))}
+            </div>
+
+            {/* Spiritual Section */}
+            {!sidebarCollapsed && (
+              <div className="px-3 py-2 mb-2 flex items-center space-x-2">
+                <div className="w-1 h-5 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
+                <span className="text-lg">🌙</span>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Spiritual</p>
+              </div>
+            )}
+            <div className="space-y-1">
+              {spiritualNavItems.map(item => (
+                <NavItem
+                  key={item.view}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={currentView === item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  isCollapsed={sidebarCollapsed}
+                />
+              ))}
+            </div>
           </div>
-          
-          <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
-            <div className={`flex items-center justify-center ${sidebarCollapsed ? 'flex-col space-y-3' : 'space-x-3'}`}>
-              <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+
+          {/* Footer */}
+          <div className="p-4 border-t border-slate-200/60 dark:border-slate-700/60 bg-gradient-to-r from-slate-50/50 to-blue-50/50 dark:from-slate-900/50 dark:to-blue-900/10">
+            <div className={`flex items-center ${sidebarCollapsed ? 'flex-col space-y-2' : 'space-x-2'}`}>
+              <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
+                <NotificationCenter />
+              </div>
+              <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="w-full flex items-center justify-center space-x-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 transition-all duration-200 group border border-blue-200/50 dark:border-blue-800/50"
+                  title="Settings"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {!sidebarCollapsed && <span className="text-sm font-medium">Settings</span>}
+                </button>
+              </div>
+            </div>
+            <div className="mt-2">
               <button
                 onClick={handleLogout}
-                className={`${sidebarCollapsed ? 'w-full' : 'flex-1'} flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200 group`}
+                className="w-full flex items-center justify-center space-x-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 transition-all duration-200 group border border-red-200/50 dark:border-red-800/50"
                 title="Logout"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
