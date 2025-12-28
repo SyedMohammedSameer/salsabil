@@ -40,7 +40,7 @@ const WorkoutsView: React.FC = () => {
       await firebaseService.saveWorkout(currentUser.uid, {
         type: formData.type,
         durationMinutes: formData.durationMinutes,
-        notes: formData.notes || undefined,
+        notes: formData.notes || '',
         date: formData.date,
         completed: true
       });
