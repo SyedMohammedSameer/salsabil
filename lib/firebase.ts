@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 // Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
@@ -42,5 +43,26 @@ export const db = getFirestore(app);
 
 // Initialize Analytics (optional, only in production)
 export const analytics = typeof window !== 'undefined' && import.meta.env.PROD ? getAnalytics(app) : null;
+
+// Initialize Cloud Messaging (only if supported)
+let messaging: ReturnType<typeof getMessaging> | null = null;
+
+if (typeof window !== 'undefined') {
+  isSupported().then((supported) => {
+    if (supported) {
+      messaging = getMessaging(app);
+      console.log('✅ Firebase Cloud Messaging initialized');
+    } else {
+      console.warn('⚠️ Firebase Cloud Messaging not supported in this browser');
+    }
+  }).catch((error) => {
+    console.error('Error checking FCM support:', error);
+  });
+}
+
+export { messaging };
+
+// VAPID key for web push (from environment)
+export const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 export default app;

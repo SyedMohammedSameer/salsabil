@@ -393,4 +393,299 @@ export const savePersonalTree = async (userId: string, tree: Tree): Promise<void
     if (focusMinutes < 100) return TreeGrowthStage.YoungTree;
     return TreeGrowthStage.MatureTree;
   };
+
+// ============================================================================
+// NEW COLLECTIONS FOR MAJOR UPGRADE
+// ============================================================================
+
+import type { UserSettings, WorkoutEntry, Challenge, ChallengeDay, AIThread } from '../types';
+import { Timestamp } from 'firebase/firestore';
+
+// Default user settings
+const DEFAULT_USER_SETTINGS: UserSettings = {
+  notificationEnabled: true,
+  pushEnabled: false,
+  aiCheckInEnabled: true,
+  aiCheckInIntervalMinutes: 120,
+  quietHours: {
+    start: '22:00',
+    end: '07:00',
+    enabled: true
+  },
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  focusMode: {
+    enabled: false
+  },
+  uiDensity: 'compact'
+};
+
+// ============================================================================
+// USER SETTINGS
+// ============================================================================
+
+export const loadUserSettings = async (userId: string | null): Promise<UserSettings> => {
+  if (!userId) return DEFAULT_USER_SETTINGS;
+
+  try {
+    const settingsRef = doc(db, 'user_settings', userId);
+    const docSnap = await getDoc(settingsRef);
+
+    if (docSnap.exists()) {
+      return { ...DEFAULT_USER_SETTINGS, ...docSnap.data() } as UserSettings;
+    }
+
+    // Create default settings
+    await setDoc(settingsRef, DEFAULT_USER_SETTINGS);
+    return DEFAULT_USER_SETTINGS;
+  } catch (error) {
+    console.error('Error loading user settings:', error);
+    return DEFAULT_USER_SETTINGS;
+  }
+};
+
+export const saveUserSettings = async (userId: string, settings: Partial<UserSettings>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const settingsRef = doc(db, 'user_settings', userId);
+    await setDoc(settingsRef, settings, { merge: true });
+  } catch (error) {
+    console.error('Error saving user settings:', error);
+  }
+};
+
+export const setupUserSettingsListener = (userId: string, callback: (settings: UserSettings) => void): Unsubscribe => {
+  const settingsRef = doc(db, 'user_settings', userId);
+
+  return onSnapshot(settingsRef, (doc) => {
+    if (doc.exists()) {
+      callback({ ...DEFAULT_USER_SETTINGS, ...doc.data() } as UserSettings);
+    } else {
+      callback(DEFAULT_USER_SETTINGS);
+    }
+  });
+};
+
+// ============================================================================
+// WORKOUTS
+// ============================================================================
+
+export const saveWorkout = async (userId: string, workout: Omit<WorkoutEntry, 'id' | 'createdAt'>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const workoutsRef = collection(db, `workouts/${userId}/entries`);
+    await addDoc(workoutsRef, {
+      ...workout,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error saving workout:', error);
+  }
+};
+
+export const updateWorkout = async (userId: string, workoutId: string, updates: Partial<WorkoutEntry>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const workoutRef = doc(db, `workouts/${userId}/entries`, workoutId);
+    await updateDoc(workoutRef, updates);
+  } catch (error) {
+    console.error('Error updating workout:', error);
+  }
+};
+
+export const deleteWorkout = async (userId: string, workoutId: string): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const workoutRef = doc(db, `workouts/${userId}/entries`, workoutId);
+    await deleteDoc(workoutRef);
+  } catch (error) {
+    console.error('Error deleting workout:', error);
+  }
+};
+
+export const loadWorkouts = async (userId: string | null, date?: string): Promise<WorkoutEntry[]> => {
+  if (!userId) return [];
+
+  try {
+    const workoutsRef = collection(db, `workouts/${userId}/entries`);
+    let q = query(workoutsRef, orderBy('date', 'desc'));
+
+    if (date) {
+      q = query(workoutsRef, where('date', '==', date));
+    }
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date()
+    } as WorkoutEntry));
+  } catch (error) {
+    console.error('Error loading workouts:', error);
+    return [];
+  }
+};
+
+export const setupWorkoutsListener = (userId: string, callback: (workouts: WorkoutEntry[]) => void): Unsubscribe => {
+  const workoutsRef = collection(db, `workouts/${userId}/entries`);
+  const q = query(workoutsRef, orderBy('date', 'desc'));
+
+  return onSnapshot(q, (snapshot) => {
+    const workouts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date()
+    } as WorkoutEntry));
+    callback(workouts);
+  });
+};
+
+// ============================================================================
+// CHALLENGES
+// ============================================================================
+
+export const saveChallenge = async (userId: string, challenge: Omit<Challenge, 'id' | 'createdAt'>): Promise<string> => {
+  if (!userId) return '';
+
+  try {
+    const challengesRef = collection(db, `challenges/${userId}/items`);
+    const docRef = await addDoc(challengesRef, {
+      ...challenge,
+      createdAt: serverTimestamp()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving challenge:', error);
+    return '';
+  }
+};
+
+export const updateChallenge = async (userId: string, challengeId: string, updates: Partial<Challenge>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const challengeRef = doc(db, `challenges/${userId}/items`, challengeId);
+    await updateDoc(challengeRef, updates);
+  } catch (error) {
+    console.error('Error updating challenge:', error);
+  }
+};
+
+export const loadChallenges = async (userId: string | null): Promise<Challenge[]> => {
+  if (!userId) return [];
+
+  try {
+    const challengesRef = collection(db, `challenges/${userId}/items`);
+    const q = query(challengesRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date()
+    } as Challenge));
+  } catch (error) {
+    console.error('Error loading challenges:', error);
+    return [];
+  }
+};
+
+export const setupChallengesListener = (userId: string, callback: (challenges: Challenge[]) => void): Unsubscribe => {
+  const challengesRef = collection(db, `challenges/${userId}/items`);
+  const q = query(challengesRef, orderBy('createdAt', 'desc'));
+
+  return onSnapshot(q, (snapshot) => {
+    const challenges = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date()
+    } as Challenge));
+    callback(challenges);
+  });
+};
+
+// ============================================================================
+// CHALLENGE DAYS
+// ============================================================================
+
+export const saveChallengeDay = async (userId: string, day: Omit<ChallengeDay, 'id' | 'updatedAt'>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const dayRef = doc(db, `challenge_days/${userId}/days`, `${day.challengeId}_${day.date}`);
+    await setDoc(dayRef, {
+      ...day,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving challenge day:', error);
+  }
+};
+
+export const loadChallengeDays = async (userId: string | null, challengeId: string): Promise<ChallengeDay[]> => {
+  if (!userId) return [];
+
+  try {
+    const daysRef = collection(db, `challenge_days/${userId}/days`);
+    const q = query(daysRef, where('challengeId', '==', challengeId), orderBy('date', 'asc'));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      updatedAt: doc.data().updatedAt?.toDate() || new Date()
+    } as ChallengeDay));
+  } catch (error) {
+    console.error('Error loading challenge days:', error);
+    return [];
+  }
+};
+
+// ============================================================================
+// AI THREADS
+// ============================================================================
+
+export const saveAIThread = async (userId: string, threadId: string, thread: Partial<AIThread>): Promise<void> => {
+  if (!userId) return;
+
+  try {
+    const threadRef = doc(db, `ai_threads/${userId}/threads`, threadId);
+    await setDoc(threadRef, {
+      ...thread,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving AI thread:', error);
+  }
+};
+
+export const loadAIThread = async (userId: string | null, threadId: string): Promise<AIThread | null> => {
+  if (!userId) return null;
+
+  try {
+    const threadRef = doc(db, `ai_threads/${userId}/threads`, threadId);
+    const docSnap = await getDoc(threadRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        messages: data.messages.map((msg: any) => ({
+          ...msg,
+          createdAt: msg.createdAt?.toDate() || new Date()
+        })),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as AIThread;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error loading AI thread:', error);
+    return null;
+  }
+};
   

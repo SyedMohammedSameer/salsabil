@@ -491,45 +491,45 @@ const AdhkarView: React.FC = () => {
     <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-purple-900 dark:to-pink-900">
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex flex-col lg:flex-row">
-          {/* Categories Sidebar - Mobile Horizontal Scroll */}
-          <div className="lg:w-80 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b lg:border-r lg:border-b-0 border-slate-200/50 dark:border-slate-700/50 flex-shrink-0">
-            {/* Mobile Header */}
-            <div className="p-4 lg:p-6 border-b border-slate-200/50 dark:border-slate-700/50 lg:block">
-              <h2 className="text-lg lg:text-xl font-bold text-slate-800 dark:text-slate-200 mb-1 lg:mb-2">
+          {/* Categories Sidebar - COMPACTED */}
+          <div className="lg:w-72 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b lg:border-r lg:border-b-0 border-slate-200/50 dark:border-slate-700/50 flex-shrink-0">
+            {/* Mobile Header - COMPACTED */}
+            <div className="p-2 lg:p-3.5 border-b border-slate-200/50 dark:border-slate-700/50">
+              <h2 className="text-base lg:text-lg font-bold text-slate-800 dark:text-slate-200 mb-0.5 lg:mb-1">
                 Adhkar Categories
               </h2>
-              <p className="text-xs lg:text-sm text-slate-600 dark:text-slate-400">
-                Daily remembrance of Allah
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Daily remembrance
               </p>
             </div>
 
-            {/* Categories - Horizontal scroll on mobile, vertical on desktop */}
-            <div className="lg:p-4">
-              <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible space-x-3 lg:space-x-0 lg:space-y-3 p-4 lg:p-0 scrollbar-hide">
+            {/* Categories - COMPACTED */}
+            <div className="lg:p-2.5">
+              <div className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible space-x-2 lg:space-x-0 lg:space-y-2 p-2 lg:p-0 scrollbar-hide">
                 {ADHKAR_DATA.map(category => {
                   const progress = getCategoryProgress(category.id);
                   return (
                     <button
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
-                      className={`flex-shrink-0 lg:w-full text-left p-3 lg:p-4 rounded-xl transition-all min-w-[200px] lg:min-w-0 ${
+                      className={`flex-shrink-0 lg:w-full text-left p-2 lg:p-2.5 rounded-lg transition-all min-w-[180px] lg:min-w-0 ${
                         selectedCategory === category.id
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
                           : 'bg-slate-100/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-600/80'
                       }`}
                     >
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-xl lg:text-2xl">{category.icon}</span>
-                        <span className="font-medium text-sm lg:text-base">{category.name}</span>
+                      <div className="flex items-center space-x-2 mb-1.5">
+                        <span className="text-lg lg:text-xl">{category.icon}</span>
+                        <span className="font-medium text-xs lg:text-sm">{category.name}</span>
                       </div>
-                      <p className={`text-xs lg:text-sm hidden lg:block ${
+                      <p className={`text-xs hidden lg:block ${
                         selectedCategory === category.id
                           ? 'text-white/80'
                           : 'text-slate-500 dark:text-slate-400'
                       }`}>
                         {category.description}
                       </p>
-                      <div className="mt-2 lg:mt-3">
+                      <div className="mt-1.5 lg:mt-2">
                         <div className="flex justify-between items-center mb-1">
                           <span className={`text-xs ${
                             selectedCategory === category.id
@@ -568,30 +568,30 @@ const AdhkarView: React.FC = () => {
             </div>
           </div>
 
-          {/* Main Content */}
+          {/* Main Content - COMPACTED */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="p-4 lg:p-6 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl">
-              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-2 lg:space-y-0">
+            {/* Header - COMPACTED */}
+            <div className="p-2 lg:p-3.5 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-1.5 lg:space-y-0">
                 <div>
-                  <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  <h1 className="text-lg lg:text-xl font-bold text-slate-800 dark:text-slate-200 mb-0.5">
                     {currentCategory?.name}
                   </h1>
-                  <p className="text-sm lg:text-base text-slate-600 dark:text-slate-400">
+                  <p className="text-xs lg:text-sm text-slate-600 dark:text-slate-400">
                     {currentCategory?.description}
                   </p>
                 </div>
                 <button
                   onClick={resetCategoryProgress}
-                  className="self-start lg:self-auto px-3 lg:px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm lg:text-base"
+                  className="self-start lg:self-auto px-2.5 lg:px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-xs lg:text-sm"
                 >
-                  Reset Progress
+                  Reset
                 </button>
               </div>
             </div>
 
-            {/* Adhkar Cards */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 lg:space-y-6">
+            {/* Adhkar Cards - COMPACTED */}
+            <div className="flex-1 overflow-y-auto p-2 lg:p-3 space-y-2.5 lg:space-y-3.5">
               {currentCategory?.adhkar.map(adhkar => {
                 const { current, max } = getCurrentProgress(adhkar);
                 const isCompleted = completedAdhkar.has(adhkar.id);
@@ -599,41 +599,41 @@ const AdhkarView: React.FC = () => {
                 return (
                   <div
                     key={adhkar.id}
-                    className={`p-4 lg:p-6 rounded-xl transition-all ${
+                    className={`p-2.5 lg:p-4 rounded-lg transition-all ${
                       isCompleted
                         ? 'bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border-green-200 dark:border-green-700'
                         : 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'
                     } border backdrop-blur-xl`}
                   >
-                    <div className="space-y-3 lg:space-y-4">
-                      {/* Arabic Text */}
+                    <div className="space-y-2 lg:space-y-2.5">
+                      {/* Arabic Text - COMPACTED */}
                       <div className="text-right">
-                        <p className="text-lg lg:text-2xl leading-relaxed text-slate-800 dark:text-slate-200 font-arabic">
+                        <p className="text-base lg:text-xl leading-relaxed text-slate-800 dark:text-slate-200 font-arabic">
                           {adhkar.arabic}
                         </p>
                       </div>
 
-                      {/* Transliteration */}
+                      {/* Transliteration - COMPACTED */}
                       <div>
-                        <p className="text-sm lg:text-lg italic text-slate-600 dark:text-slate-400">
+                        <p className="text-xs lg:text-base italic text-slate-600 dark:text-slate-400">
                           {adhkar.transliteration}
                         </p>
                       </div>
 
-                      {/* Translation */}
+                      {/* Translation - COMPACTED */}
                       <div>
-                        <p className="text-sm lg:text-base text-slate-700 dark:text-slate-300">
+                        <p className="text-xs lg:text-sm text-slate-700 dark:text-slate-300">
                           {adhkar.translation}
                         </p>
                       </div>
 
-                      {/* Count and Action */}
-                      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-3 lg:space-y-0 pt-3 lg:pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                        <div className="flex items-center space-x-3 lg:space-x-4">
-                          <span className="text-xs lg:text-sm text-slate-500 dark:text-slate-400">
+                      {/* Count and Action - COMPACTED */}
+                      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-2 lg:space-y-0 pt-2 lg:pt-2.5 border-t border-slate-200/50 dark:border-slate-700/50">
+                        <div className="flex items-center space-x-2 lg:space-x-3">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
                             {current} / {max} times
                           </span>
-                          <div className="flex-1 lg:w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full">
+                          <div className="flex-1 lg:w-20 h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full">
                             <div
                               className="h-full bg-purple-500 rounded-full transition-all"
                               style={{ width: `${(current / max) * 100}%` }}
@@ -644,13 +644,13 @@ const AdhkarView: React.FC = () => {
                         <button
                           onClick={() => handleAdhkarComplete(adhkar.id)}
                           disabled={isCompleted}
-                          className={`w-full lg:w-auto px-4 lg:px-6 py-2 rounded-lg font-medium transition-all text-sm lg:text-base ${
+                          className={`w-full lg:w-auto px-3 lg:px-4 py-1.5 rounded font-medium transition-all text-xs lg:text-sm ${
                             isCompleted
                               ? 'bg-green-500 text-white cursor-not-allowed'
                               : 'bg-purple-500 text-white hover:bg-purple-600 active:scale-95'
                           }`}
                         >
-                          {isCompleted ? '✓ Completed' : 'Recite'}
+                          {isCompleted ? '✓ Done' : 'Recite'}
                         </button>
                       </div>
                     </div>

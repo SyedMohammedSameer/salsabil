@@ -169,7 +169,7 @@ type CalendarDisplayMode = 'month' | 'day'; // 'week' can be added later
 const CalendarView: React.FC<CalendarViewProps> = ({ tasks, addTask, updateTask, deleteTask, setCurrentView }) => {
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // For month/week navigation
   const [selectedDate, setSelectedDate] = useState(new Date()); // For daily view
-  const [displayMode, setDisplayMode] = useState<CalendarDisplayMode>('month');
+  const [displayMode, setDisplayMode] = useState<CalendarDisplayMode>('day'); // DEFAULT TO DAY VIEW
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
