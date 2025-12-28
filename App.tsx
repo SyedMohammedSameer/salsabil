@@ -9,6 +9,11 @@ import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
 import QuranLogView from './components/QuranLogView';
 import AdhkarView from './components/AdhkarView';
+import WorkoutsView from './components/WorkoutsView';
+import ChallengesView from './components/ChallengesView';
+import SoloRoomView from './components/SoloRoomView';
+import NotificationCenter from './components/NotificationCenter';
+import UserSettingsModal from './components/UserSettingsModal';
 import ThemeToggle from './components/ThemeToggle';
 import NavItem from './components/NavItem';
 import AuthModal from './components/AuthModal';
@@ -17,6 +22,7 @@ import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
+import * as aiSchedulerService from './services/aiSchedulerService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
 
@@ -30,6 +36,7 @@ const AppContent: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for the profile modal
 
   // Detect mobile screen size
@@ -90,19 +97,22 @@ const AppContent: React.FC = () => {
       setDataLoading(false);
       return;
     }
-    
+
     setDataLoading(true);
     let tasksUnsubscribe: (() => void) | undefined;
-    
+
     const initializeData = async () => {
       try {
         const userTheme = await firebaseService.loadTheme(currentUser.uid);
         setTheme(userTheme);
-        
+
         tasksUnsubscribe = firebaseService.setupTasksListener(currentUser.uid, (newTasks) => {
           setTasks(newTasks);
         });
-        
+
+        // Initialize AI Scheduler for proactive check-ins
+        await aiSchedulerService.initializeAIScheduler(currentUser.uid);
+
       } catch (error) {
         console.error('App: Error initializing data:', error);
         setTasks(SAMPLE_TASKS);
@@ -110,12 +120,16 @@ const AppContent: React.FC = () => {
         setDataLoading(false);
       }
     };
-    
+
     initializeData();
-    
+
     return () => {
       if (tasksUnsubscribe) {
         tasksUnsubscribe();
+      }
+      // Cleanup AI scheduler on unmount
+      if (currentUser) {
+        aiSchedulerService.cleanupAIScheduler(currentUser.uid);
       }
     };
   }, [currentUser, authLoading]);
@@ -164,6 +178,10 @@ const AppContent: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      if (currentUser) {
+        // Cleanup AI scheduler before logout
+        aiSchedulerService.cleanupAIScheduler(currentUser.uid);
+      }
       await logout();
       setCurrentView(View.Dashboard);
       setTasks([]);
@@ -247,6 +265,12 @@ const AppContent: React.FC = () => {
         return <PomodoroView />;
       case View.Garden:
         return <GardenView />;
+      case View.Workouts:
+        return <WorkoutsView />;
+      case View.Challenges:
+        return <ChallengesView />;
+      case View.SoloRoom:
+        return <SoloRoomView />;
       case View.PrayerTracker:
         return <PrayerTrackerView />;
       case View.QuranLog:
@@ -262,19 +286,29 @@ const AppContent: React.FC = () => {
     { view: View.Dashboard, icon: <DashboardIcon />, label: 'Home' },
     { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
     { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
-    { 
-      view: View.Pomodoro, 
-      icon: <PomodoroIcon />, 
+    {
+      view: View.Pomodoro,
+      icon: <PomodoroIcon />,
       label: 'Focus',
       hasActiveTimer: timerState.pomodoroIsRunning
     },
-    { 
-      view: View.Garden, 
-      icon: <GardenIcon />, 
+    {
+      view: View.SoloRoom,
+      icon: <span>🧘</span>,
+      label: 'Solo Room'
+    },
+    {
+      view: View.Garden,
+      icon: <GardenIcon />,
       label: 'Garden',
       hasActiveTimer: timerState.studyCircleIsRunning
     },
     { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
+  ];
+
+  const activityNavItems = [
+    { view: View.Workouts, icon: <span>💪</span>, label: 'Workouts' },
+    { view: View.Challenges, icon: <span>🎯</span>, label: 'Challenges' },
   ];
 
   const spiritualNavItems = [
@@ -304,6 +338,17 @@ const AppContent: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-2">
+            <NotificationCenter />
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="p-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              aria-label="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -372,9 +417,35 @@ const AppContent: React.FC = () => {
             </button>
           )}
           
-          <div className="flex-1 px-4 py-6 space-y-2">
-            {[...mainNavItems, ...spiritualNavItems].map(item => (
-              <NavItem 
+          <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Main</p>}
+            {mainNavItems.map(item => (
+              <NavItem
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => setCurrentView(item.view)}
+                isCollapsed={sidebarCollapsed}
+                hasActiveTimer={item.hasActiveTimer}
+              />
+            ))}
+
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">💪 Activity</p>}
+            {activityNavItems.map(item => (
+              <NavItem
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => setCurrentView(item.view)}
+                isCollapsed={sidebarCollapsed}
+              />
+            ))}
+
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">🌙 Spiritual</p>}
+            {spiritualNavItems.map(item => (
+              <NavItem
                 key={item.view}
                 icon={item.icon}
                 label={item.label}
@@ -445,6 +516,14 @@ const AppContent: React.FC = () => {
                   className={`w-full flex items-center space-x-3 p-4 rounded-xl transition-all ${currentView === item.view ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 >{item.icon}<span className="font-medium">{item.label}</span></button>
               ))}
+              <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">💪 Activity</p>
+              {activityNavItems.map(item => (
+                <button
+                  key={item.view}
+                  onClick={() => setCurrentView(item.view)}
+                  className={`w-full flex items-center space-x-3 p-4 rounded-xl transition-all ${currentView === item.view ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >{item.icon}<span className="font-medium">{item.label}</span></button>
+              ))}
               <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 mt-6">🌙 Spiritual</p>
               {spiritualNavItems.map(item => (
                 <button
@@ -482,6 +561,17 @@ const AppContent: React.FC = () => {
                     <span>Synced</span>
                   </div>
                 )}
+                <NotificationCenter />
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="p-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  aria-label="Settings"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
               </div>
             </div>
           </header>
@@ -528,9 +618,17 @@ const AppContent: React.FC = () => {
 
       {/* Render the Profile Modal */}
       {currentUser && (
-        <ProfileModal 
+        <ProfileModal
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
+        />
+      )}
+
+      {/* Render the User Settings Modal */}
+      {currentUser && (
+        <UserSettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
         />
       )}
     </div>
