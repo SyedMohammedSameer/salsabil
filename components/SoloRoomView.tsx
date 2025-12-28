@@ -1,3 +1,4 @@
+// BEAUTIFUL, PROFESSIONAL Solo Room Module
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { UserSettings } from '../types';
@@ -58,20 +59,24 @@ const SoloRoomView: React.FC = () => {
   }, [aiMessages]);
 
   const handleStart = async () => {
-    if (!currentUser?.uid || !userSettings) return;
+    if (!currentUser?.uid) return;
 
     setIsActive(true);
     setSessionStartTime(new Date());
 
     // Enable focus mode
-    await firebaseService.saveUserSettings(currentUser.uid, {
-      focusMode: { enabled: true }
-    });
+    try {
+      await firebaseService.saveUserSettings(currentUser.uid, {
+        focusMode: { enabled: true }
+      });
+    } catch (error) {
+      console.error('Failed to enable focus mode:', error);
+    }
 
     // AI welcome message
     setAiMessages([{
       role: 'ai',
-      content: `Focus session started! I'll be here if you need support. Stay strong! 💪`
+      content: `🚀 Focus session started! I'm here to support you. Stay strong and focused! 💪`
     }]);
   };
 
@@ -89,9 +94,13 @@ const SoloRoomView: React.FC = () => {
     setSessionStartTime(null);
 
     if (currentUser?.uid) {
-      await firebaseService.saveUserSettings(currentUser.uid, {
-        focusMode: { enabled: false }
-      });
+      try {
+        await firebaseService.saveUserSettings(currentUser.uid, {
+          focusMode: { enabled: false }
+        });
+      } catch (error) {
+        console.error('Failed to disable focus mode:', error);
+      }
     }
   };
 
@@ -99,13 +108,19 @@ const SoloRoomView: React.FC = () => {
     setIsActive(false);
 
     if (currentUser?.uid) {
-      await firebaseService.saveUserSettings(currentUser.uid, {
-        focusMode: { enabled: false }
-      });
+      try {
+        await firebaseService.saveUserSettings(currentUser.uid, {
+          focusMode: { enabled: false }
+        });
+      } catch (error) {
+        console.error('Failed to disable focus mode:', error);
+      }
     }
 
     // AI wrap-up
-    const wrapUpMessage = `🎉 Session complete! Great work staying focused for ${timerMinutes} minutes. How did it go? What did you accomplish?`;
+    const wrapUpMessage = `🎉 Incredible work! You stayed focused for ${timerMinutes} minutes. That's dedication!
+
+How did the session go? What did you accomplish?`;
     setAiMessages(prev => [...prev, { role: 'ai', content: wrapUpMessage }]);
   };
 
@@ -118,7 +133,7 @@ const SoloRoomView: React.FC = () => {
     setAiLoading(true);
 
     try {
-      const context = `User is in a solo focus session. ${isActive ? 'Session is active.' : 'Session ended.'} Provide brief, supportive responses.`;
+      const context = `User is in a solo focus session. ${isActive ? 'Session is active.' : 'Session ended.'} Provide brief, supportive, encouraging responses. Be warm and motivating.`;
       const response = await GroqService.getEnhancedAiResponse(
         userMessage,
         context,
@@ -145,57 +160,91 @@ const SoloRoomView: React.FC = () => {
   const progress = ((timerMinutes * 60 - timeLeft) / (timerMinutes * 60)) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-indigo-900/20 dark:to-purple-900/20 p-2 lg:p-4">
-      {/* Header */}
-      <div className="mb-3">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center mr-2">
-            <span className="text-white text-lg">🧘</span>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-indigo-900/20 dark:to-slate-900 p-4 md:p-6">
+
+      {/* Hero Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <span className="text-3xl">🧘</span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Solo Room
+              </h1>
+              <p className="text-slate-600 dark:text-slate-400">Your sanctuary for deep focus</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-200">Solo Room</h1>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Your private space for deep focus</p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-indigo-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Session Duration</div>
+            <div className="text-3xl font-bold text-indigo-600">{timerMinutes} min</div>
+            <div className="text-xs text-slate-500 mt-1">Selected</div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-purple-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Status</div>
+            <div className="text-3xl font-bold text-purple-600">{isActive ? '▶️' : '⏸️'}</div>
+            <div className="text-xs text-slate-500 mt-1">{isActive ? 'Active' : 'Paused'}</div>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-pink-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Progress</div>
+            <div className="text-3xl font-bold text-pink-600">{Math.round(progress)}%</div>
+            <div className="text-xs text-slate-500 mt-1">Complete</div>
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-3">
+      <div className="grid lg:grid-cols-2 gap-6">
         {/* Focus Timer */}
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-          <h3 className="font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center">
-            <span className="mr-2">⏱️</span>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center">
+            <span className="mr-3 text-3xl">⏱️</span>
             Focus Timer
           </h3>
 
           {/* Timer Display */}
-          <div className="text-center mb-4">
+          <div className="text-center mb-8">
             <div className="relative inline-block">
-              <svg className="transform -rotate-90" width="180" height="180">
+              <svg className="transform -rotate-90" width="220" height="220">
                 <circle
-                  cx="90"
-                  cy="90"
-                  r="80"
+                  cx="110"
+                  cy="110"
+                  r="95"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="8"
+                  strokeWidth="12"
                   className="text-slate-200 dark:text-slate-700"
                 />
                 <circle
-                  cx="90"
-                  cy="90"
-                  r="80"
+                  cx="110"
+                  cy="110"
+                  r="95"
                   fill="none"
-                  stroke="currentColor"
-                  strokeWidth="8"
+                  stroke="url(#gradient)"
+                  strokeWidth="12"
                   strokeLinecap="round"
-                  className="text-indigo-600 dark:text-indigo-400 transition-all"
-                  strokeDasharray={`${2 * Math.PI * 80}`}
-                  strokeDashoffset={`${2 * Math.PI * 80 * (1 - progress / 100)}`}
+                  className="transition-all duration-1000"
+                  strokeDasharray={`${2 * Math.PI * 95}`}
+                  strokeDashoffset={`${2 * Math.PI * 95 * (1 - progress / 100)}`}
                 />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="50%" stopColor="#a855f7" />
+                    <stop offset="100%" stopColor="#ec4899" />
+                  </linearGradient>
+                </defs>
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-4xl font-bold text-slate-800 dark:text-slate-200">
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   {formatTime(timeLeft)}
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                  {Math.round(progress)}% complete
                 </div>
               </div>
             </div>
@@ -203,9 +252,9 @@ const SoloRoomView: React.FC = () => {
 
           {/* Timer Controls */}
           {!isActive && timeLeft === timerMinutes * 60 ? (
-            <div className="space-y-2">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   Session Duration
                 </label>
                 <select
@@ -215,86 +264,99 @@ const SoloRoomView: React.FC = () => {
                     setTimerMinutes(mins);
                     setTimeLeft(mins * 60);
                   }}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-sm"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
                 >
-                  <option value={15}>15 minutes</option>
-                  <option value={25}>25 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>60 minutes</option>
-                  <option value={90}>90 minutes</option>
+                  <option value={15}>15 minutes - Quick Focus</option>
+                  <option value={25}>25 minutes - Pomodoro</option>
+                  <option value={45}>45 minutes - Deep Work</option>
+                  <option value={60}>60 minutes - Extended Focus</option>
+                  <option value={90}>90 minutes - Ultra Deep</option>
                 </select>
               </div>
               <button
                 onClick={handleStart}
-                className="w-full px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                className="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transform hover:scale-105 transition-all flex items-center justify-center space-x-2"
               >
-                Start Focus Session
+                <span>🚀</span>
+                <span>Start Focus Session</span>
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {isActive ? (
                 <button
                   onClick={handlePause}
-                  className="w-full px-4 py-3 bg-orange-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                  className="w-full px-6 py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:shadow-xl transition-all flex items-center justify-center space-x-2"
                 >
-                  Pause
+                  <span>⏸️</span>
+                  <span>Pause Session</span>
                 </button>
               ) : timeLeft > 0 ? (
                 <button
                   onClick={handleResume}
-                  className="w-full px-4 py-3 bg-green-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                  className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold hover:shadow-xl transition-all flex items-center justify-center space-x-2"
                 >
-                  Resume
+                  <span>▶️</span>
+                  <span>Resume Session</span>
                 </button>
               ) : null}
               <button
                 onClick={handleReset}
-                className="w-full px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-600"
+                className="w-full px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
               >
-                Reset
+                Reset Timer
               </button>
             </div>
           )}
 
-          {userSettings?.focusMode.enabled && (
-            <div className="mt-3 p-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded text-center">
-              <span className="text-indigo-700 dark:text-indigo-300 text-xs font-medium">
-                🔕 Focus Mode Active - Notifications Paused
+          {userSettings?.focusMode?.enabled && (
+            <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-2 border-indigo-300 dark:border-indigo-700 rounded-xl text-center">
+              <span className="text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center space-x-2">
+                <span>🔕</span>
+                <span>Focus Mode Active - Notifications Paused</span>
               </span>
             </div>
           )}
         </div>
 
         {/* AI Chat */}
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 border border-white/20 flex flex-col" style={{ height: '500px' }}>
-          <h3 className="font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center">
-            <span className="mr-2">💬</span>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg flex flex-col" style={{ height: '580px' }}>
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center">
+            <span className="mr-3 text-3xl">💬</span>
             AI Support
           </h3>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto mb-3 space-y-2">
+          <div className="flex-1 overflow-y-auto mb-4 space-y-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4">
+            {aiMessages.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🤖</div>
+                <p className="text-slate-600 dark:text-slate-400">Start your session and I'll be here to support you!</p>
+              </div>
+            )}
             {aiMessages.map((msg, idx) => (
               <div
                 key={idx}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                  className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm ${
                     msg.role === 'user'
-                      ? 'bg-indigo-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white'
+                      : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600'
                   }`}
                 >
-                  {msg.content}
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
                 </div>
               </div>
             ))}
             {aiLoading && (
               <div className="flex justify-start">
-                <div className="bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg text-sm">
-                  <span className="animate-pulse">Thinking...</span>
+                <div className="bg-white dark:bg-slate-700 px-4 py-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-600">
+                  <span className="flex items-center space-x-2">
+                    <span className="animate-pulse">💭</span>
+                    <span className="animate-pulse">Thinking...</span>
+                  </span>
                 </div>
               </div>
             )}
@@ -308,14 +370,14 @@ const SoloRoomView: React.FC = () => {
               value={aiInput}
               onChange={(e) => setAiInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleAiSend()}
-              placeholder="Ask for support..."
-              className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="Ask for support, share progress..."
+              className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
               disabled={aiLoading}
             />
             <button
               onClick={handleAiSend}
               disabled={aiLoading || !aiInput.trim()}
-              className="px-4 py-2 bg-indigo-500 text-white rounded font-medium text-sm hover:bg-indigo-600 disabled:opacity-50"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               Send
             </button>
@@ -324,21 +386,21 @@ const SoloRoomView: React.FC = () => {
       </div>
 
       {/* Reflection */}
-      <div className="mt-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-        <h3 className="font-bold text-slate-800 dark:text-slate-200 mb-2 flex items-center">
-          <span className="mr-2">📝</span>
-          Quick Reflection
+      <div className="mt-6 bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg">
+        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center">
+          <span className="mr-3 text-3xl">📝</span>
+          Session Reflection
         </h3>
         <textarea
           value={reflection}
           onChange={(e) => setReflection(e.target.value)}
-          placeholder="How did your session go? What did you accomplish?"
-          rows={3}
-          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+          placeholder="How did your session go? What did you accomplish? Any insights to capture?"
+          rows={4}
+          className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
         />
-        <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-          Use this space to capture insights from your session
-        </div>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+          💡 Capture your thoughts, accomplishments, and learnings from this session
+        </p>
       </div>
     </div>
   );
