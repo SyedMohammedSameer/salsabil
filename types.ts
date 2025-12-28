@@ -33,6 +33,9 @@ export enum View {
   QuranLog = 'Quran Log',
   Adhkar = 'Adhkar',
   Garden = 'Garden',
+  Workouts = 'Workouts',
+  Challenges = 'Challenges',
+  SoloRoom = 'Solo Room',
 }
 
 export enum Theme {
@@ -162,5 +165,101 @@ export interface RoomParticipant {
   totalFocusMinutes: number;
   treesPlanted: number;
   isReady?: boolean;
+}
+
+// ===========================
+// NEW TYPES FOR MAJOR UPGRADE
+// ===========================
+
+// User Settings
+export interface UserSettings {
+  notificationEnabled: boolean;
+  pushEnabled: boolean;
+  aiCheckInEnabled: boolean;
+  aiCheckInIntervalMinutes: number; // default 120
+  quietHours: {
+    start: string; // HH:MM format
+    end: string; // HH:MM format
+    enabled: boolean;
+  };
+  timezone: string;
+  focusMode: {
+    enabled: boolean;
+  };
+  uiDensity: 'compact' | 'standard';
+}
+
+// Notifications
+export type NotificationType = 'ai' | 'reminder' | 'challenge' | 'workout' | 'system';
+
+export interface Notification {
+  id: string;
+  uid: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  createdAt: Date;
+  readAt?: Date;
+  link?: string;
+}
+
+// Push Tokens
+export interface PushToken {
+  id: string;
+  token: string;
+  platform: 'web';
+  createdAt: Date;
+  lastSeenAt: Date;
+}
+
+// Workouts
+export interface WorkoutEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  type: string;
+  durationMinutes: number;
+  notes?: string;
+  completed: boolean;
+  createdAt: Date;
+}
+
+// Challenges
+export interface ChallengeRule {
+  id: string;
+  label: string;
+  required: boolean;
+}
+
+export interface Challenge {
+  id: string;
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  durationDays: number;
+  rules: ChallengeRule[];
+  active: boolean;
+  createdAt: Date;
+}
+
+export interface ChallengeDay {
+  id: string;
+  challengeId: string;
+  date: string; // YYYY-MM-DD
+  ruleStatus: { [ruleId: string]: boolean };
+  completed: boolean;
+  updatedAt: Date;
+}
+
+// AI Threads
+export interface AIMessage {
+  role: 'user' | 'ai';
+  content: string;
+  createdAt: Date;
+}
+
+export interface AIThread {
+  id: string;
+  messages: AIMessage[];
+  contextSummary: string;
+  updatedAt: Date;
 }
 
