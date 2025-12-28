@@ -125,7 +125,7 @@ const GardenView: React.FC = () => {
       </div>
 
       {/* Header */}
-      <div className={`relative mb-${isMobile ? '6' : '8'}`}>
+      <div className={isMobile ? 'relative mb-6' : 'relative mb-8'}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl flex items-center justify-center mr-5 shadow-xl transform hover:scale-105 transition-transform duration-300">
