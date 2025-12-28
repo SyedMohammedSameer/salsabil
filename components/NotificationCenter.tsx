@@ -96,7 +96,7 @@ const NotificationCenter: React.FC = () => {
 
       {/* Notification Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-50 max-h-[500px] flex flex-col">
+        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-[999] max-h-[500px] flex flex-col">
           {/* Header */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
             <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>

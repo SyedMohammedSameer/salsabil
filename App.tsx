@@ -22,6 +22,7 @@ import { PlannerIcon, CalendarIcon, AssistantIcon, DashboardIcon, PomodoroIcon, 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
+import * as aiSchedulerService from './services/aiSchedulerService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
 
@@ -96,19 +97,22 @@ const AppContent: React.FC = () => {
       setDataLoading(false);
       return;
     }
-    
+
     setDataLoading(true);
     let tasksUnsubscribe: (() => void) | undefined;
-    
+
     const initializeData = async () => {
       try {
         const userTheme = await firebaseService.loadTheme(currentUser.uid);
         setTheme(userTheme);
-        
+
         tasksUnsubscribe = firebaseService.setupTasksListener(currentUser.uid, (newTasks) => {
           setTasks(newTasks);
         });
-        
+
+        // Initialize AI Scheduler for proactive check-ins
+        await aiSchedulerService.initializeAIScheduler(currentUser.uid);
+
       } catch (error) {
         console.error('App: Error initializing data:', error);
         setTasks(SAMPLE_TASKS);
@@ -116,12 +120,16 @@ const AppContent: React.FC = () => {
         setDataLoading(false);
       }
     };
-    
+
     initializeData();
-    
+
     return () => {
       if (tasksUnsubscribe) {
         tasksUnsubscribe();
+      }
+      // Cleanup AI scheduler on unmount
+      if (currentUser) {
+        aiSchedulerService.cleanupAIScheduler(currentUser.uid);
       }
     };
   }, [currentUser, authLoading]);
@@ -170,6 +178,10 @@ const AppContent: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      if (currentUser) {
+        // Cleanup AI scheduler before logout
+        aiSchedulerService.cleanupAIScheduler(currentUser.uid);
+      }
       await logout();
       setCurrentView(View.Dashboard);
       setTasks([]);
@@ -405,9 +417,35 @@ const AppContent: React.FC = () => {
             </button>
           )}
           
-          <div className="flex-1 px-4 py-6 space-y-2">
-            {[...mainNavItems, ...spiritualNavItems].map(item => (
-              <NavItem 
+          <div className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Main</p>}
+            {mainNavItems.map(item => (
+              <NavItem
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => setCurrentView(item.view)}
+                isCollapsed={sidebarCollapsed}
+                hasActiveTimer={item.hasActiveTimer}
+              />
+            ))}
+
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">💪 Activity</p>}
+            {activityNavItems.map(item => (
+              <NavItem
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => setCurrentView(item.view)}
+                isCollapsed={sidebarCollapsed}
+              />
+            ))}
+
+            {!sidebarCollapsed && <p className="px-4 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 mt-6">🌙 Spiritual</p>}
+            {spiritualNavItems.map(item => (
+              <NavItem
                 key={item.view}
                 icon={item.icon}
                 label={item.label}
