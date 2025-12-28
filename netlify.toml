@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Tell Netlify to ignore Firebase config values in secret scanning
+# These are PUBLIC values meant to be exposed in client-side code
+# Security comes from Firestore Rules and Firebase Auth, not from hiding these
+[build.environment]
+  # Disable secret scanning for Firebase client config variables
+  # These are safe to expose - see https://firebase.google.com/docs/projects/api-keys
+  SECRETS_SCAN_OMIT_KEYS = "VITE_FIREBASE_API_KEY,VITE_FIREBASE_AUTH_DOMAIN,VITE_FIREBASE_PROJECT_ID,VITE_FIREBASE_STORAGE_BUCKET,VITE_FIREBASE_MESSAGING_SENDER_ID,VITE_FIREBASE_APP_ID,VITE_FIREBASE_VAPID_KEY,VITE_FIREBASE_MEASUREMENT_ID"
+
+[functions]
+  directory = "netlify/functions"
