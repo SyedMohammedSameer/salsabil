@@ -7,12 +7,12 @@ importScripts('https://www.gstatic.com/firebasejs/11.8.1/firebase-messaging-comp
 // Initialize Firebase in the service worker
 // Note: Config comes from environment variables at build time
 const firebaseConfig = {
-  apiKey: 'FIREBASE_API_KEY_PLACEHOLDER',
-  authDomain: 'FIREBASE_AUTH_DOMAIN_PLACEHOLDER',
-  projectId: 'FIREBASE_PROJECT_ID_PLACEHOLDER',
-  storageBucket: 'FIREBASE_STORAGE_BUCKET_PLACEHOLDER',
-  messagingSenderId: 'FIREBASE_MESSAGING_SENDER_ID_PLACEHOLDER',
-  appId: 'FIREBASE_APP_ID_PLACEHOLDER'
+  apiKey: 'AIzaSyA2MMH56_72oL0gTJ4fhPU9m0xtMI-O67M',
+  authDomain: 'focusflow-71a55.firebaseapp.com',
+  projectId: 'focusflow-71a55',
+  storageBucket: 'focusflow-71a55.firebasestorage.app',
+  messagingSenderId: '979654187250',
+  appId: '1:979654187250:web:b747752305909efa41586b'
 };
 
 // Initialize Firebase
