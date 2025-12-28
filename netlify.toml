@@ -1,6 +1,0 @@
-[[plugins]]
-package = "@netlify/plugin-firebase"
-
-  [plugins.inputs]
-  # Auto-deploy Firestore rules on every build  
-  firebaseDeployArgs = ["--only", "firestore:rules"]

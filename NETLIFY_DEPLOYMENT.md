@@ -46,11 +46,32 @@ If you want AI features to work:
 VITE_GROQ_API_KEY=your-groq-api-key
 ```
 
-### Step 4: Deploy
+### Step 4: Deploy Firestore Security Rules
 
-Once environment variables are set, trigger a new deploy:
+**IMPORTANT:** Deploy your Firestore rules before deploying the app:
 
-1. Go to **Deploys** tab
+1. Install Firebase CLI (if not already installed):
+   ```bash
+   npm install -g firebase-tools
+   ```
+
+2. Login to Firebase:
+   ```bash
+   firebase login
+   ```
+
+3. Deploy ONLY the Firestore rules:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+
+This ensures your security rules are active before users can access the app.
+
+### Step 5: Deploy to Netlify
+
+Once environment variables are set and Firestore rules deployed:
+
+1. Go to **Deploys** tab in Netlify
 2. Click **Trigger deploy** > **Deploy site**
 3. Or push a new commit to trigger automatic deployment
 
