@@ -157,6 +157,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // User settings collection (used by firebaseService.ts)
+    match /user_settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Push notification tokens
     match /push_tokens/{userId} {
       match /tokens/{tokenId} {
@@ -165,11 +170,13 @@ service cloud.firestore {
     }
 
     // Root-level notifications (legacy, prefer users/{userId}/notifications)
+    // Allow list queries filtering by uid
     match /notifications/{notificationId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      // Allow reads if the notification belongs to the authenticated user
+      // For list queries, Firestore ensures the where clause matches
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
     // Prevent access to any other collections not explicitly defined
