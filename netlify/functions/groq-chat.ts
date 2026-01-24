@@ -4,6 +4,22 @@ import Groq from 'groq-sdk';
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const NOOR_SYSTEM_PROMPT = `You are Noor, an intelligent AI assistant for the Salsabil productivity and spiritual growth app. Your name means "light" in Arabic, representing guidance and enlightenment. Your personality is wise, encouraging, culturally sensitive, and practical. Keep responses concise (typically under 80 words), use a warm but professional tone, and use plain text formatting only (no markdown, asterisks, etc.). Use simple dashes for lists if needed. You have access to the user's comprehensive data (tasks, prayer logs, etc.) which is provided as context for each query. Use this data to provide focused, personalized, and actionable assistance.`;
 
+interface ChatHistoryMessage {
+  role: string;
+  parts: { text: string }[];
+}
+
+interface ChatRequestBody {
+  prompt: string;
+  userContext?: string;
+  history?: ChatHistoryMessage[];
+}
+
+interface GroqChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
@@ -14,7 +30,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   }
 
   try {
-    const { prompt, userContext, history } = JSON.parse(event.body || '{}');
+    const { prompt, userContext, history } = JSON.parse(event.body || '{}') as ChatRequestBody;
 
     if (!prompt) {
       return {
@@ -35,8 +51,8 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     // Initialize Groq client
     const groq = new Groq({ apiKey });
 
-    // Build messages array
-    const messages: any[] = [
+    // Build messages array with proper typing
+    const messages: GroqChatMessage[] = [
       {
         role: "system",
         content: NOOR_SYSTEM_PROMPT
@@ -45,9 +61,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
     // Add conversation history
     if (history && Array.isArray(history)) {
-      history.forEach((msg: any) => {
+      history.forEach((msg) => {
         messages.push({
-          role: msg.role === 'model' ? 'assistant' : msg.role,
+          role: msg.role === 'model' ? 'assistant' : (msg.role as 'user' | 'assistant'),
           content: msg.parts[0].text
         });
       });
@@ -82,16 +98,18 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       body: JSON.stringify({ response: text })
     };
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Groq API Error:', error);
 
     let errorMessage = "I'm experiencing technical difficulties. Please try again.";
     let statusCode = 500;
 
-    if (error.message?.includes('API key') || error.message?.includes('401')) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+
+    if (errorMsg.includes('API key') || errorMsg.includes('401')) {
       errorMessage = "API key issue. Please contact support.";
       statusCode = 401;
-    } else if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+    } else if (errorMsg.includes('rate limit') || errorMsg.includes('429')) {
       errorMessage = "Rate limit reached. Please try again later.";
       statusCode = 429;
     }

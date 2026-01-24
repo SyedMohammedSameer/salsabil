@@ -158,10 +158,10 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
 
   if (loading) {
     return (
-      <div className="w-full h-96 bg-gradient-to-b from-sky-200 via-emerald-100 to-green-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-800 rounded-2xl flex items-center justify-center">
+      <div className="w-full h-48 bg-gradient-to-b from-sky-100 to-emerald-50 dark:from-slate-700 dark:to-slate-800 rounded-xl flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-pulse text-6xl mb-4">🌱</div>
-          <p className="text-slate-600 dark:text-slate-400">Loading your garden...</p>
+          <div className="animate-pulse text-4xl mb-2">🌱</div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Loading garden...</p>
         </div>
       </div>
     );
@@ -169,21 +169,14 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
 
   if (trees.length === 0) {
     return (
-      <div className="w-full h-96 bg-gradient-to-b from-sky-200 via-emerald-100 to-green-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-800 rounded-2xl flex items-center justify-center relative overflow-hidden">
-        {/* Background elements */}
-        <div className="absolute inset-0">
-          <div className="absolute bottom-0 w-full h-32 bg-gradient-to-t from-green-300/50 to-transparent dark:from-green-800/30"></div>
-          <div className="absolute bottom-0 left-10 w-20 h-20 bg-green-400/30 dark:bg-green-700/30 rounded-full blur-xl"></div>
-          <div className="absolute bottom-0 right-16 w-16 h-16 bg-green-300/40 dark:bg-green-600/40 rounded-full blur-lg"></div>
-        </div>
-        
-        <div className="text-center z-10">
-          <div className="text-6xl mb-4 animate-bounce">🌱</div>
-          <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+      <div className="w-full h-48 bg-gradient-to-b from-sky-100 to-emerald-50 dark:from-slate-700 dark:to-slate-800 rounded-xl flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-2">🌱</div>
+          <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Your garden awaits
           </h3>
-          <p className="text-slate-600 dark:text-slate-400">
-            Complete focus sessions to plant your first trees
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Complete focus sessions to plant trees
           </p>
         </div>
       </div>
@@ -192,45 +185,27 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
 
   return (
     <div className="relative w-full">
-      {/* Main landscape container */}
-      <div 
+      {/* Main landscape container - Simplified */}
+      <div
         ref={containerRef}
-        className="relative w-full bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100 dark:from-slate-700 dark:via-slate-600 dark:to-slate-800 rounded-2xl overflow-hidden cursor-pointer"
-        style={{ height: `${containerSize.height}px` }}
+        className="relative w-full bg-gradient-to-b from-sky-100 to-emerald-50 dark:from-slate-700 dark:to-slate-800 rounded-xl overflow-hidden"
+        style={{ height: `${Math.min(containerSize.height, 300)}px` }}
         onClick={() => setSelectedTree(null)}
       >
-        {/* Sky and clouds */}
-        <div className="absolute inset-0">
-          <div className="absolute top-4 left-1/4 w-16 h-8 bg-white/40 dark:bg-white/20 rounded-full blur-sm animate-pulse"></div>
-          <div className="absolute top-8 right-1/3 w-20 h-10 bg-white/30 dark:bg-white/15 rounded-full blur-sm animate-pulse" style={{ animationDelay: '2s' }}></div>
-        </div>
-
-        {/* Rolling hills background */}
-        <svg className="absolute bottom-0 w-full h-full" viewBox="0 0 800 400" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="hillGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#84cc16" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#22c55e" stopOpacity="0.8" />
-            </linearGradient>
-          </defs>
-          <path d="M0,300 Q200,250 400,280 T800,270 L800,400 L0,400 Z" fill="url(#hillGradient)" />
-          <path d="M0,350 Q150,320 300,340 Q450,360 600,330 Q700,310 800,320 L800,400 L0,400 Z" fill="#22c55e" fillOpacity="0.7" />
-        </svg>
-
-        {/* Ground texture */}
-        <div className="absolute bottom-0 w-full h-24 bg-gradient-to-t from-green-300/40 to-transparent dark:from-green-700/30"></div>
+        {/* Simple ground */}
+        <div className="absolute bottom-0 w-full h-20 bg-gradient-to-t from-green-200/60 to-transparent dark:from-green-800/30"></div>
 
         {/* Trees positioned organically */}
         {treePositions.map(({ tree, x, y, layer, scale }) => (
           <div
             key={tree.id}
-            className="absolute transform -translate-x-1/2 transition-all duration-300 hover:scale-110 cursor-pointer"
+            className="absolute transform -translate-x-1/2 transition-transform duration-200 hover:scale-110 cursor-pointer"
             style={{
               left: `${x * 100}%`,
               bottom: `${(1 - y) * 100}%`,
-              transform: `translateX(-50%) scale(${scale})`,
+              transform: `translateX(-50%) scale(${scale * 0.8})`,
               zIndex: Math.floor(y * 100) + layer * 100,
-              filter: layer === 0 ? 'brightness(0.7) opacity(0.8)' : layer === 1 ? 'brightness(0.85)' : 'brightness(1)',
+              filter: layer === 0 ? 'brightness(0.85) opacity(0.9)' : 'brightness(1)',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -239,64 +214,46 @@ const GardenLandscape: React.FC<GardenLandscapeProps> = ({ trees, loading = fals
             onMouseEnter={() => setHoveredTree(tree)}
             onMouseLeave={() => setHoveredTree(null)}
           >
-            <div className="relative group">
-              {/* Tree shadow */}
-              <div 
-                className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-2 bg-black/20 rounded-full blur-sm"
-                style={{ transform: `translateX(-50%) scale(${scale})` }}
-              />
-              
+            <div className="relative">
               {/* Tree */}
-              <div 
-                className="text-4xl drop-shadow-lg group-hover:animate-bounce"
-                style={{ 
-                  color: getTreeColor(tree),
-                  fontSize: `${2 + scale}rem`,
-                  textShadow: '2px 2px 4px rgba(0,0,0,0.1)'
+              <div
+                className="text-3xl"
+                style={{
+                  fontSize: `${1.5 + scale * 0.7}rem`,
+                  filter: 'drop-shadow(1px 1px 2px rgba(0,0,0,0.2))'
                 }}
               >
                 {getTreeEmoji(tree)}
               </div>
-              
-              {/* Hover tooltip */}
+
+              {/* Compact Hover tooltip */}
               {hoveredTree?.id === tree.id && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 text-white text-xs rounded-lg whitespace-nowrap pointer-events-none z-50">
-                  <div className="font-semibold">
-                    {tree.varietyName ? `${tree.varietyName} • ${tree.focusMinutes} min` : `${tree.focusMinutes} min focus`}
-                  </div>
-                  <div className="text-xs opacity-75">{tree.plantedAt.toLocaleDateString()}</div>
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black/80"></div>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-black/90 text-white text-xs rounded whitespace-nowrap pointer-events-none z-50">
+                  {tree.varietyName ? tree.varietyName : `${tree.focusMinutes} min`}
                 </div>
               )}
             </div>
           </div>
         ))}
-
-        {/* Subtle grass/flower details */}
-        <div className="absolute bottom-2 left-1/4 text-green-400 text-sm animate-pulse">🌾</div>
-        <div className="absolute bottom-4 right-1/3 text-yellow-400 text-xs">🌼</div>
-        <div className="absolute bottom-1 left-2/3 text-green-300 text-sm animate-pulse" style={{ animationDelay: '1s' }}>🌿</div>
       </div>
 
-      {/* Selected tree detail modal */}
+      {/* Selected tree detail modal - Compact */}
       {selectedTree && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTree(null)}>
-          <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedTree(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-xs p-4" onClick={e => e.stopPropagation()}>
             <div className="text-center">
-              <div className="text-6xl mb-4">{getTreeEmoji(selectedTree)}</div>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
-                Focus Tree
+              <div className="text-5xl mb-2">{getTreeEmoji(selectedTree)}</div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
+                {selectedTree.varietyName || 'Focus Tree'}
               </h3>
-              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                <div><span className="font-medium">Focus Time:</span> {selectedTree.focusMinutes} minutes</div>
-                <div><span className="font-medium">Planted:</span> {selectedTree.plantedAt.toLocaleDateString()}</div>
-                <div><span className="font-medium">Growth:</span> {selectedTree.growthStage.replace(/([A-Z])/g, ' $1').trim()}</div>
-                <div><span className="font-medium">Type:</span> {selectedTree.type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+              <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
+                <div>{selectedTree.focusMinutes} minutes</div>
+                <div>{selectedTree.plantedAt.toLocaleDateString()}</div>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setSelectedTree(null)}
-              className="w-full mt-6 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+              className="w-full mt-4 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm"
             >
               Close
             </button>

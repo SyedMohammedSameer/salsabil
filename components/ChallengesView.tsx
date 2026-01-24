@@ -117,11 +117,21 @@ const ChallengesView: React.FC = () => {
       startDate,
       durationDays: formData.durationDays,
       rules: formData.rules,
-      active: true
+      active: true,
+      totalXP: 0,
+      currentStreak: 0,
+      longestStreak: 0
     });
 
     setIsModalOpen(false);
     setFormData({ name: '', durationDays: 21, rules: [] });
+  };
+
+  const calculateXP = (completedRules: number, totalRules: number, isStreakDay: boolean): number => {
+    const baseXP = 10;
+    const ruleXP = completedRules * 5;
+    const streakBonus = isStreakDay ? 20 : 0;
+    return baseXP + ruleXP + streakBonus;
   };
 
   const handleToggleRule = async (date: string, ruleId: string, currentStatus: boolean) => {
@@ -132,15 +142,57 @@ const ChallengesView: React.FC = () => {
     const allRequired = selectedChallenge.rules.filter(r => r.required);
     const allCompleted = allRequired.every(r => newRuleStatus[r.id]);
 
+    // Calculate XP for this day
+    const completedCount = Object.values(newRuleStatus).filter(Boolean).length;
+    const isNewCompletion = allCompleted && !day?.completed;
+
+    // Check if this maintains a streak
+    const yesterday = new Date(date);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayString = yesterday.toISOString().split('T')[0];
+    const yesterdayDay = challengeDays.find(d => d.date === yesterdayString);
+    const isStreakDay = yesterdayDay?.completed || false;
+
+    const xpEarned = isNewCompletion ? calculateXP(completedCount, selectedChallenge.rules.length, isStreakDay) : (day?.xpEarned || 0);
+
     await firebaseService.saveChallengeDay(currentUser.uid, {
       challengeId: selectedChallenge.id,
       date,
       ruleStatus: newRuleStatus,
-      completed: allCompleted
+      completed: allCompleted,
+      xpEarned
     });
+
+    // Update challenge XP and streak
+    if (isNewCompletion) {
+      const currentXP = selectedChallenge.totalXP || 0;
+      const newStreak = (selectedChallenge.currentStreak || 0) + 1;
+      const longestStreak = Math.max(selectedChallenge.longestStreak || 0, newStreak);
+
+      await firebaseService.updateChallenge(currentUser.uid, selectedChallenge.id, {
+        totalXP: currentXP + xpEarned,
+        currentStreak: newStreak,
+        longestStreak
+      });
+    }
 
     const days = await firebaseService.loadChallengeDays(currentUser.uid, selectedChallenge.id);
     setChallengeDays(days);
+  };
+
+  const handleQuitChallenge = async (challengeId: string) => {
+    if (!currentUser?.uid) return;
+
+    const confirmQuit = window.confirm('Are you sure you want to quit this challenge? Your progress will be saved but the challenge will be marked as inactive.');
+    if (!confirmQuit) return;
+
+    await firebaseService.updateChallenge(currentUser.uid, challengeId, { active: false });
+
+    // If this was the selected challenge, clear selection
+    if (selectedChallenge?.id === challengeId) {
+      const remaining = challenges.filter(c => c.active && c.id !== challengeId);
+      setSelectedChallenge(remaining.length > 0 ? remaining[0] : null);
+    }
   };
 
   const getTodayStatus = () => {
@@ -220,8 +272,8 @@ const ChallengesView: React.FC = () => {
           </button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Stats Cards - Gamified */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-purple-500">
             <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Active Challenges</div>
             <div className="text-3xl font-bold text-purple-600">{activeChallenges.length}</div>
@@ -233,14 +285,23 @@ const ChallengesView: React.FC = () => {
             <div className="text-xs text-slate-500 mt-1">Days Completed</div>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-orange-500">
-            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Current Day</div>
-            <div className="text-3xl font-bold text-orange-600">{getCurrentDay()}</div>
-            <div className="text-xs text-slate-500 mt-1">{selectedChallenge ? `of ${selectedChallenge.durationDays}` : 'Select Challenge'}</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Current Streak</div>
+            <div className="text-3xl font-bold text-orange-600">{selectedChallenge?.currentStreak || 0}</div>
+            <div className="text-xs text-slate-500 mt-1">🔥 Days in a Row</div>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border-l-4 border-teal-500">
-            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Completed</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Perfect Days</div>
             <div className="text-3xl font-bold text-teal-600">{challengeDays.filter(d => d.completed).length}</div>
-            <div className="text-xs text-slate-500 mt-1">Perfect Days</div>
+            <div className="text-xs text-slate-500 mt-1">All Tasks Done</div>
+          </div>
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-2xl p-6 shadow-lg border-l-4 border-yellow-500">
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
+              <span>⭐</span> Total XP
+            </div>
+            <div className="text-3xl font-bold bg-gradient-to-r from-yellow-600 to-amber-600 bg-clip-text text-transparent">
+              {selectedChallenge?.totalXP || 0}
+            </div>
+            <div className="text-xs text-slate-500 mt-1">Experience Points</div>
           </div>
         </div>
       </div>
@@ -248,7 +309,17 @@ const ChallengesView: React.FC = () => {
       {/* Active Challenges Tabs */}
       {activeChallenges.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-3">Your Challenges</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Your Challenges</h2>
+            {selectedChallenge && (
+              <button
+                onClick={() => handleQuitChallenge(selectedChallenge.id)}
+                className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-all text-sm font-medium"
+              >
+                Quit Challenge
+              </button>
+            )}
+          </div>
           <div className="flex overflow-x-auto space-x-3 pb-2 scrollbar-hide">
             {activeChallenges.map(challenge => (
               <button
@@ -260,8 +331,18 @@ const ChallengesView: React.FC = () => {
                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-md hover:shadow-lg'
                 }`}
               >
-                <div className="font-semibold text-lg">{challenge.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-semibold text-lg">{challenge.name}</div>
+                  {(challenge.totalXP || 0) > 0 && (
+                    <span className="text-xs px-2 py-0.5 bg-yellow-400/20 text-yellow-600 dark:text-yellow-400 rounded-full">
+                      {challenge.totalXP} XP
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm opacity-90 mt-1">{calculateProgress(challenge)}% complete</div>
+                {(challenge.currentStreak || 0) > 0 && (
+                  <div className="text-xs opacity-80 mt-1">🔥 {challenge.currentStreak} day streak</div>
+                )}
               </button>
             ))}
           </div>
@@ -306,10 +387,18 @@ const ChallengesView: React.FC = () => {
               })}
             </div>
             {todayStatus?.completed && (
-              <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-300 dark:border-green-700 rounded-xl text-center">
-                <span className="text-green-700 dark:text-green-300 font-bold text-lg">
-                  ✅ All required tasks completed today! Amazing work!
-                </span>
+              <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-300 dark:border-green-700 rounded-xl">
+                <div className="text-center">
+                  <div className="text-green-700 dark:text-green-300 font-bold text-lg mb-2">
+                    ✅ All required tasks completed today! Amazing work!
+                  </div>
+                  {todayStatus.xpEarned && todayStatus.xpEarned > 0 && (
+                    <div className="inline-flex items-center gap-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-full font-semibold">
+                      <span className="text-xl">⭐</span>
+                      <span>+{todayStatus.xpEarned} XP Earned!</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -354,12 +443,91 @@ const ChallengesView: React.FC = () => {
                   <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Required Tasks</div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600">
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-600 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-600 dark:text-slate-400">Started:</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
                     {new Date(selectedChallenge.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600 dark:text-slate-400">Longest Streak:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    🔥 {selectedChallenge.longestStreak || 0} days
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* XP Leaderboard */}
+            <div className="bg-gradient-to-br from-yellow-50 to-amber-100 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-2xl p-6 shadow-lg border-2 border-yellow-300 dark:border-yellow-700">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🏆</span>
+                XP Progress
+              </h3>
+
+              {/* Total XP Display */}
+              <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                <div className="text-center">
+                  <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Experience</div>
+                  <div className="text-4xl font-bold bg-gradient-to-r from-yellow-600 to-amber-600 bg-clip-text text-transparent">
+                    {selectedChallenge.totalXP || 0} XP
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Level {Math.floor((selectedChallenge.totalXP || 0) / 100) + 1}
+                  </div>
+                </div>
+
+                {/* Level Progress Bar */}
+                <div className="mt-3">
+                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full">
+                    <div
+                      className="h-full bg-gradient-to-r from-yellow-500 to-amber-500 rounded-full transition-all"
+                      style={{ width: `${((selectedChallenge.totalXP || 0) % 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-500 mt-1">
+                    <span>{(selectedChallenge.totalXP || 0) % 100} / 100 XP</span>
+                    <span>Next Level</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent XP Log */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Recent XP Gains</h4>
+                <div className="max-h-40 overflow-y-auto space-y-1.5">
+                  {challengeDays
+                    .filter(d => d.xpEarned && d.xpEarned > 0)
+                    .slice(-5)
+                    .reverse()
+                    .map(day => (
+                      <div
+                        key={day.id}
+                        className="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 rounded-lg p-2 text-sm"
+                      >
+                        <span className="text-slate-600 dark:text-slate-400">
+                          {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                        <span className="font-bold text-yellow-600 dark:text-yellow-400">
+                          +{day.xpEarned} XP
+                        </span>
+                      </div>
+                    ))}
+                  {challengeDays.filter(d => d.xpEarned && d.xpEarned > 0).length === 0 && (
+                    <div className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">
+                      Complete days to earn XP!
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* XP Info */}
+              <div className="mt-4 pt-4 border-t border-yellow-300 dark:border-yellow-700/50">
+                <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                  <div>💡 Base: 10 XP per day</div>
+                  <div>✨ +5 XP per completed task</div>
+                  <div>🔥 +20 XP streak bonus</div>
                 </div>
               </div>
             </div>

@@ -1,7 +1,8 @@
 // AI Scheduler Service - Proactive AI check-ins and reminders
-import { UserSettings } from '../types';
+import { UserSettings, AIGeneratedNotification } from '../types';
 import * as notificationService from './notificationService';
 import * as firebaseService from './firebaseService';
+import * as aiAnalyticsService from './aiAnalyticsService';
 
 /**
  * Proactive AI Scheduler
@@ -80,14 +81,14 @@ const performAICheckIn = async (userId: string, settings: UserSettings) => {
       return;
     }
 
-    // Generate contextual AI check-in message
+    // Generate contextual AI check-in message (now powered by real AI!)
     const message = await generateCheckInMessage(userId);
 
     // Create notification
     await notificationService.createNotification(
       userId,
       'ai',
-      'AI Check-in',
+      message.title || 'Check-in from Noor',
       message.body,
       message.link
     );
@@ -100,45 +101,83 @@ const performAICheckIn = async (userId: string, settings: UserSettings) => {
 
 /**
  * Generate contextual AI check-in message based on user's current state
+ * Now uses real AI to generate personalized, context-aware notifications!
  */
-const generateCheckInMessage = async (userId: string): Promise<{ body: string; link?: string }> => {
+const generateCheckInMessage = async (userId: string): Promise<{ body: string; link?: string; title?: string }> => {
   try {
+    // Build comprehensive context for AI
+    const notificationContext = await aiAnalyticsService.buildNotificationContext(userId);
+
+    // Call AI notification generator serverless function
+    const response = await fetch('/.netlify/functions/ai-notification-generator', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ notificationContext }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI generator failed: ${response.statusText}`);
+    }
+
+    const notification: AIGeneratedNotification = await response.json();
+
+    // Track this AI interaction
+    const contextSnapshot = {
+      tasksCompleted: notificationContext.userStats.tasksCompleted,
+      prayersCompleted: notificationContext.userStats.prayersCompleted,
+      quranPagesRead: notificationContext.userStats.quranPagesReadToday,
+      focusMinutesToday: notificationContext.userStats.focusMinutesTotal,
+    };
+
+    // Don't await tracking to not slow down notification
+    aiAnalyticsService.trackAIInteraction(
+      userId,
+      'check_in',
+      notification.body,
+      false, // Will be updated when user engages
+      contextSnapshot
+    ).catch(err => console.error('Failed to track AI interaction:', err));
+
+    return {
+      title: notification.title,
+      body: notification.body,
+      link: notification.link || '#dashboard',
+    };
+
+  } catch (error) {
+    console.error('Error generating AI check-in message:', error);
+
+    // Fallback to a simple contextual message if AI fails
     const now = new Date();
     const hour = now.getHours();
 
-    // Time-based contextual messages
     if (hour >= 5 && hour < 12) {
-      // Morning
       return {
-        body: "Good morning! Ready to tackle your goals today? Let's review your tasks! ☀️",
+        title: "Morning Check-in",
+        body: "Good morning! Ready to make today productive?",
         link: '#planner'
       };
     } else if (hour >= 12 && hour < 17) {
-      // Afternoon
-      const messages = [
-        { body: "How's your day going? Need help staying on track? 💪", link: '#dashboard' },
-        { body: "Time for a quick focus session? Your tasks are waiting! 🎯", link: '#pomodoro' },
-        { body: "Have you completed your prayers? I can help you stay consistent! 🤲", link: '#prayers' }
-      ];
-      return messages[Math.floor(Math.random() * messages.length)];
-    } else if (hour >= 17 && hour < 21) {
-      // Evening
       return {
-        body: "Evening reflection time! How much Quran have you read today? 📖",
-        link: '#quran'
+        title: "Afternoon Check-in",
+        body: "How's your day going? Let's review your progress.",
+        link: '#dashboard'
+      };
+    } else if (hour >= 17 && hour < 21) {
+      return {
+        title: "Evening Reflection",
+        body: "Take a moment to reflect on your day's achievements.",
+        link: '#dashboard'
       };
     } else {
-      // Night
       return {
-        body: "Before you sleep, have you completed your evening adhkar? 🌙",
+        title: "Night Check-in",
+        body: "Prepare for a restful night. Have you completed your evening routine?",
         link: '#adhkar'
       };
     }
-  } catch (error) {
-    console.error('Error generating check-in message:', error);
-    return {
-      body: "Hi! I'm here to help you stay productive and spiritually connected. How can I assist? 🤖"
-    };
   }
 };
 

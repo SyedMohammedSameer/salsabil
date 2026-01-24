@@ -140,7 +140,7 @@
     },
     "protocol_handlers": [
       {
-        "protocol": "salsabil",
+        "protocol": "web+salsabil",
         "url": "/?action=%s"
       }
     ]

@@ -238,6 +238,9 @@ export interface Challenge {
   rules: ChallengeRule[];
   active: boolean;
   createdAt: Date;
+  totalXP?: number; // Total XP earned for this challenge
+  currentStreak?: number; // Current consecutive days completed
+  longestStreak?: number; // Longest streak for this challenge
 }
 
 export interface ChallengeDay {
@@ -247,6 +250,7 @@ export interface ChallengeDay {
   ruleStatus: { [ruleId: string]: boolean };
   completed: boolean;
   updatedAt: Date;
+  xpEarned?: number; // XP earned for completing this day
 }
 
 // AI Threads
@@ -261,5 +265,85 @@ export interface AIThread {
   messages: AIMessage[];
   contextSummary: string;
   updatedAt: Date;
+}
+
+// ===========================
+// AI PERSONALITY & LEARNING
+// ===========================
+
+export type AICommunicationStyle = 'encouraging' | 'direct' | 'casual' | 'formal';
+export type AINotificationTone = 'motivational' | 'reminder' | 'celebration' | 'gentle_nudge';
+
+export interface AIPersonalityProfile {
+  communicationStyle: AICommunicationStyle;
+  preferredNotificationTimes: string[]; // HH:MM format
+  engagementRate: number; // 0-1, percentage of notifications user engages with
+  lastInteraction: Date;
+  totalInteractions: number;
+  userPreferences: {
+    likesEmojis: boolean;
+    prefersShortMessages: boolean;
+    respondsToMotivation: boolean;
+    respondsToReminders: boolean;
+  };
+  learningData: {
+    mostProductiveTime: string; // e.g., "morning", "afternoon", "evening", "night"
+    averageTaskCompletionRate: number;
+    prayerConsistencyScore: number; // 0-100
+    quranReadingStreak: number;
+    focusSessionsPerWeek: number;
+  };
+}
+
+export interface AIInteraction {
+  id: string;
+  type: 'notification' | 'chat' | 'suggestion' | 'check_in';
+  aiMessage: string;
+  userEngaged: boolean; // Did user click/respond?
+  userSentiment?: 'positive' | 'neutral' | 'negative'; // Inferred from response
+  timestamp: Date;
+  contextSnapshot: {
+    tasksCompleted: number;
+    prayersCompleted: number;
+    quranPagesRead: number;
+    focusMinutesToday: number;
+  };
+}
+
+export interface AINotificationContext {
+  userId: string;
+  currentTime: string; // HH:MM
+  timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night';
+  dayOfWeek: string;
+  userStats: {
+    // Today's progress
+    tasksTotal: number;
+    tasksCompleted: number;
+    prayersTotal: number;
+    prayersCompleted: number;
+    quranPagesReadToday: number;
+    focusMinutesTotal: number;
+
+    // Week/month trends
+    weeklyTaskCompletionRate: number;
+    weeklyPrayerRate: number;
+    currentQuranStreak: number;
+    treesPlantedThisWeek: number;
+
+    // Patterns
+    hasUpcomingTasks: boolean;
+    hasMissedPrayers: boolean;
+    isOnStreak: boolean;
+    lastCheckInResponse?: string;
+  };
+  userProfile: AIPersonalityProfile;
+}
+
+export interface AIGeneratedNotification {
+  title: string;
+  body: string;
+  tone: AINotificationTone;
+  link?: string;
+  reasoning?: string; // Why AI generated this message (for debugging)
 }
 

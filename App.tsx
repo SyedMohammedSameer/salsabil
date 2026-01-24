@@ -1,15 +1,15 @@
 // App.tsx - FIXED VERSION with Profile Modal and Display Name
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
-import PlannerView from './components/PlannerView';
-import CalendarView from './components/CalendarView';
-import AIAssistantView from './components/AIAssistantView';
-import DashboardView from './components/DashboardView';
+import PlannerViewImproved from './components/PlannerViewImproved';
+import CalendarViewImproved from './components/CalendarViewImproved';
+import AIAssistantViewImproved from './components/AIAssistantViewImproved';
+import DashboardViewImproved from './components/DashboardViewImproved';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
 import QuranLogView from './components/QuranLogView';
 import AdhkarView from './components/AdhkarView';
-import WorkoutsView from './components/WorkoutsView';
+import WorkoutsViewImproved from './components/WorkoutsViewImproved';
 import ChallengesView from './components/ChallengesView';
 import SoloRoomView from './components/SoloRoomView';
 import NotificationCenter from './components/NotificationCenter';
@@ -254,19 +254,19 @@ const AppContent: React.FC = () => {
 
     switch (currentView) {
       case View.Planner:
-        return <PlannerView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />;
+        return <PlannerViewImproved tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />;
       case View.Calendar:
-        return <CalendarView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
+        return <CalendarViewImproved tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
       case View.AIAssistant:
-        return <AIAssistantView tasks={tasks} />;
+        return <AIAssistantViewImproved tasks={tasks} />;
       case View.Dashboard:
-        return <DashboardView tasks={tasks} />;
+        return <DashboardViewImproved tasks={tasks} setCurrentView={setCurrentView} />;
       case View.Pomodoro:
         return <PomodoroView />;
       case View.Garden:
         return <GardenView />;
       case View.Workouts:
-        return <WorkoutsView />;
+        return <WorkoutsViewImproved />;
       case View.Challenges:
         return <ChallengesView />;
       case View.SoloRoom:
@@ -323,7 +323,11 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500 overflow-hidden">
-      
+      {/* Skip to main content link for accessibility */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
+
       {isMobile && (
         <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center space-x-3">
@@ -503,6 +507,9 @@ const AppContent: React.FC = () => {
                 <NotificationCenter />
               </div>
               <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
+                <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+              </div>
+              <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
                 <button
                   onClick={() => setIsSettingsModalOpen(true)}
                   className="w-full flex items-center justify-center space-x-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 transition-all duration-200 group border border-blue-200/50 dark:border-blue-800/50"
@@ -634,7 +641,7 @@ const AppContent: React.FC = () => {
             </div>
           </header>
         )}
-        <div className={`flex-1 overflow-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`} style={{ minHeight: '0' }}>
+        <div id="main-content" className={`flex-1 overflow-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`} style={{ minHeight: '0' }}>
           {renderView()}
         </div>
       </main>
