@@ -1,8 +1,8 @@
 // App.tsx - FIXED VERSION with Profile Modal and Display Name
 import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
-import PlannerView from './components/PlannerView';
-import CalendarView from './components/CalendarView';
+import PlannerViewImproved from './components/PlannerViewImproved';
+import CalendarViewImproved from './components/CalendarViewImproved';
 import AIAssistantViewImproved from './components/AIAssistantViewImproved';
 import DashboardView from './components/DashboardView';
 import PomodoroView from './components/PomodoroView';
@@ -254,9 +254,9 @@ const AppContent: React.FC = () => {
 
     switch (currentView) {
       case View.Planner:
-        return <PlannerView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />;
+        return <PlannerViewImproved tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />;
       case View.Calendar:
-        return <CalendarView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
+        return <CalendarViewImproved tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
       case View.AIAssistant:
         return <AIAssistantViewImproved tasks={tasks} />;
       case View.Dashboard:
