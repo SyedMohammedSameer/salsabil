@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerView from './components/PlannerView';
 import CalendarView from './components/CalendarView';
-import AIAssistantView from './components/AIAssistantView';
+import AIAssistantViewImproved from './components/AIAssistantViewImproved';
 import DashboardView from './components/DashboardView';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
@@ -258,7 +258,7 @@ const AppContent: React.FC = () => {
       case View.Calendar:
         return <CalendarView tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
       case View.AIAssistant:
-        return <AIAssistantView tasks={tasks} />;
+        return <AIAssistantViewImproved tasks={tasks} />;
       case View.Dashboard:
         return <DashboardView tasks={tasks} />;
       case View.Pomodoro:
