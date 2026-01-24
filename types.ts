@@ -238,6 +238,9 @@ export interface Challenge {
   rules: ChallengeRule[];
   active: boolean;
   createdAt: Date;
+  totalXP?: number; // Total XP earned for this challenge
+  currentStreak?: number; // Current consecutive days completed
+  longestStreak?: number; // Longest streak for this challenge
 }
 
 export interface ChallengeDay {
@@ -247,6 +250,7 @@ export interface ChallengeDay {
   ruleStatus: { [ruleId: string]: boolean };
   completed: boolean;
   updatedAt: Date;
+  xpEarned?: number; // XP earned for completing this day
 }
 
 // AI Threads

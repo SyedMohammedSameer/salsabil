@@ -463,66 +463,65 @@ Please use this comprehensive context to provide personalized, relevant assistan
           </div>
         </div>
 
-        {/* Context Overview - Reduced to 3 most important stats with trends */}
+        {/* Dynamic Stats Bar - Compact inline display */}
         {contextData && (
-          <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-4 border border-purple-200 dark:border-purple-700">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Tasks stat */}
-              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`${designSystem.typography.labelSmall} text-slate-600 dark:text-slate-400`}>
-                    Tasks Completed
-                  </span>
-                  <TrendArrow
-                    current={contextData.stats.completionRate}
-                    previous={contextData.stats.completedTasks > 0 ? 50 : undefined}
-                  />
-                </div>
-                <div className={`${designSystem.typography.statNumber} bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent`}>
-                  {contextData.stats.completedTasks}/{contextData.stats.totalTasks}
-                </div>
-                <div className={`${designSystem.typography.caption} text-slate-500 dark:text-slate-400`}>
-                  {contextData.stats.completionRate.toFixed(0)}% completion rate
-                </div>
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-gradient-to-r from-purple-50/50 to-purple-100/50 dark:from-purple-900/10 dark:to-purple-800/10 rounded-lg">
+            {/* Tasks Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-blue-200 dark:border-blue-700/50 backdrop-blur-sm">
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Tasks:</span>
               </div>
+              <span className="text-sm font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
+                {contextData.stats.completedTasks}/{contextData.stats.totalTasks}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                ({contextData.stats.completionRate.toFixed(0)}%)
+              </span>
+              <TrendArrow
+                current={contextData.stats.completionRate}
+                previous={contextData.stats.completedTasks > 0 ? 50 : undefined}
+              />
+            </div>
 
-              {/* Prayers stat */}
-              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`${designSystem.typography.labelSmall} text-slate-600 dark:text-slate-400`}>
-                    Today's Prayers
-                  </span>
-                  <TrendArrow
-                    current={contextData.stats.todayPrayers}
-                    previous={contextData.stats.previousDayPrayers}
-                  />
-                </div>
-                <div className={`${designSystem.typography.statNumber} bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent`}>
-                  {contextData.stats.todayPrayers}/5
-                </div>
-                <div className={`${designSystem.typography.caption} text-slate-500 dark:text-slate-400`}>
-                  {contextData.stats.todayPrayers === 5 ? 'All prayers completed! 🤲' : `${5 - contextData.stats.todayPrayers} remaining`}
-                </div>
+            {/* Prayers Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-purple-200 dark:border-purple-700/50 backdrop-blur-sm">
+              <div className="flex items-center gap-1">
+                <span className="text-sm">🤲</span>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Prayers:</span>
               </div>
+              <span className="text-sm font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">
+                {contextData.stats.todayPrayers}/5
+              </span>
+              {contextData.stats.todayPrayers === 5 && (
+                <span className="text-xs">✓</span>
+              )}
+              <TrendArrow
+                current={contextData.stats.todayPrayers}
+                previous={contextData.stats.previousDayPrayers}
+              />
+            </div>
 
-              {/* Streak stat */}
-              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`${designSystem.typography.labelSmall} text-slate-600 dark:text-slate-400`}>
-                    Quran Streak
-                  </span>
-                  <TrendArrow
-                    current={contextData.stats.currentStreak}
-                    previous={contextData.stats.previousStreak}
-                  />
-                </div>
-                <div className={`${designSystem.typography.statNumber} bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent`}>
-                  {contextData.stats.currentStreak}
-                </div>
-                <div className={`${designSystem.typography.caption} text-slate-500 dark:text-slate-400`}>
-                  {contextData.stats.currentStreak > 0 ? `${contextData.stats.currentStreak} days in a row 📖` : 'Start reading today!'}
-                </div>
+            {/* Quran Streak Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-emerald-200 dark:border-emerald-700/50 backdrop-blur-sm">
+              <div className="flex items-center gap-1">
+                <span className="text-sm">📖</span>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Streak:</span>
               </div>
+              <span className="text-sm font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+                {contextData.stats.currentStreak}d
+              </span>
+              {contextData.stats.weeklyQuranPages > 0 && (
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  ({contextData.stats.weeklyQuranPages}p/wk)
+                </span>
+              )}
+              <TrendArrow
+                current={contextData.stats.currentStreak}
+                previous={contextData.stats.previousStreak}
+              />
             </div>
           </div>
         )}
