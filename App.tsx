@@ -323,7 +323,11 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-900 text-slate-800 dark:text-slate-200 transition-all duration-500 overflow-hidden">
-      
+      {/* Skip to main content link for accessibility */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
+
       {isMobile && (
         <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center space-x-3">
@@ -637,7 +641,7 @@ const AppContent: React.FC = () => {
             </div>
           </header>
         )}
-        <div className={`flex-1 overflow-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`} style={{ minHeight: '0' }}>
+        <div id="main-content" className={`flex-1 overflow-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent ${isMobile ? 'pb-20' : 'p-6'} ${isMobile ? 'px-4 pt-4' : ''}`} style={{ minHeight: '0' }}>
           {renderView()}
         </div>
       </main>
