@@ -1,18 +1,20 @@
 // DashboardViewImproved.tsx - Redesigned with Design System
 import React, { useEffect, useState } from 'react';
-import { Task, DailyPrayerLog, DailyQuranLog, WorkoutEntry, Challenge } from '../types';
+import { Task, DailyPrayerLog, DailyQuranLog, WorkoutEntry, Challenge, View } from '../types';
 import * as firebaseService from '../services/firebaseService';
 import { useAuth } from '../context/AuthContext';
 import { designSystem } from '../utils/designSystem';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import EmptyState from './ui/EmptyState';
+import Button from './ui/Button';
 
 interface DashboardViewProps {
   tasks: Task[];
+  setCurrentView?: (view: View) => void;
 }
 
-const DashboardViewImproved: React.FC<DashboardViewProps> = ({ tasks }) => {
+const DashboardViewImproved: React.FC<DashboardViewProps> = ({ tasks, setCurrentView }) => {
   const { currentUser } = useAuth();
   const [prayerLogs, setPrayerLogs] = useState<DailyPrayerLog[]>([]);
   const [quranLogs, setQuranLogs] = useState<DailyQuranLog[]>([]);
@@ -270,10 +272,17 @@ const DashboardViewImproved: React.FC<DashboardViewProps> = ({ tasks }) => {
                     )}
                   </div>
                 ))}
-                {todayTasks.length > 5 && (
-                  <p className={`${designSystem.typography.bodySmall} ${designSystem.semanticColors.textMuted} text-center mt-2`}>
-                    + {todayTasks.length - 5} more tasks
-                  </p>
+                {todayTasks.length > 5 && setCurrentView && (
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView(View.Planner)}
+                      className="w-full"
+                    >
+                      View All {todayTasks.length} Tasks →
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -336,6 +345,18 @@ const DashboardViewImproved: React.FC<DashboardViewProps> = ({ tasks }) => {
                     )}
                   </div>
                 ))}
+                {workouts.length > 5 && setCurrentView && (
+                  <div className="mt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView(View.Workouts)}
+                      className="w-full"
+                    >
+                      View All {workouts.length} Workouts →
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </Card>

@@ -4,12 +4,12 @@ import { Task, View, Theme } from './types';
 import PlannerViewImproved from './components/PlannerViewImproved';
 import CalendarViewImproved from './components/CalendarViewImproved';
 import AIAssistantViewImproved from './components/AIAssistantViewImproved';
-import DashboardView from './components/DashboardView';
+import DashboardViewImproved from './components/DashboardViewImproved';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
 import QuranLogView from './components/QuranLogView';
 import AdhkarView from './components/AdhkarView';
-import WorkoutsView from './components/WorkoutsView';
+import WorkoutsViewImproved from './components/WorkoutsViewImproved';
 import ChallengesView from './components/ChallengesView';
 import SoloRoomView from './components/SoloRoomView';
 import NotificationCenter from './components/NotificationCenter';
@@ -260,13 +260,13 @@ const AppContent: React.FC = () => {
       case View.AIAssistant:
         return <AIAssistantViewImproved tasks={tasks} />;
       case View.Dashboard:
-        return <DashboardView tasks={tasks} />;
+        return <DashboardViewImproved tasks={tasks} setCurrentView={setCurrentView} />;
       case View.Pomodoro:
         return <PomodoroView />;
       case View.Garden:
         return <GardenView />;
       case View.Workouts:
-        return <WorkoutsView />;
+        return <WorkoutsViewImproved />;
       case View.Challenges:
         return <ChallengesView />;
       case View.SoloRoom:
