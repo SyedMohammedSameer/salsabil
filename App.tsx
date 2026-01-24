@@ -503,6 +503,9 @@ const AppContent: React.FC = () => {
                 <NotificationCenter />
               </div>
               <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
+                <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+              </div>
+              <div className={`${sidebarCollapsed ? 'w-full' : 'flex-1'}`}>
                 <button
                   onClick={() => setIsSettingsModalOpen(true)}
                   className="w-full flex items-center justify-center space-x-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 transition-all duration-200 group border border-blue-200/50 dark:border-blue-800/50"

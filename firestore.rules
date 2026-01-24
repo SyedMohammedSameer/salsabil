@@ -1,10 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access on all documents to any user signed in to the application
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
+    // ===========================
+    // SECURITY: NO CATCH-ALL RULE
+    // Each collection must have explicit rules
+    // ===========================
 
     // GARDEN MODULE: Study Rooms and participants
     match /studyRooms/{roomId} {
@@ -42,10 +42,16 @@ service cloud.firestore {
 
     // Personal user data collections
     match /users/{userId} {
+      // Users can only access their own data
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
       // Personal gardens subcollection
       match /personalGarden/{treeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Garden trees subcollection
+      match /garden/{docId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
@@ -54,8 +60,11 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // Focus sessions subcollection
+      // Focus sessions / Pomodoro sessions subcollection
       match /focusSessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /pomodoroSessions/{sessionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
@@ -76,6 +85,41 @@ service cloud.firestore {
 
       // Settings subcollection
       match /settings/{settingId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // AI Profile (NEW)
+      match /ai_profile/{profileId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // AI Interactions (NEW)
+      match /ai_interactions/{interactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // AI Assistant chat history
+      match /ai-assistant/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Workouts (nested under users)
+      match /workouts/{entryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Challenges (nested under users)
+      match /challenges/{challengeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Challenge days (nested under users)
+      match /challenge_days/{dayId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // AI threads (nested under users)
+      match /ai_threads/{threadId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
@@ -108,9 +152,27 @@ service cloud.firestore {
       }
     }
 
-    // Allow users to read and write their own settings
+    // Root-level settings (legacy, prefer users/{userId}/settings)
     match /settings/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Push notification tokens
+    match /push_tokens/{userId} {
+      match /tokens/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Root-level notifications (legacy, prefer users/{userId}/notifications)
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // Prevent access to any other collections not explicitly defined
+    // This ensures security by default
   }
 }
