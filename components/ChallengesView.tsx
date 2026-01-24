@@ -117,7 +117,10 @@ const ChallengesView: React.FC = () => {
       startDate,
       durationDays: formData.durationDays,
       rules: formData.rules,
-      active: true
+      active: true,
+      totalXP: 0,
+      currentStreak: 0,
+      longestStreak: 0
     });
 
     setIsModalOpen(false);

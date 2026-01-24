@@ -447,98 +447,55 @@ Please use this comprehensive context to provide personalized, relevant assistan
 
   return (
     <div className="animate-fadeIn h-full flex flex-col">
-      {/* Header with Noor branding */}
-      <div className="mb-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <span className="text-2xl">✨</span>
+      {/* Compact Header */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <span className="text-lg">✨</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">
+                Noor AI
+              </h1>
+            </div>
           </div>
-          <div>
-            <h1 className={`${designSystem.typography.h1} bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent`}>
-              Noor AI Assistant
-            </h1>
-            <p className={`${designSystem.typography.bodySmall} text-slate-600 dark:text-slate-400`}>
-              Your intelligent guide for productivity and spiritual growth
-            </p>
-          </div>
+
+          {/* Stats - Ultra Compact Inline */}
+          {contextData && (
+            <div className="flex items-center gap-2">
+              {/* Tasks */}
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-white/80 dark:bg-slate-800/80 rounded-full border border-blue-200 dark:border-blue-700/50 text-xs">
+                <span>📋</span>
+                <span className="font-bold text-blue-600">{contextData.stats.completedTasks}/{contextData.stats.totalTasks}</span>
+              </div>
+              {/* Prayers */}
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-white/80 dark:bg-slate-800/80 rounded-full border border-purple-200 dark:border-purple-700/50 text-xs">
+                <span>🤲</span>
+                <span className="font-bold text-purple-600">{contextData.stats.todayPrayers}/5</span>
+              </div>
+              {/* Streak */}
+              <div className="inline-flex items-center gap-1 px-2 py-1 bg-white/80 dark:bg-slate-800/80 rounded-full border border-emerald-200 dark:border-emerald-700/50 text-xs">
+                <span>📖</span>
+                <span className="font-bold text-emerald-600">{contextData.stats.currentStreak}d</span>
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Dynamic Stats Bar - Compact inline display */}
-        {contextData && (
-          <div className="flex flex-wrap items-center gap-2 p-2 bg-gradient-to-r from-purple-50/50 to-purple-100/50 dark:from-purple-900/10 dark:to-purple-800/10 rounded-lg">
-            {/* Tasks Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-blue-200 dark:border-blue-700/50 backdrop-blur-sm">
-              <div className="flex items-center gap-1">
-                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Tasks:</span>
-              </div>
-              <span className="text-sm font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">
-                {contextData.stats.completedTasks}/{contextData.stats.totalTasks}
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                ({contextData.stats.completionRate.toFixed(0)}%)
-              </span>
-              <TrendArrow
-                current={contextData.stats.completionRate}
-                previous={contextData.stats.completedTasks > 0 ? 50 : undefined}
-              />
-            </div>
-
-            {/* Prayers Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-purple-200 dark:border-purple-700/50 backdrop-blur-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-sm">🤲</span>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Prayers:</span>
-              </div>
-              <span className="text-sm font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">
-                {contextData.stats.todayPrayers}/5
-              </span>
-              {contextData.stats.todayPrayers === 5 && (
-                <span className="text-xs">✓</span>
-              )}
-              <TrendArrow
-                current={contextData.stats.todayPrayers}
-                previous={contextData.stats.previousDayPrayers}
-              />
-            </div>
-
-            {/* Quran Streak Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 rounded-full border border-emerald-200 dark:border-emerald-700/50 backdrop-blur-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-sm">📖</span>
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Streak:</span>
-              </div>
-              <span className="text-sm font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
-                {contextData.stats.currentStreak}d
-              </span>
-              {contextData.stats.weeklyQuranPages > 0 && (
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  ({contextData.stats.weeklyQuranPages}p/wk)
-                </span>
-              )}
-              <TrendArrow
-                current={contextData.stats.currentStreak}
-                previous={contextData.stats.previousStreak}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Smart Action Buttons - Improved with icons */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Smart Action Buttons - Compact */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {smartActionButtons.map(btn => (
           <button
             key={btn.label}
             onClick={btn.action}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 dark:hover:from-purple-900/20 dark:hover:to-purple-800/20 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md min-h-[44px]"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 dark:hover:from-purple-900/20 dark:hover:to-purple-800/20 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 min-h-[36px]"
             aria-label={btn.label}
           >
-            {btn.icon}
-            <span>{btn.label}</span>
+            <span className="scale-75">{btn.icon}</span>
+            <span className="hidden sm:inline">{btn.label}</span>
           </button>
         ))}
       </div>
