@@ -1,4 +1,4 @@
-// Enhanced AIAssistantView.tsx with full database access and chat persistence
+// Enhanced AIAssistantView.tsx with voice input/output capabilities
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, ChatMessage as ChatMessageType, DailyPrayerLog, DailyQuranLog, PomodoroSettings } from '../types';
 import * as GroqService from '../services/groqService';
@@ -29,6 +29,87 @@ interface ContextData {
   };
 }
 
+// Voice recognition hook
+const useSpeechRecognition = () => {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      console.warn('Speech recognition not supported in this browser');
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.continuous = false;
+    recognitionRef.current.interimResults = false;
+    recognitionRef.current.lang = 'en-US';
+
+    recognitionRef.current.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setTranscript(transcript);
+      setIsListening(false);
+    };
+
+    recognitionRef.current.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+    };
+
+    recognitionRef.current.onend = () => {
+      setIsListening(false);
+    };
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current && !isListening) {
+      setTranscript('');
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
+
+  return { isListening, transcript, startListening, stopListening };
+};
+
+// Text-to-speech function
+const speakText = (text: string, onComplete?: () => void) => {
+  if (!('speechSynthesis' in window)) {
+    console.warn('Speech synthesis not supported in this browser');
+    return;
+  }
+
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+  utterance.lang = 'en-US';
+
+  utterance.onend = () => {
+    if (onComplete) onComplete();
+  };
+
+  window.speechSynthesis.speak(utterance);
+};
+
 const AIAssistantViewImproved: React.FC<AIAssistantViewProps> = ({ tasks }) => {
   const { currentUser } = useAuth();
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -36,14 +117,38 @@ const AIAssistantViewImproved: React.FC<AIAssistantViewProps> = ({ tasks }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [contextData, setContextData] = useState<ContextData | null>(null);
   const [loadingContext, setLoadingContext] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const chatHistoryRef = useRef<{role: string, parts: {text: string}[]}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { isListening, transcript, startListening, stopListening } = useSpeechRecognition();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  // Auto-submit voice transcript
+  useEffect(() => {
+    if (transcript && !isListening) {
+      setInput(transcript);
+      // Auto-send if transcript is complete
+      setTimeout(() => {
+        if (transcript) {
+          handleSend();
+        }
+      }, 500);
+    }
+  }, [transcript, isListening]);
+
+  // Speak AI responses if voice is enabled
+  const handleAIResponseWithVoice = useCallback((text: string) => {
+    if (voiceEnabled) {
+      speakText(text, () => setIsSpeaking(false));
+      setIsSpeaking(true);
+    }
+  }, [voiceEnabled]);
 
   // Load all context data and chat history
   useEffect(() => {
@@ -305,9 +410,14 @@ Please use this comprehensive context to provide personalized, relevant assistan
         chatHistoryRef.current
       );
       await addMessage(aiResponse, 'ai');
+
+      // Speak AI response if voice enabled
+      handleAIResponseWithVoice(aiResponse);
     } catch (error) {
       console.error("AI Assistant Error:", error);
-      await addMessage("I apologize, but I'm having trouble processing your request right now. Please try again in a moment.", 'ai');
+      const errorMsg = "I apologize, but I'm having trouble processing your request right now. Please try again in a moment.";
+      await addMessage(errorMsg, 'ai');
+      handleAIResponseWithVoice(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -520,19 +630,71 @@ Please use this comprehensive context to provide personalized, relevant assistan
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
+      {/* Input Area with Voice Controls */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
+          {/* Voice Input Button */}
+          <button
+            onClick={isListening ? stopListening : startListening}
+            className={`p-3 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 min-h-[44px] ${
+              isListening
+                ? 'bg-red-500 text-white animate-pulse'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+            aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+            title={isListening ? 'Stop listening' : 'Voice input'}
+          >
+            {isListening ? (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            )}
+          </button>
+
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSend()}
-            placeholder="Ask Noor anything about your productivity or spiritual journey..."
+            placeholder={isListening ? "Listening..." : "Ask Noor anything..."}
             className="flex-grow p-3 border-2 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition bg-transparent dark:text-slate-100 placeholder-slate-400"
-            disabled={isLoading}
+            disabled={isLoading || isListening}
             aria-label="Chat message input"
           />
+
+          {/* Voice Output Toggle */}
+          <button
+            onClick={() => {
+              setVoiceEnabled(!voiceEnabled);
+              if (voiceEnabled && isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+              }
+            }}
+            className={`p-3 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 min-h-[44px] ${
+              voiceEnabled
+                ? 'bg-emerald-500 text-white'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+            aria-label={voiceEnabled ? 'Disable voice output' : 'Enable voice output'}
+            title={voiceEnabled ? 'Voice output ON' : 'Voice output OFF'}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {voiceEnabled ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              ) : (
+                <>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                </>
+              )}
+            </svg>
+          </button>
+
           <button
             onClick={handleSend}
             disabled={isLoading || input.trim() === ''}
@@ -542,6 +704,24 @@ Please use this comprehensive context to provide personalized, relevant assistan
             Send
           </button>
         </div>
+
+        {/* Voice Status Indicators */}
+        {(isListening || isSpeaking) && (
+          <div className="mt-2 text-xs text-center">
+            {isListening && (
+              <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                Listening...
+              </span>
+            )}
+            {isSpeaking && (
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                Noor is speaking...
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
