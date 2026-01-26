@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Notification } from '../types';
 import * as notificationService from '../services/notificationService';
@@ -48,6 +49,14 @@ const NotificationCenter: React.FC = () => {
   const handleMarkAllRead = async () => {
     if (!currentUser?.uid) return;
     await notificationService.markAllNotificationsAsRead(currentUser.uid);
+  };
+
+  const handleClearAll = async () => {
+    if (!currentUser?.uid) return;
+    if (!confirm('Are you sure you want to delete all notifications? This cannot be undone.')) {
+      return;
+    }
+    await notificationService.deleteAllNotifications(currentUser.uid);
   };
 
   const getNotificationIcon = (type: string) => {
@@ -105,8 +114,8 @@ const NotificationCenter: React.FC = () => {
         )}
       </button>
 
-      {/* Notification Panel - Fixed positioning to break out of stacking context */}
-      {isOpen && buttonRect && (
+      {/* Notification Panel - Using Portal to render at body level, breaking all stacking contexts */}
+      {isOpen && buttonRect && createPortal(
         <div
           ref={panelRef}
           className="fixed bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[500px] flex flex-col"
@@ -114,19 +123,31 @@ const NotificationCenter: React.FC = () => {
             top: `${buttonRect.bottom + 8}px`,
             right: `${window.innerWidth - buttonRect.right}px`,
             width: '320px',
-            zIndex: 9999
+            zIndex: 999999
           }}
         >
           {/* Header */}
-          <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                Mark all read
-              </button>
+          <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>
+            </div>
+            {notifications.length > 0 && (
+              <div className="flex gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-xs px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={handleClearAll}
+                  className="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
             )}
           </div>
 
@@ -171,7 +192,8 @@ const NotificationCenter: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

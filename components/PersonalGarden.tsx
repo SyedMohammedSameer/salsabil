@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Tree, TreeType, TreeGrowthStage } from '../types';
 import TreeComponent from './TreeComponent';
-import GardenLandscape from './GardenLandscape';
+import Garden3DLandscape from './Garden3DLandscape';
 import * as firebaseService from '../services/firebaseService';
 
 const PersonalGarden: React.FC = () => {
@@ -244,7 +244,7 @@ const PersonalGarden: React.FC = () => {
 
       {/* Trees Display */}
       {viewMode === 'landscape' ? (
-        <GardenLandscape trees={filteredTrees} loading={loading} />
+        <Garden3DLandscape trees={filteredTrees} loading={loading} />
       ) : filteredTrees.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
