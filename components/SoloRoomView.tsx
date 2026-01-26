@@ -23,6 +23,7 @@ const SoloRoomView: React.FC = () => {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasStartedSession = useRef(false);
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -32,6 +33,20 @@ const SoloRoomView: React.FC = () => {
     });
 
     return () => unsubscribe();
+  }, [currentUser]);
+
+  // Cleanup focus mode when component unmounts if session was started
+  useEffect(() => {
+    return () => {
+      if (hasStartedSession.current && currentUser?.uid) {
+        // Disable focus mode when leaving the page
+        firebaseService.saveUserSettings(currentUser.uid, {
+          focusMode: { enabled: false }
+        }).catch(error => {
+          console.error('Failed to disable focus mode on unmount:', error);
+        });
+      }
+    };
   }, [currentUser]);
 
   useEffect(() => {
@@ -63,6 +78,7 @@ const SoloRoomView: React.FC = () => {
 
     setIsActive(true);
     setSessionStartTime(new Date());
+    hasStartedSession.current = true;
 
     // Enable focus mode
     try {
@@ -92,6 +108,7 @@ const SoloRoomView: React.FC = () => {
     setIsActive(false);
     setTimeLeft(timerMinutes * 60);
     setSessionStartTime(null);
+    hasStartedSession.current = false;
 
     if (currentUser?.uid) {
       try {
@@ -106,6 +123,7 @@ const SoloRoomView: React.FC = () => {
 
   const handleSessionEnd = async () => {
     setIsActive(false);
+    hasStartedSession.current = false;
 
     if (currentUser?.uid) {
       try {
