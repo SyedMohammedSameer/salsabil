@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Notification } from '../types';
 import * as notificationService from '../services/notificationService';
@@ -113,8 +114,8 @@ const NotificationCenter: React.FC = () => {
         )}
       </button>
 
-      {/* Notification Panel - Fixed positioning to break out of stacking context */}
-      {isOpen && buttonRect && (
+      {/* Notification Panel - Using Portal to render at body level, breaking all stacking contexts */}
+      {isOpen && buttonRect && createPortal(
         <div
           ref={panelRef}
           className="fixed bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[500px] flex flex-col"
@@ -191,7 +192,8 @@ const NotificationCenter: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

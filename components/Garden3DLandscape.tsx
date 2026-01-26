@@ -8,6 +8,219 @@ interface Garden3DLandscapeProps {
   loading?: boolean;
 }
 
+// Helper functions to create different tree types
+
+// 🌴 PALM TREE - Islamic theme with palm leaves at top
+const createPalmTree = (group: THREE.Group, scale: number, growth: TreeGrowthStage) => {
+  // Tall thin trunk with segments
+  const trunkHeight = 2.0 * scale;
+  const trunkRadius = 0.08 * scale;
+
+  // Segmented trunk
+  for (let i = 0; i < 5; i++) {
+    const segmentGeom = new THREE.CylinderGeometry(
+      trunkRadius * (1 - i * 0.05),
+      trunkRadius * (1 - i * 0.05 + 0.05),
+      trunkHeight / 5,
+      6
+    );
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x8B7355,
+      roughness: 0.9
+    });
+    const segment = new THREE.Mesh(segmentGeom, trunkMat);
+    segment.position.y = (trunkHeight / 10) + i * (trunkHeight / 5);
+    segment.castShadow = true;
+    group.add(segment);
+  }
+
+  // Palm leaves at top (6-8 leaves radiating outward)
+  const leafCount = growth === TreeGrowthStage.MatureTree ? 8 : 6;
+  const leafColor = 0x228B22;
+
+  for (let i = 0; i < leafCount; i++) {
+    const angle = (i / leafCount) * Math.PI * 2;
+    const leafGeom = new THREE.ConeGeometry(0.15 * scale, 0.8 * scale, 4);
+    const leafMat = new THREE.MeshStandardMaterial({ color: leafColor });
+    const leaf = new THREE.Mesh(leafGeom, leafMat);
+
+    leaf.position.y = trunkHeight;
+    leaf.position.x = Math.cos(angle) * 0.3 * scale;
+    leaf.position.z = Math.sin(angle) * 0.3 * scale;
+    leaf.rotation.z = Math.PI / 4;
+    leaf.rotation.y = angle;
+    leaf.castShadow = true;
+    group.add(leaf);
+  }
+
+  // Crown sphere for mature trees
+  if (growth === TreeGrowthStage.MatureTree) {
+    const crownGeom = new THREE.SphereGeometry(0.4 * scale, 8, 8);
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xFF69B4,
+      emissive: 0xFF69B4,
+      emissiveIntensity: 0.2
+    });
+    const crown = new THREE.Mesh(crownGeom, crownMat);
+    crown.position.y = trunkHeight;
+    crown.castShadow = true;
+    group.add(crown);
+  }
+};
+
+// 🌲 PINE TREE - Conical layers, prayer-like pointing upward
+const createPineTree = (group: THREE.Group, scale: number, growth: TreeGrowthStage) => {
+  // Thin trunk
+  const trunkGeom = new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, 1.2 * scale, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = 0.6 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Multiple cone layers (3-5 layers)
+  const layers = growth === TreeGrowthStage.MatureTree ? 5 : 3;
+  const pineColor = 0x2E8B57; // Sea green for pine
+
+  for (let i = 0; i < layers; i++) {
+    const layerHeight = 1.2 * scale + i * 0.4 * scale;
+    const layerSize = (0.7 - i * 0.12) * scale;
+
+    const coneGeom = new THREE.ConeGeometry(layerSize, 0.8 * scale, 6);
+    const coneMat = new THREE.MeshStandardMaterial({
+      color: i % 2 === 0 ? pineColor : 0xFFD700,
+      emissive: i % 2 === 0 ? 0x000000 : 0xFFD700,
+      emissiveIntensity: 0.1
+    });
+    const cone = new THREE.Mesh(coneGeom, coneMat);
+    cone.position.y = layerHeight;
+    cone.castShadow = true;
+    group.add(cone);
+  }
+};
+
+// 🌳 OAK TREE - Strong, thick trunk with round canopy
+const createOakTree = (group: THREE.Group, scale: number, growth: TreeGrowthStage) => {
+  // Thick trunk
+  const trunkGeom = new THREE.CylinderGeometry(0.15 * scale, 0.22 * scale, 1.3 * scale, 8);
+  const trunkMat = new THREE.MeshStandardMaterial({
+    color: 0x6B4423,
+    roughness: 1.0
+  });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = 0.65 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Large round canopy (multiple spheres for volume)
+  const canopyColor = 0x3CB371; // Medium sea green
+  const canopySize = growth === TreeGrowthStage.MatureTree ? 1.0 : 0.7;
+
+  // Main canopy
+  const mainCanopyGeom = new THREE.SphereGeometry(canopySize * scale, 8, 8);
+  const canopyMat = new THREE.MeshStandardMaterial({ color: canopyColor });
+  const mainCanopy = new THREE.Mesh(mainCanopyGeom, canopyMat);
+  mainCanopy.position.y = 1.6 * scale;
+  mainCanopy.castShadow = true;
+  group.add(mainCanopy);
+
+  // Additional smaller canopy spheres for texture
+  if (growth === TreeGrowthStage.MatureTree) {
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2;
+      const smallCanopyGeom = new THREE.SphereGeometry(0.5 * scale, 6, 6);
+      const smallCanopy = new THREE.Mesh(smallCanopyGeom, canopyMat);
+      smallCanopy.position.y = 1.5 * scale;
+      smallCanopy.position.x = Math.cos(angle) * 0.4 * scale;
+      smallCanopy.position.z = Math.sin(angle) * 0.4 * scale;
+      smallCanopy.castShadow = true;
+      group.add(smallCanopy);
+    }
+  }
+};
+
+// 🌾 WILLOW TREE - Graceful with drooping branches
+const createWillowTree = (group: THREE.Group, scale: number, growth: TreeGrowthStage) => {
+  // Medium trunk slightly curved
+  const trunkGeom = new THREE.CylinderGeometry(0.12 * scale, 0.16 * scale, 1.4 * scale, 8);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B7355 });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = 0.7 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Drooping branches (hanging cones)
+  const branchCount = growth === TreeGrowthStage.MatureTree ? 12 : 8;
+  const willowColor = 0x9ACD32; // Yellow green
+
+  for (let i = 0; i < branchCount; i++) {
+    const angle = (i / branchCount) * Math.PI * 2;
+    const radius = 0.4 * scale;
+
+    // Drooping branch (inverted cone)
+    const branchGeom = new THREE.ConeGeometry(0.1 * scale, 0.9 * scale, 4);
+    const branchMat = new THREE.MeshStandardMaterial({ color: willowColor });
+    const branch = new THREE.Mesh(branchGeom, branchMat);
+
+    branch.position.y = 1.5 * scale;
+    branch.position.x = Math.cos(angle) * radius;
+    branch.position.z = Math.sin(angle) * radius;
+    branch.rotation.x = Math.PI; // Flip upside down for drooping effect
+    branch.castShadow = true;
+    group.add(branch);
+  }
+
+  // Top canopy
+  const topCanopyGeom = new THREE.SphereGeometry(0.5 * scale, 8, 8);
+  const topCanopyMat = new THREE.MeshStandardMaterial({ color: willowColor });
+  const topCanopy = new THREE.Mesh(topCanopyGeom, topCanopyMat);
+  topCanopy.position.y = 1.8 * scale;
+  topCanopy.castShadow = true;
+  group.add(topCanopy);
+};
+
+// 🍎 FRUIT TREE - Round with small fruit spheres
+const createFruitTree = (group: THREE.Group, scale: number, growth: TreeGrowthStage) => {
+  // Standard trunk
+  const trunkGeom = new THREE.CylinderGeometry(0.12 * scale, 0.16 * scale, 1.2 * scale, 8);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = 0.6 * scale;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Round foliage
+  const foliageGeom = new THREE.SphereGeometry(0.8 * scale, 8, 8);
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+  const foliage = new THREE.Mesh(foliageGeom, foliageMat);
+  foliage.position.y = 1.5 * scale;
+  foliage.castShadow = true;
+  group.add(foliage);
+
+  // Add fruits for mature trees
+  if (growth === TreeGrowthStage.MatureTree || growth === TreeGrowthStage.YoungTree) {
+    const fruitCount = 6;
+    const fruitColor = 0xFF6347; // Tomato red for fruits
+
+    for (let i = 0; i < fruitCount; i++) {
+      const angle = (i / fruitCount) * Math.PI * 2;
+      const fruitGeom = new THREE.SphereGeometry(0.12 * scale, 6, 6);
+      const fruitMat = new THREE.MeshStandardMaterial({
+        color: fruitColor,
+        emissive: fruitColor,
+        emissiveIntensity: 0.3
+      });
+      const fruit = new THREE.Mesh(fruitGeom, fruitMat);
+
+      fruit.position.y = 1.3 * scale + Math.random() * 0.4 * scale;
+      fruit.position.x = Math.cos(angle) * 0.6 * scale;
+      fruit.position.z = Math.sin(angle) * 0.6 * scale;
+      fruit.castShadow = true;
+      group.add(fruit);
+    }
+  }
+};
+
 const Garden3DLandscape: React.FC<Garden3DLandscapeProps> = ({ trees, loading = false }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -103,43 +316,42 @@ const Garden3DLandscape: React.FC<Garden3DLandscapeProps> = ({ trees, loading = 
       treeGroup.position.set(x, 0, z);
       (treeGroup as any).userData = { tree };
 
-      // Trunk
-      const trunkGeometry = new THREE.CylinderGeometry(0.1 * scale, 0.15 * scale, 1 * scale, 8);
-      const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-      const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-      trunk.position.y = (0.5 * scale);
-      trunk.castShadow = true;
-      treeGroup.add(trunk);
+      // Create different tree structures based on type
+      switch (tree.type) {
+        case TreeType.QuranReading:
+          // PALM TREE (Islamic theme)
+          createPalmTree(treeGroup, scale, tree.growthStage);
+          break;
 
-      // Foliage (cone or sphere based on type)
-      let foliageMaterial: THREE.MeshStandardMaterial;
+        case TreeType.Dhikr:
+          // PINE/CONIFER TREE (Prayer-like, pointing upward)
+          createPineTree(treeGroup, scale, tree.growthStage);
+          break;
 
-      if (tree.type === TreeType.QuranReading || tree.type === TreeType.Dhikr) {
-        foliageMaterial = new THREE.MeshStandardMaterial({
-          color: tree.type === TreeType.QuranReading ? 0xFF69B4 : 0xFFD700
-        });
-      } else {
-        foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+        case TreeType.Work:
+          // OAK TREE (Strong, sturdy with thick trunk)
+          createOakTree(treeGroup, scale, tree.growthStage);
+          break;
+
+        case TreeType.Study:
+          // WILLOW TREE (Graceful, flowing)
+          createWillowTree(treeGroup, scale, tree.growthStage);
+          break;
+
+        case TreeType.GeneralFocus:
+        default:
+          // FRUIT TREE (Round with fruits)
+          createFruitTree(treeGroup, scale, tree.growthStage);
+          break;
       }
-
-      const foliageGeometry = tree.growthStage === TreeGrowthStage.MatureTree
-        ? new THREE.SphereGeometry(0.8 * scale, 8, 8)
-        : new THREE.ConeGeometry(0.6 * scale, 1.2 * scale, 8);
-
-      const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-      foliage.position.y = tree.growthStage === TreeGrowthStage.MatureTree
-        ? 1.5 * scale
-        : 1.6 * scale;
-      foliage.castShadow = true;
-      treeGroup.add(foliage);
 
       // Add subtle glow for mature trees
       if (tree.growthStage === TreeGrowthStage.MatureTree) {
-        const glowGeometry = new THREE.SphereGeometry(0.85 * scale, 8, 8);
+        const glowGeometry = new THREE.SphereGeometry(0.9 * scale, 8, 8);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: 0xFFFFFF,
           transparent: true,
-          opacity: 0.1
+          opacity: 0.15
         });
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.y = 1.5 * scale;
