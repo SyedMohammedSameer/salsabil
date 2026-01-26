@@ -212,14 +212,22 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose }
           {/* Focus Mode Status */}
           {settings.focusMode.enabled && (
             <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <span className="text-orange-600 dark:text-orange-400">🔕</span>
-                <div>
-                  <div className="font-medium text-sm text-orange-800 dark:text-orange-200">Focus Mode Active</div>
-                  <div className="text-xs text-orange-700 dark:text-orange-300">
-                    All notifications are currently paused
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="text-orange-600 dark:text-orange-400">🔕</span>
+                  <div>
+                    <div className="font-medium text-sm text-orange-800 dark:text-orange-200">Focus Mode Active</div>
+                    <div className="text-xs text-orange-700 dark:text-orange-300">
+                      All notifications are currently paused
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => updateSetting('focusMode', { enabled: false })}
+                  className="px-3 py-1.5 text-xs bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Disable
+                </button>
               </div>
             </div>
           )}
