@@ -50,6 +50,14 @@ const NotificationCenter: React.FC = () => {
     await notificationService.markAllNotificationsAsRead(currentUser.uid);
   };
 
+  const handleClearAll = async () => {
+    if (!currentUser?.uid) return;
+    if (!confirm('Are you sure you want to delete all notifications? This cannot be undone.')) {
+      return;
+    }
+    await notificationService.deleteAllNotifications(currentUser.uid);
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'ai': return '🤖';
@@ -114,19 +122,31 @@ const NotificationCenter: React.FC = () => {
             top: `${buttonRect.bottom + 8}px`,
             right: `${window.innerWidth - buttonRect.right}px`,
             width: '320px',
-            zIndex: 9999
+            zIndex: 999999
           }}
         >
           {/* Header */}
-          <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                Mark all read
-              </button>
+          <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-slate-800 dark:text-slate-200">Notifications</h3>
+            </div>
+            {notifications.length > 0 && (
+              <div className="flex gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-xs px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={handleClearAll}
+                  className="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
             )}
           </div>
 

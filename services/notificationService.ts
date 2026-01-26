@@ -182,5 +182,24 @@ export const shouldSendNotification = (settings: UserSettings): boolean => {
   return true;
 };
 
-// Import getDocs
-import { getDocs } from 'firebase/firestore';
+// Import getDocs and deleteDoc
+import { getDocs, deleteDoc } from 'firebase/firestore';
+
+// Delete all notifications for a user
+export const deleteAllNotifications = async (uid: string): Promise<void> => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(
+      notificationsRef,
+      where('uid', '==', uid)
+    );
+
+    const snapshot = await getDocs(q);
+    const promises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+
+    await Promise.all(promises);
+    console.log('✅ All notifications cleared');
+  } catch (error) {
+    console.error('Error deleting all notifications:', error);
+  }
+};
