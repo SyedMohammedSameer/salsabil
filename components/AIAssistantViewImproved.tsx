@@ -556,7 +556,9 @@ Please use this comprehensive context to provide personalized, relevant assistan
   }
 
   return (
-    <div className="animate-fadeIn h-full flex flex-col">
+    <div className="animate-fadeIn flex flex-col"
+      style={{ minHeight: '600px' }}
+    >
       {/* Compact Header */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-2">

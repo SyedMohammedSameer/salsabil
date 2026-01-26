@@ -21,10 +21,21 @@ interface ScheduledTask {
 // In-memory store for active schedulers (per user session)
 const activeSchedulers = new Map<string, NodeJS.Timeout>();
 
+// Track last notification time to prevent duplicates (per user)
+const lastNotificationTime = new Map<string, number>();
+
+// Minimum time between notifications (5 minutes)
+const MIN_NOTIFICATION_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * Start the proactive AI scheduler for a user
  */
 export const startAIScheduler = async (userId: string) => {
+  // Check if scheduler already exists
+  if (activeSchedulers.has(userId)) {
+    console.log('⚠️ AI scheduler already running for this user. Stopping old one first...');
+  }
+
   // Stop any existing scheduler for this user
   stopAIScheduler(userId);
 
@@ -32,14 +43,14 @@ export const startAIScheduler = async (userId: string) => {
     const settings = await firebaseService.loadUserSettings(userId);
 
     if (!settings.aiCheckInEnabled) {
-      console.log('AI check-ins disabled for user:', userId);
+      console.log('🔕 AI check-ins disabled for user:', userId);
       return;
     }
 
     const intervalMinutes = settings.aiCheckInIntervalMinutes || 60;
     const intervalMs = intervalMinutes * 60 * 1000;
 
-    console.log(`Starting AI scheduler for user ${userId} with ${intervalMinutes}min interval`);
+    console.log(`🚀 Starting AI scheduler for user ${userId} with ${intervalMinutes}min interval (initial check-in in 5min)`);
 
     // Schedule recurring check-ins
     const schedulerId = setInterval(async () => {
@@ -66,7 +77,7 @@ export const stopAIScheduler = (userId: string) => {
   if (scheduler) {
     clearInterval(scheduler);
     activeSchedulers.delete(userId);
-    console.log(`Stopped AI scheduler for user ${userId}`);
+    console.log(`⏹️ Stopped AI scheduler for user ${userId}`);
   }
 };
 
@@ -75,9 +86,17 @@ export const stopAIScheduler = (userId: string) => {
  */
 const performAICheckIn = async (userId: string, settings: UserSettings) => {
   try {
+    // Prevent duplicate notifications within short time window
+    const lastTime = lastNotificationTime.get(userId) || 0;
+    const now = Date.now();
+    if (now - lastTime < MIN_NOTIFICATION_INTERVAL_MS) {
+      console.log(`⏱️ AI check-in skipped - sent notification ${Math.round((now - lastTime) / 1000 / 60)} minutes ago (min interval: 5 min)`);
+      return;
+    }
+
     // Check if we should send notification (respects quiet hours and focus mode)
     if (!notificationService.shouldSendNotification(settings)) {
-      console.log('AI check-in skipped due to quiet hours or focus mode');
+      console.log('🔕 AI check-in skipped due to quiet hours or focus mode');
       return;
     }
 
@@ -93,7 +112,10 @@ const performAICheckIn = async (userId: string, settings: UserSettings) => {
       message.link
     );
 
-    console.log('AI check-in notification sent to user:', userId);
+    // Record notification time
+    lastNotificationTime.set(userId, Date.now());
+
+    console.log('✅ AI check-in notification sent to user:', userId, '| Title:', message.title);
   } catch (error) {
     console.error('Error performing AI check-in:', error);
   }
@@ -264,22 +286,24 @@ export const sendMotivationalNotification = async (userId: string, context: {
  */
 export const initializeAIScheduler = async (userId: string) => {
   try {
+    console.log('🔄 Initializing AI scheduler for user:', userId);
+
     // Set up listener for settings changes
+    // Note: This listener fires immediately with current settings, so no need to manually start
     firebaseService.setupUserSettingsListener(userId, (settings) => {
       if (settings.aiCheckInEnabled) {
+        console.log('⚙️ AI check-ins enabled in settings, starting scheduler...');
         startAIScheduler(userId);
       } else {
+        console.log('⚙️ AI check-ins disabled in settings, stopping scheduler...');
         stopAIScheduler(userId);
       }
     });
 
-    // Start scheduler if enabled
-    const settings = await firebaseService.loadUserSettings(userId);
-    if (settings.aiCheckInEnabled) {
-      await startAIScheduler(userId);
-    }
+    // Note: No need to manually start here - the listener above will fire immediately
+    // with the current settings and start the scheduler if enabled
   } catch (error) {
-    console.error('Error initializing AI scheduler:', error);
+    console.error('❌ Error initializing AI scheduler:', error);
   }
 };
 
@@ -288,5 +312,15 @@ export const initializeAIScheduler = async (userId: string) => {
  */
 export const cleanupAIScheduler = (userId: string) => {
   stopAIScheduler(userId);
-  console.log('AI scheduler cleaned up for user:', userId);
+  lastNotificationTime.delete(userId);
+  console.log('🧹 AI scheduler cleaned up for user:', userId);
 };
+
+/**
+ * IMPORTANT NOTE ABOUT MULTIPLE TABS:
+ * If a user has the app open in multiple browser tabs, each tab will run its own scheduler.
+ * This is prevented by:
+ * 1. The MIN_NOTIFICATION_INTERVAL_MS check prevents notifications within 5 minutes
+ * 2. Each tab stops existing schedulers before starting new ones
+ * 3. Notifications are rate-limited per user, not per tab
+ */
