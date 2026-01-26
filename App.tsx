@@ -285,13 +285,15 @@ const AppContent: React.FC = () => {
   const mainNavItems = [
     { view: View.Dashboard, icon: <DashboardIcon />, label: 'Home' },
     { view: View.Planner, icon: <PlannerIcon />, label: 'Tasks' },
-    { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
+    { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
     {
       view: View.Pomodoro,
       icon: <PomodoroIcon />,
       label: 'Focus',
       hasActiveTimer: timerState.pomodoroIsRunning
     },
+    { view: View.Workouts, icon: <span>💪</span>, label: 'Workout' },
+    { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
     {
       view: View.SoloRoom,
       icon: <span>🧘</span>,
@@ -303,11 +305,9 @@ const AppContent: React.FC = () => {
       label: 'Garden',
       hasActiveTimer: timerState.studyCircleIsRunning
     },
-    { view: View.AIAssistant, icon: <AssistantIcon />, label: 'AI' },
   ];
 
   const activityNavItems = [
-    { view: View.Workouts, icon: <span>💪</span>, label: 'Workouts' },
     { view: View.Challenges, icon: <span>🎯</span>, label: 'Challenges' },
   ];
 

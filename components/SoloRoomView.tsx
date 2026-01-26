@@ -178,7 +178,7 @@ How did the session go? What did you accomplish?`;
   const progress = ((timerMinutes * 60 - timeLeft) / (timerMinutes * 60)) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-indigo-900/20 dark:to-slate-900 p-4 md:p-6">
+    <div className="h-full bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-indigo-900/20 dark:to-slate-900 p-4 md:p-6 overflow-auto">
 
       {/* Hero Header */}
       <div className="mb-8">
