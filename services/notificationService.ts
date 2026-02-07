@@ -1,33 +1,91 @@
 // services/notificationService.ts - Notification management for in-app and push notifications
 import { getToken, onMessage } from 'firebase/messaging';
-import { collection, addDoc, query, where, orderBy, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore';
-import { db, messaging, VAPID_KEY } from '../lib/firebase';
+import { collection, addDoc, query, where, orderBy, onSnapshot, updateDoc, doc, Timestamp, getDocs, deleteDoc } from 'firebase/firestore';
+import { db, messaging as firebaseMessaging, VAPID_KEY } from '../lib/firebase';
 import type { Notification, NotificationType, UserSettings } from '../types';
+
+// Register service worker for push notifications
+export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
+  if (!('serviceWorker' in navigator)) {
+    console.warn('Service workers not supported');
+    return null;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    });
+    console.log('✅ Service worker registered:', registration.scope);
+
+    // Check for updates
+    registration.addEventListener('updatefound', () => {
+      const newWorker = registration.installing;
+      if (newWorker) {
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') {
+            console.log('✅ Service worker updated and activated');
+          }
+        });
+      }
+    });
+
+    return registration;
+  } catch (error) {
+    console.error('Service worker registration failed:', error);
+    return null;
+  }
+};
+
+// Wait for messaging to be ready (handles async init race condition)
+const getMessagingInstance = async (): Promise<any> => {
+  if (firebaseMessaging) return firebaseMessaging;
+
+  // Wait up to 5 seconds for messaging to initialize
+  for (let i = 0; i < 50; i++) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (firebaseMessaging) return firebaseMessaging;
+  }
+
+  console.warn('Firebase Messaging not initialized after 5s');
+  return null;
+};
 
 // Request permission and get FCM token
 export const requestNotificationPermission = async (uid: string): Promise<string | null> => {
   try {
+    // First, ensure service worker is registered
+    const swRegistration = await registerServiceWorker();
+
+    const messaging = await getMessagingInstance();
     if (!messaging) {
-      console.warn('Firebase Messaging not initialized');
+      console.warn('Firebase Messaging not available');
       return null;
     }
 
     const permission = await Notification.requestPermission();
-
     if (permission !== 'granted') {
       console.log('Notification permission denied');
       return null;
     }
 
-    // Get FCM token
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY
-    });
+    if (!VAPID_KEY) {
+      console.warn('VAPID_KEY not configured. Set VITE_FIREBASE_VAPID_KEY in your .env file.');
+      console.warn('Get it from: Firebase Console > Project Settings > Cloud Messaging > Web Push certificates');
+      return null;
+    }
+
+    // Get FCM token with service worker registration
+    const tokenOptions: any = { vapidKey: VAPID_KEY };
+    if (swRegistration) {
+      tokenOptions.serviceWorkerRegistration = swRegistration;
+    }
+
+    const token = await getToken(messaging, tokenOptions);
 
     if (token) {
-      // Save token to Firestore
       await savePushToken(uid, token);
-      console.log('✅ FCM token obtained and saved:', token);
+      console.log('✅ FCM token obtained and saved');
       return token;
     }
 
@@ -140,9 +198,9 @@ export const setupNotificationsListener = (
 export const setupForegroundMessaging = (
   onMessageReceived: (payload: any) => void
 ) => {
-  if (!messaging) return () => {};
+  if (!firebaseMessaging) return () => {};
 
-  return onMessage(messaging, (payload) => {
+  return onMessage(firebaseMessaging, (payload) => {
     console.log('Foreground message received:', payload);
     onMessageReceived(payload);
 
@@ -181,9 +239,6 @@ export const shouldSendNotification = (settings: UserSettings): boolean => {
   if (isInQuietHours(settings)) return false;
   return true;
 };
-
-// Import getDocs and deleteDoc
-import { getDocs, deleteDoc } from 'firebase/firestore';
 
 // Delete all notifications for a user
 export const deleteAllNotifications = async (uid: string): Promise<void> => {

@@ -35,7 +35,69 @@ export enum View {
   Garden = 'Garden',
   Workouts = 'Workouts',
   Challenges = 'Challenges',
-  SoloRoom = 'Solo Room',
+}
+
+// ===========================
+// NOOR 2.0 AI TYPES
+// ===========================
+
+export type NoorState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'acting';
+
+export interface AIMemory {
+  id: string;
+  category: 'goal' | 'struggle' | 'preference' | 'milestone' | 'spiritual' | 'insight';
+  content: string;
+  createdAt: Date;
+  relevanceScore: number; // 0-1, decays over time
+  sourceConversationId?: string;
+}
+
+export interface AIAction {
+  type: 'createTask' | 'completeTask' | 'rescheduleTask' | 'logPrayer' | 'logQuranPages' | 'startPomodoro' | 'createStudyRoom';
+  params: Record<string, any>;
+  confidence: number; // 0-1
+  description: string; // human-readable description
+}
+
+export interface AIActionResult {
+  success: boolean;
+  message: string;
+  action: AIAction;
+}
+
+export interface NoorContext {
+  tasks: Task[];
+  prayerLogs: DailyPrayerLog[];
+  quranLogs: DailyQuranLog[];
+  pomodoroSettings: PomodoroSettings;
+  challenges: Challenge[];
+  workouts: WorkoutEntry[];
+  memories: AIMemory[];
+  mood?: 'great' | 'good' | 'neutral' | 'low' | 'stressed';
+  stats: {
+    totalTasks: number;
+    completedTasks: number;
+    completionRate: number;
+    currentStreak: number;
+    weeklyQuranPages: number;
+    todayPrayers: number;
+    focusMinutesToday: number;
+    treesPlanted: number;
+    activeChallenges: number;
+    weeklyWorkouts: number;
+  };
+}
+
+export interface DailyBriefing {
+  type: 'morning' | 'evening' | 'weekly';
+  greeting: string;
+  sections: {
+    title: string;
+    content: string;
+    icon?: string;
+  }[];
+  suggestedActions: AIAction[];
+  generatedAt: Date;
 }
 
 export enum Theme {

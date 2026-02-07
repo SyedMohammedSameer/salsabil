@@ -394,7 +394,6 @@ const getWeeklyStats = async (userId: string) => {
 const calculateQuranStreak = (quranLogs: any): number => {
   const dates = Object.keys(quranLogs).sort().reverse();
   let streak = 0;
-  const today = new Date().toISOString().split('T')[0];
 
   for (let i = 0; i < dates.length; i++) {
     const expectedDate = new Date();
