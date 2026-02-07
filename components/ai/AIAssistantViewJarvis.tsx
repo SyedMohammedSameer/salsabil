@@ -58,24 +58,61 @@ const useSpeechRecognition = () => {
   return { isListening, transcript, startListening, stopListening };
 };
 
-// Text-to-speech with better voice selection
-const speakText = (text: string, onComplete?: () => void) => {
+// Voice gender type
+type VoiceGender = 'female' | 'male';
+
+// Preferred voice names by gender (ordered by quality)
+const VOICE_PREFERENCES: Record<VoiceGender, string[]> = {
+  female: [
+    'Samantha',           // macOS — natural
+    'Google UK English Female',
+    'Google US English',  // Chrome — decent female default
+    'Microsoft Zira',     // Windows
+    'Karen',              // macOS AU
+    'Moira',              // macOS IE
+    'Tessa',              // macOS ZA
+    'Fiona',              // macOS
+    'Victoria',           // macOS
+    'Aria',               // Edge
+  ],
+  male: [
+    'Daniel',             // macOS UK — very natural
+    'Google UK English Male',
+    'Alex',               // macOS
+    'Microsoft David',    // Windows
+    'Microsoft Mark',     // Windows
+    'Thomas',             // macOS
+    'Fred',               // macOS
+    'Guy',                // Edge
+    'Rishi',              // macOS
+  ],
+};
+
+// Text-to-speech with gender-based voice selection
+const speakText = (text: string, gender: VoiceGender, onComplete?: () => void) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 0.95;
-  utterance.pitch = 1.05;
+  utterance.pitch = gender === 'female' ? 1.05 : 0.9;
   utterance.lang = 'en-US';
 
-  // Try to pick a natural-sounding female voice
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v =>
-    v.name.includes('Samantha') || v.name.includes('Google US English') ||
-    v.name.includes('Microsoft Zira') || v.name.includes('Karen') ||
-    (v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-  ) || voices.find(v => v.lang.startsWith('en-US')) || voices[0];
-  if (preferred) utterance.voice = preferred;
+  const prefs = VOICE_PREFERENCES[gender];
 
+  // Try preferred voices first (partial name match)
+  let voice = null;
+  for (const pref of prefs) {
+    voice = voices.find(v => v.name.includes(pref) && v.lang.startsWith('en'));
+    if (voice) break;
+  }
+
+  // Fallback: any English voice
+  if (!voice) {
+    voice = voices.find(v => v.lang.startsWith('en-US')) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+  }
+
+  if (voice) utterance.voice = voice;
   utterance.onend = () => onComplete?.();
   window.speechSynthesis.speak(utterance);
 };
@@ -133,6 +170,9 @@ const AIAssistantViewJarvis: React.FC<AIAssistantViewJarvisProps> = ({ tasks }) 
   const [memoriesString, setMemoriesString] = useState('');
   const [loadingContext, setLoadingContext] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceGender, setVoiceGender] = useState<VoiceGender>(() => {
+    return (localStorage.getItem('noor-voice-gender') as VoiceGender) || 'female';
+  });
   const [pendingActions, setPendingActions] = useState<AIAction[]>([]);
   const [actionResults, setActionResults] = useState<AIActionResult[]>([]);
 
@@ -380,7 +420,7 @@ const AIAssistantViewJarvis: React.FC<AIAssistantViewJarvisProps> = ({ tasks }) 
       const shouldSpeak = voiceEnabled || lastInputWasVoiceRef.current;
       lastInputWasVoiceRef.current = false;
       if (shouldSpeak) {
-        speakText(cleanText, () => setNoorState('idle'));
+        speakText(cleanText, voiceGender, () => setNoorState('idle'));
       } else {
         setTimeout(() => setNoorState('idle'), 1500);
       }
@@ -592,28 +632,48 @@ const AIAssistantViewJarvis: React.FC<AIAssistantViewJarvisProps> = ({ tasks }) 
               disabled={isLoading || isListening}
             />
 
-            {/* Voice toggle */}
-            <button
-              onClick={() => {
-                setVoiceEnabled(!voiceEnabled);
-                if (voiceEnabled) window.speechSynthesis.cancel();
-              }}
-              className={`p-3 rounded-xl transition-all flex-shrink-0 ${
-                voiceEnabled
-                  ? 'bg-noor-600/80 text-white'
-                  : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-400'
-              }`}
-              aria-label={voiceEnabled ? 'Disable voice' : 'Enable voice'}
-              title={voiceEnabled ? 'Voice ON' : 'Voice OFF'}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {voiceEnabled ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                )}
-              </svg>
-            </button>
+            {/* Voice toggle + gender selector */}
+            <div className="flex items-center flex-shrink-0">
+              <button
+                onClick={() => {
+                  setVoiceEnabled(!voiceEnabled);
+                  if (voiceEnabled) window.speechSynthesis.cancel();
+                }}
+                className={`p-3 rounded-l-xl transition-all ${
+                  voiceEnabled
+                    ? 'bg-noor-600/80 text-white'
+                    : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-400'
+                }`}
+                aria-label={voiceEnabled ? 'Disable voice' : 'Enable voice'}
+                title={voiceEnabled ? 'Voice ON' : 'Voice OFF'}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {voiceEnabled ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                  )}
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  const next: VoiceGender = voiceGender === 'female' ? 'male' : 'female';
+                  setVoiceGender(next);
+                  localStorage.setItem('noor-voice-gender', next);
+                  if (!voiceEnabled) setVoiceEnabled(true);
+                  // Preview the voice
+                  speakText(next === 'female' ? 'Hi, I\'m Noor.' : 'Hi, I\'m Noor.', next);
+                }}
+                className={`px-2.5 py-3 rounded-r-xl border-l border-slate-700/50 transition-all text-xs font-medium ${
+                  voiceEnabled
+                    ? 'bg-noor-700/60 text-noor-200'
+                    : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-400'
+                }`}
+                title={`Voice: ${voiceGender === 'female' ? 'Female' : 'Male'} — tap to switch`}
+              >
+                {voiceGender === 'female' ? 'F' : 'M'}
+              </button>
+            </div>
 
             {/* Send button */}
             <button

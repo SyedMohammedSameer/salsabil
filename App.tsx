@@ -24,7 +24,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
 import * as aiSchedulerService from './services/aiSchedulerService';
-import { registerServiceWorker, setupForegroundMessaging } from './services/notificationService';
+import { registerServiceWorker, setupForegroundMessaging, requestNotificationPermission } from './services/notificationService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
 
@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
     document.documentElement.classList.toggle('dark', theme === Theme.Dark);
   }, [theme]);
 
-  // Register service worker and set up foreground messaging on mount
+  // Register service worker, set up foreground messaging, and request push permission
   useEffect(() => {
     registerServiceWorker();
     const unsubscribe = setupForegroundMessaging((payload) => {
@@ -75,6 +75,15 @@ const AppContent: React.FC = () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
+
+  // Request push notification permission when user is logged in
+  useEffect(() => {
+    if (currentUser?.uid && Notification.permission !== 'denied') {
+      requestNotificationPermission(currentUser.uid).catch(err =>
+        console.warn('Push notification setup failed:', err)
+      );
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const path = window.location.pathname;
