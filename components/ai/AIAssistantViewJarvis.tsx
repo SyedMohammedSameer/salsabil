@@ -1,9 +1,10 @@
 // AIAssistantViewJarvis.tsx — Noor 2.0 Jarvis-style AI Interface
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Task, ChatMessage as ChatMessageType, NoorState, AIAction, AIActionResult } from '../../types';
+import { Task, ChatMessage as ChatMessageType, NoorState, AIAction, AIActionResult, NoorContext } from '../../types';
 import * as GroqService from '../../services/groqService';
 import * as firebaseService from '../../services/firebaseService';
+import { buildFullContext, contextToPromptString } from '../../services/aiContextService';
 import { useAuth } from '../../context/AuthContext';
 import JarvisOrb from './JarvisOrb';
 import NoorAmbientBackground from './NoorAmbientBackground';
@@ -57,14 +58,24 @@ const useSpeechRecognition = () => {
   return { isListening, transcript, startListening, stopListening };
 };
 
-// Text-to-speech
+// Text-to-speech with better voice selection
 const speakText = (text: string, onComplete?: () => void) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 0.95;
-  utterance.pitch = 1.0;
+  utterance.pitch = 1.05;
   utterance.lang = 'en-US';
+
+  // Try to pick a natural-sounding female voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v =>
+    v.name.includes('Samantha') || v.name.includes('Google US English') ||
+    v.name.includes('Microsoft Zira') || v.name.includes('Karen') ||
+    (v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+  ) || voices.find(v => v.lang.startsWith('en-US')) || voices[0];
+  if (preferred) utterance.voice = preferred;
+
   utterance.onend = () => onComplete?.();
   window.speechSynthesis.speak(utterance);
 };
@@ -128,6 +139,7 @@ const AIAssistantViewJarvis: React.FC<AIAssistantViewJarvisProps> = ({ tasks }) 
   const chatHistoryRef = useRef<{role: string, parts: {text: string}[]}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastInputWasVoiceRef = useRef(false);
   const { isListening, transcript, startListening, stopListening } = useSpeechRecognition();
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -140,72 +152,28 @@ const AIAssistantViewJarvis: React.FC<AIAssistantViewJarvisProps> = ({ tasks }) 
       setLoadingContext(true);
 
       try {
-        const [prayerLogs, quranLogs, pomodoroSettings, chatHistory] = await Promise.all([
-          firebaseService.loadPrayerLogs(currentUser.uid),
-          firebaseService.loadQuranLogs(currentUser.uid),
-          firebaseService.loadPomodoroSettings(currentUser.uid),
+        // Use the full context service — fetches tasks, prayers, quran, workouts, challenges, memories
+        const [noorContext, chatHistory] = await Promise.all([
+          buildFullContext(currentUser.uid, tasks),
           firebaseService.loadChatHistory(currentUser.uid)
         ]);
 
-        // Build context string
-        const totalTasks = tasks.length;
-        const completedTasks = tasks.filter(t => t.completed).length;
-        const completionRate = totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : '0';
-        const overdueTasks = tasks.filter(t => !t.completed && new Date(t.date) < new Date()).length;
-
-        // Today's prayers
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayPrayerLog = prayerLogs.find((l: any) => l.date === todayStr);
-        const todayPrayers = todayPrayerLog
-          ? Object.values(todayPrayerLog.prayers).filter((p: any) => p?.fardh).length
-          : 0;
-
-        // Quran streak
-        let quranStreak = 0;
-        for (let i = 0; i < 30; i++) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const ds = d.toISOString().split('T')[0];
-          const log = quranLogs.find((l: any) => l.date === ds);
-          if (log?.readQuran) quranStreak++;
-          else if (i === 0) continue;
-          else break;
-        }
-
-        const weeklyPages = quranLogs
-          .filter((l: any) => {
-            const d = new Date(l.date);
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            return d >= weekAgo;
-          })
-          .reduce((sum: number, l: any) => sum + (l.pagesRead || 0), 0);
-
-        const ctx = `=== TASKS & PRODUCTIVITY ===
-Total Tasks: ${totalTasks} | Completed: ${completedTasks} | Rate: ${completionRate}% | Overdue: ${overdueTasks}
-Recent Tasks:
-${tasks.slice(-8).map(t => `  ${t.completed ? '[Done]' : '[Pending]'} ${t.title} (${t.priority}, ${t.date})`).join('\n')}
-
-=== SPIRITUAL PROGRESS ===
-Today's Prayers: ${todayPrayers}/5 completed
-Quran Streak: ${quranStreak} days | Weekly Pages: ${weeklyPages}
-Recent Prayer Logs: ${prayerLogs.slice(-5).map((log: any) =>
-  `${log.date}: ${Object.values(log.prayers).filter((p: any) => p?.fardh).length}/5`
-).join(', ')}
-
-=== FOCUS SETTINGS ===
-Pomodoro: ${pomodoroSettings.workDuration}min work, ${pomodoroSettings.shortBreakDuration}min break
-
-=== CURRENT TIME ===
-${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekday: 'long' })})`;
+        // Convert full context to prompt string (includes all data dimensions)
+        const ctx = contextToPromptString(noorContext) + `\n\n=== ADHKAR ===\nAvailable categories: Morning Adhkar (17 items), Evening Adhkar (17 items), Before Sleep (9 items), Dua for Palestine (10 items).\nAdhkar progress resets per session (not persisted yet).\n\n=== CURRENT TIME ===\n${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekday: 'long' })})`;
 
         setContextString(ctx);
 
-        // TODO: Load memories when aiMemoryService is wired up
-        // For now, set empty
-        setMemoriesString('');
+        // Build memories string from context
+        if (noorContext.memories.length > 0) {
+          const memStr = noorContext.memories
+            .map(m => `[${m.category}] ${m.content} (relevance: ${m.relevanceScore})`)
+            .join('\n');
+          setMemoriesString(memStr);
+        } else {
+          setMemoriesString('');
+        }
 
-        // Load chat history
+        // Load chat history or generate proactive greeting
         if (chatHistory.length > 0) {
           setMessages(chatHistory);
           chatHistoryRef.current = chatHistory.map((msg: ChatMessageType) => ({
@@ -213,13 +181,14 @@ ${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekd
             parts: [{ text: msg.text }]
           }));
         } else {
-          const greeting: ChatMessageType = {
+          const greeting = generateProactiveGreeting(noorContext);
+          const greetingMsg: ChatMessageType = {
             id: Date.now().toString(),
-            text: getSmartGreeting(totalTasks, completedTasks, todayPrayers, quranStreak),
+            text: greeting,
             sender: 'ai',
             timestamp: new Date(),
           };
-          setMessages([greeting]);
+          setMessages([greetingMsg]);
         }
       } catch (error) {
         console.error('Error loading AI context:', error);
@@ -237,10 +206,11 @@ ${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekd
     loadData();
   }, [currentUser, tasks]);
 
-  // Auto-submit voice transcript
+  // Auto-submit voice transcript and flag it as voice input
   useEffect(() => {
     if (transcript && !isListening) {
       setInput(transcript);
+      lastInputWasVoiceRef.current = true;
       setTimeout(() => {
         if (transcript) handleSend(transcript);
       }, 300);
@@ -253,21 +223,72 @@ ${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekd
     else if (noorState === 'listening') setNoorState('idle');
   }, [isListening]);
 
-  const getSmartGreeting = (totalTasks: number, completed: number, prayers: number, streak: number): string => {
+  const generateProactiveGreeting = (ctx: NoorContext): string => {
     const hour = new Date().getHours();
-    const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : hour < 21 ? 'Good evening' : 'Assalamu Alaikum';
+    const { stats } = ctx;
 
+    // Time-aware greeting
+    let greeting: string;
+    if (hour >= 3 && hour < 7) greeting = "Assalamu Alaikum! Up early";
+    else if (hour < 12) greeting = "Good morning";
+    else if (hour < 17) greeting = "Hey, good afternoon";
+    else if (hour < 21) greeting = "Good evening";
+    else greeting = "Assalamu Alaikum, night owl";
+
+    // Build insights based on what's actually interesting in the data
     const insights: string[] = [];
-    if (totalTasks > 0) {
-      const rate = Math.round((completed / totalTasks) * 100);
-      insights.push(`You've completed ${completed} of ${totalTasks} tasks (${rate}%)`);
+    const nudges: string[] = [];
+
+    // Task insights
+    if (stats.totalTasks > 0) {
+      const pending = stats.totalTasks - stats.completedTasks;
+      const rate = Math.round(stats.completionRate * 100);
+      if (rate >= 80) insights.push(`You're crushing it — ${rate}% of your tasks done`);
+      else if (pending > 0) insights.push(`You've got ${pending} task${pending > 1 ? 's' : ''} waiting for you`);
     }
-    if (prayers > 0) insights.push(`${prayers}/5 prayers logged today`);
-    if (streak > 1) insights.push(`${streak}-day Quran reading streak going strong`);
 
-    const insightText = insights.length > 0 ? insights.join('. ') + '.' : "Let's make today count.";
+    // Prayer insight
+    if (stats.todayPrayers > 0 && stats.todayPrayers < 5) {
+      insights.push(`${stats.todayPrayers}/5 prayers logged so far today`);
+    } else if (stats.todayPrayers === 5) {
+      insights.push("All 5 prayers done today, MashaAllah");
+    } else if (hour > 10) {
+      nudges.push("Haven't logged any prayers yet — want a gentle reminder?");
+    }
 
-    return `${timeGreeting}! I'm Noor, your AI companion.\n\n${insightText}\n\nHow can I help you today?`;
+    // Quran streak
+    if (stats.weeklyQuranPages > 0) {
+      insights.push(`${stats.weeklyQuranPages} Quran pages this week`);
+    }
+
+    // Workout insight
+    if (stats.weeklyWorkouts > 0) {
+      insights.push(`${stats.weeklyWorkouts} workout${stats.weeklyWorkouts > 1 ? 's' : ''} this week`);
+    }
+
+    // Challenge insight
+    if (stats.activeChallenges > 0) {
+      insights.push(`${stats.activeChallenges} active challenge${stats.activeChallenges > 1 ? 's' : ''} running`);
+    }
+
+    // Memory-based personal touch
+    const goalMemory = ctx.memories.find(m => m.category === 'goal');
+    if (goalMemory) {
+      nudges.push(`Still working on "${goalMemory.content}"? I'm here to help.`);
+    }
+
+    // Time-specific suggestions
+    if (hour >= 3 && hour < 7) nudges.push("Perfect time for some Quran reading before the day starts.");
+    else if (hour >= 14 && hour < 16) nudges.push("Afternoon slump? Want me to start a Pomodoro session?");
+    else if (hour >= 21) nudges.push("Good time for your evening adhkar and a quick reflection.");
+
+    // Compose the message naturally
+    let message = `${greeting}! I'm Noor.\n\n`;
+    if (insights.length > 0) message += insights.join('. ') + '.\n\n';
+    if (nudges.length > 0) message += nudges[0] + '\n\n';
+    message += "What would you like to tackle?";
+
+    return message;
   };
 
   const saveMessagesToFirebase = useCallback(
@@ -355,8 +376,10 @@ ${new Date().toLocaleString()} (${new Date().toLocaleDateString('en-US', { weekd
         setNoorState('acting');
       }
 
-      // Voice output
-      if (voiceEnabled) {
+      // Voice output: auto-speak when voice toggle is on OR when user used voice input
+      const shouldSpeak = voiceEnabled || lastInputWasVoiceRef.current;
+      lastInputWasVoiceRef.current = false;
+      if (shouldSpeak) {
         speakText(cleanText, () => setNoorState('idle'));
       } else {
         setTimeout(() => setNoorState('idle'), 1500);
