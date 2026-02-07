@@ -10,14 +10,6 @@ import * as aiAnalyticsService from './aiAnalyticsService';
  * based on user-defined settings and quiet hours
  */
 
-interface ScheduledTask {
-  id: string;
-  userId: string;
-  type: 'ai-checkin' | 'reminder' | 'motivation';
-  scheduledFor: Date;
-  executed: boolean;
-}
-
 // In-memory store for active schedulers (per user session)
 const activeSchedulers = new Map<string, NodeJS.Timeout>();
 

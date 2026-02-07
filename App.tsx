@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Task, View, Theme } from './types';
 import PlannerViewImproved from './components/PlannerViewImproved';
 import CalendarViewImproved from './components/CalendarViewImproved';
-import AIAssistantViewImproved from './components/AIAssistantViewImproved';
+import AIAssistantViewJarvis from './components/ai/AIAssistantViewJarvis';
+import NoorMiniOrb from './components/ai/NoorMiniOrb';
 import DashboardViewImproved from './components/DashboardViewImproved';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
@@ -11,7 +12,6 @@ import QuranLogView from './components/QuranLogView';
 import AdhkarView from './components/AdhkarView';
 import WorkoutsViewImproved from './components/WorkoutsViewImproved';
 import ChallengesView from './components/ChallengesView';
-import SoloRoomView from './components/SoloRoomView';
 import NotificationCenter from './components/NotificationCenter';
 import UserSettingsModal from './components/UserSettingsModal';
 import ThemeToggle from './components/ThemeToggle';
@@ -23,6 +23,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimerProvider, useTimer } from './context/TimerContext';
 import * as firebaseService from './services/firebaseService';
 import * as aiSchedulerService from './services/aiSchedulerService';
+import { registerServiceWorker, setupForegroundMessaging } from './services/notificationService';
 import { SAMPLE_TASKS } from './constants';
 import GardenView from './components/GardenView';
 
@@ -51,6 +52,17 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === Theme.Dark);
   }, [theme]);
+
+  // Register service worker and set up foreground messaging on mount
+  useEffect(() => {
+    registerServiceWorker();
+    const unsubscribe = setupForegroundMessaging((payload) => {
+      console.log('Foreground push notification:', payload);
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -191,16 +203,18 @@ const AppContent: React.FC = () => {
   };
 
   const getViewTitle = (view: View) => {
-    const titles = {
+    const titles: Record<string, string> = {
       [View.Planner]: 'Weekly Planner',
       [View.Calendar]: 'Calendar',
-      [View.AIAssistant]: 'AI Assistant', 
+      [View.AIAssistant]: 'Noor AI',
       [View.Dashboard]: 'Dashboard',
       [View.Pomodoro]: 'Focus Timer',
       [View.Garden]: 'Garden',
       [View.PrayerTracker]: 'Prayer Tracker',
       [View.QuranLog]: 'Quran Reading Log',
-      [View.Adhkar]: 'Adhkar'
+      [View.Adhkar]: 'Adhkar',
+      [View.Workouts]: 'Workouts',
+      [View.Challenges]: 'Challenges',
     };
     return titles[view] || 'Salsabil';
   };
@@ -258,7 +272,7 @@ const AppContent: React.FC = () => {
       case View.Calendar:
         return <CalendarViewImproved tasks={tasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} setCurrentView={setCurrentView} />;
       case View.AIAssistant:
-        return <AIAssistantViewImproved tasks={tasks} />;
+        return <AIAssistantViewJarvis tasks={tasks} />;
       case View.Dashboard:
         return <DashboardViewImproved tasks={tasks} setCurrentView={setCurrentView} />;
       case View.Pomodoro:
@@ -269,16 +283,14 @@ const AppContent: React.FC = () => {
         return <WorkoutsViewImproved />;
       case View.Challenges:
         return <ChallengesView />;
-      case View.SoloRoom:
-        return <SoloRoomView />;
-      case View.PrayerTracker:
+case View.PrayerTracker:
         return <PrayerTrackerView />;
       case View.QuranLog:
         return <QuranLogView />;
       case View.Adhkar:
         return <AdhkarView />;
       default:
-        return <DashboardView tasks={tasks} />;
+        return <DashboardViewImproved tasks={tasks} setCurrentView={setCurrentView} />;
     }
   };
 
@@ -294,11 +306,6 @@ const AppContent: React.FC = () => {
     },
     { view: View.Workouts, icon: <span>💪</span>, label: 'Workout' },
     { view: View.Calendar, icon: <CalendarIcon />, label: 'Calendar' },
-    {
-      view: View.SoloRoom,
-      icon: <span>🧘</span>,
-      label: 'Solo Room'
-    },
     {
       view: View.Garden,
       icon: <GardenIcon />,
@@ -679,6 +686,14 @@ const AppContent: React.FC = () => {
             ))}
           </div>
         </nav>
+      )}
+
+      {/* Floating Noor Mini Orb */}
+      {currentUser && !dataLoading && (
+        <NoorMiniOrb
+          currentView={currentView}
+          onNavigateToAI={() => setCurrentView(View.AIAssistant)}
+        />
       )}
 
       {/* Render the Profile Modal */}

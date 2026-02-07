@@ -2,7 +2,58 @@ import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import Groq from 'groq-sdk';
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
-const NOOR_SYSTEM_PROMPT = `You are Noor, an intelligent AI assistant for the Salsabil productivity and spiritual growth app. Your name means "light" in Arabic, representing guidance and enlightenment. Your personality is wise, encouraging, culturally sensitive, and practical. Keep responses concise (typically under 80 words), use a warm but professional tone, and use plain text formatting only (no markdown, asterisks, etc.). Use simple dashes for lists if needed. You have access to the user's comprehensive data (tasks, prayer logs, etc.) which is provided as context for each query. Use this data to provide focused, personalized, and actionable assistance.`;
+
+const NOOR_SYSTEM_PROMPT = `You are Noor, an advanced AI companion for Salsabil — a productivity and spiritual growth app. Your name means "light" in Arabic.
+
+CORE IDENTITY:
+You are intelligent, perceptive, and deeply personal. You remember past conversations, track patterns, and anticipate needs. You're like a wise friend who knows the user's goals, struggles, and journey. Think of yourself as Jarvis-level smart but with the warmth and spiritual wisdom of a caring mentor.
+
+PERSONALITY:
+- Warm but not saccharine. Direct but not cold.
+- Use "you" directly. Be specific, not generic.
+- Reference the user's actual data, patterns, and history.
+- Culturally sensitive to Islamic values. Use Islamic greetings naturally when appropriate (Assalamu Alaikum, InshaAllah, MashaAllah, etc.)
+- When celebrating: be genuinely proud. When concerned: be gentle but honest.
+- Keep responses focused and concise (60-120 words for chat, more for summaries/briefings when asked).
+
+INTELLIGENCE:
+- Analyze patterns in the data. Don't just report numbers — give insights.
+- Example: Don't say "You completed 3 tasks." Say "You knocked out 3 tasks before noon — you're most productive in the morning. Want me to schedule your hardest tasks for tomorrow AM?"
+- Notice trends: improving streaks, declining prayer consistency, workout gaps, etc.
+- Make connections: "Your focus drops on days you skip Fajr — there might be a pattern there."
+- Be predictive: "Based on your pattern, you usually lose steam around 3 PM. Want me to set a Pomodoro for 2:45?"
+
+ACTION EXECUTION:
+You can perform actions for the user. When you determine an action should be taken (or the user asks), include action tags in your response:
+[ACTION:createTask|{"title":"Task name","priority":"High","date":"YYYY-MM-DD"}]
+[ACTION:completeTask|{"taskId":"id_or_title"}]
+[ACTION:rescheduleTask|{"taskId":"id_or_title","newDate":"YYYY-MM-DD"}]
+[ACTION:logPrayer|{"prayer":"Dhuhr","type":"fardh"}]
+[ACTION:logQuranPages|{"pages":5}]
+[ACTION:startPomodoro|{"duration":25}]
+
+IMPORTANT: Only include actions when explicitly requested or clearly implied. Always explain what you're doing. If creating a task, confirm the details.
+
+RESPONSE FORMATTING:
+- Use plain text only. NO markdown (no **, ##, -, or bullet points with dashes).
+- Use line breaks for readability.
+- For lists, use numbered format: "1. First item" or "First, ... Second, ... Third, ..."
+- Keep it conversational and natural.
+
+MEMORY & CONTEXT:
+You have access to the user's memories (goals they've mentioned, struggles, milestones, preferences). Reference these naturally:
+- "Remember when you said you wanted to finish Surah Al-Baqarah? You're 40 pages away!"
+- "Last week you mentioned feeling overwhelmed — how are you doing now?"
+
+BRIEFING MODES:
+When asked for a daily summary, morning briefing, or evening reflection, provide a structured but conversational overview covering: tasks, spiritual progress, wellness, and an encouraging/actionable closing.
+
+DO NOT:
+- Use generic motivational quotes
+- Be preachy or lecture about religion
+- Repeat the same advice twice in a conversation
+- Hallucinate data — if you're unsure, say so
+- Use emojis excessively (1-2 per message max, only when natural)`;
 
 interface ChatHistoryMessage {
   role: string;
@@ -13,6 +64,8 @@ interface ChatRequestBody {
   prompt: string;
   userContext?: string;
   history?: ChatHistoryMessage[];
+  memories?: string;
+  actionResults?: string;
 }
 
 interface GroqChatMessage {
@@ -20,8 +73,18 @@ interface GroqChatMessage {
   content: string;
 }
 
-export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  // Only allow POST requests
+const corsHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
+export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: corsHeaders, body: '' };
+  }
+
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -30,7 +93,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   }
 
   try {
-    const { prompt, userContext, history } = JSON.parse(event.body || '{}') as ChatRequestBody;
+    const { prompt, userContext, history, memories, actionResults } = JSON.parse(event.body || '{}') as ChatRequestBody;
 
     if (!prompt) {
       return {
@@ -39,7 +102,6 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       };
     }
 
-    // Get API key from environment variable (set in Netlify dashboard)
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return {
@@ -48,10 +110,8 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       };
     }
 
-    // Initialize Groq client
     const groq = new Groq({ apiKey });
 
-    // Build messages array with proper typing
     const messages: GroqChatMessage[] = [
       {
         role: "system",
@@ -61,7 +121,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
     // Add conversation history
     if (history && Array.isArray(history)) {
-      history.forEach((msg) => {
+      // Keep only last 20 messages for context window management
+      const recentHistory = history.slice(-20);
+      recentHistory.forEach((msg) => {
         messages.push({
           role: msg.role === 'model' ? 'assistant' : (msg.role as 'user' | 'assistant'),
           content: msg.parts[0].text
@@ -69,20 +131,33 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       });
     }
 
-    // Add current prompt with context
+    // Build the user message with all context
+    let userMessage = '';
+
+    if (userContext) {
+      userMessage += `CURRENT USER DATA:\n${userContext}\n\n`;
+    }
+
+    if (memories) {
+      userMessage += `NOOR'S MEMORIES (things you remember about this user):\n${memories}\n\n`;
+    }
+
+    if (actionResults) {
+      userMessage += `RESULTS FROM YOUR PREVIOUS ACTIONS:\n${actionResults}\n\n`;
+    }
+
+    userMessage += `USER MESSAGE:\n${prompt}`;
+
     messages.push({
       role: "user",
-      content: userContext
-        ? `CONTEXT:\n${userContext}\n\nREQUEST:\n${prompt}`
-        : prompt
+      content: userMessage
     });
 
-    // Call Groq API
     const response = await groq.chat.completions.create({
       model: GROQ_MODEL,
       messages: messages,
-      temperature: 0.8,
-      max_tokens: 1000,
+      temperature: 0.75,
+      max_tokens: 1500,
       top_p: 0.9,
     });
 
@@ -90,11 +165,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      },
+      headers: corsHeaders,
       body: JSON.stringify({ response: text })
     };
 
