@@ -5,6 +5,7 @@ import PlannerViewImproved from './components/PlannerViewImproved';
 import CalendarViewImproved from './components/CalendarViewImproved';
 import AIAssistantViewJarvis from './components/ai/AIAssistantViewJarvis';
 import NoorMiniOrb from './components/ai/NoorMiniOrb';
+import MeetNoorOnboarding from './components/ai/MeetNoorOnboarding';
 import DashboardViewImproved from './components/DashboardViewImproved';
 import PomodoroView from './components/PomodoroView';
 import PrayerTrackerView from './components/PrayerTrackerView';
@@ -38,7 +39,18 @@ const AppContent: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // State for the profile modal
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showNoorOnboarding, setShowNoorOnboarding] = useState(false);
+
+  // Check if user has seen Noor onboarding
+  useEffect(() => {
+    if (currentUser) {
+      const hasSeenOnboarding = localStorage.getItem(`noor-onboarding-${currentUser.uid}`);
+      if (!hasSeenOnboarding) {
+        setShowNoorOnboarding(true);
+      }
+    }
+  }, [currentUser]);
 
   // Detect mobile screen size
   useEffect(() => {
@@ -686,6 +698,17 @@ case View.PrayerTracker:
             ))}
           </div>
         </nav>
+      )}
+
+      {/* Meet Noor Onboarding */}
+      {showNoorOnboarding && currentUser && (
+        <MeetNoorOnboarding
+          onComplete={() => {
+            setShowNoorOnboarding(false);
+            localStorage.setItem(`noor-onboarding-${currentUser.uid}`, 'true');
+            setCurrentView(View.AIAssistant);
+          }}
+        />
       )}
 
       {/* Floating Noor Mini Orb */}
