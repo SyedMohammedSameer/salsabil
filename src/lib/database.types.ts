@@ -36,6 +36,7 @@ export type CoinAction =
   | 'tree_purchase'
   | 'achievement_bonus'
 export type ChatRole = 'user' | 'assistant' | 'system'
+export type TimerState = 'idle' | 'running' | 'paused' | 'done'
 
 // ─── Database schema ─────────────────────────────────────────────────────────
 
@@ -424,6 +425,80 @@ export interface Database {
         }
         Relationships: []
       }
+      study_rooms: {
+        Row: {
+          id: string
+          code: string
+          name: string
+          description: string | null
+          owner_id: string
+          is_public: boolean
+          max_participants: number
+          timer_duration: number
+          timer_state: TimerState
+          timer_started_at: string | null
+          timer_remaining: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          name: string
+          description?: string | null
+          owner_id: string
+          is_public?: boolean
+          max_participants?: number
+          timer_duration?: number
+        }
+        Update: {
+          name?: string
+          description?: string | null
+          is_public?: boolean
+          max_participants?: number
+          timer_duration?: number
+          timer_state?: TimerState
+          timer_started_at?: string | null
+          timer_remaining?: number | null
+        }
+        Relationships: []
+      }
+      room_participants: {
+        Row: {
+          id: string
+          room_id: string
+          user_id: string
+          display_name: string | null
+          joined_at: string
+          last_seen_at: string
+        }
+        Insert: {
+          room_id: string
+          user_id: string
+          display_name?: string | null
+          last_seen_at?: string
+        }
+        Update: {
+          last_seen_at?: string
+        }
+        Relationships: []
+      }
+      room_messages: {
+        Row: {
+          id: string
+          room_id: string
+          user_id: string
+          display_name: string | null
+          content: string
+          created_at: string
+        }
+        Insert: {
+          room_id: string
+          user_id: string
+          display_name?: string | null
+          content: string
+        }
+        Update: never
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -440,6 +515,7 @@ export interface Database {
       challenge_status: ChallengeStatus
       coin_action: CoinAction
       chat_role: ChatRole
+      timer_state: TimerState
     }
     CompositeTypes: Record<string, never>
   }
@@ -460,3 +536,6 @@ export type Achievement = Database['public']['Tables']['achievements']['Row']
 export type CoinTransaction = Database['public']['Tables']['coin_transactions']['Row']
 export type ChatMessage = Database['public']['Tables']['chat_messages']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
+export type StudyRoom = Database['public']['Tables']['study_rooms']['Row']
+export type RoomParticipant = Database['public']['Tables']['room_participants']['Row']
+export type RoomMessage = Database['public']['Tables']['room_messages']['Row']

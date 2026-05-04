@@ -27,7 +27,7 @@ function pause(m: TimerMachine): TimerMachine {
   return m
 }
 
-function reset(m: TimerMachine, durationSecs: number): TimerMachine {
+function reset(_m: TimerMachine, durationSecs: number): TimerMachine {
   return { state: 'idle', remaining: durationSecs, total: durationSecs }
 }
 

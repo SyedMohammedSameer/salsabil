@@ -1,8 +1,8 @@
 import type { Handler, HandlerEvent } from '@netlify/functions'
 import OpenAI from 'openai'
 
-// Free model on OpenRouter — change here to swap models
-const MODEL = 'meta-llama/llama-3.3-70b-instruct:free'
+// Fast free model on OpenRouter (8B — ~3x faster than 70B, still great quality)
+const MODEL = 'meta-llama/llama-3.1-8b-instruct:free'
 
 const NOOR_SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
