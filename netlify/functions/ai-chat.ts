@@ -1,7 +1,8 @@
 import type { Handler, HandlerEvent } from '@netlify/functions'
-import Groq from 'groq-sdk'
+import OpenAI from 'openai'
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
+// Free model on OpenRouter — change here to swap models
+const MODEL = 'meta-llama/llama-3.3-70b-instruct:free'
 
 const NOOR_SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
@@ -75,7 +76,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     return { statusCode: 405, headers: cors, body: JSON.stringify({ error: 'Method not allowed' }) }
   }
 
-  const apiKey = process.env.GROQ_API_KEY
+  const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Server misconfiguration' }) }
   }
@@ -93,26 +94,31 @@ export const handler: Handler = async (event: HandlerEvent) => {
   }
 
   try {
-    const groq = new Groq({ apiKey })
+    const client = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://salsabil.app',
+        'X-Title': 'Salsabil',
+      },
+    })
 
-    const messages: Groq.Chat.ChatCompletionMessageParam[] = [
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: NOOR_SYSTEM_PROMPT },
     ]
 
-    // Include up to last 20 history messages for context
     for (const msg of history.slice(-20)) {
       messages.push({ role: msg.role, content: msg.content })
     }
 
-    // Inject user context (app data) before the user message
     const userContent = context
       ? `USER CONTEXT:\n${context}\n\nUSER MESSAGE:\n${message}`
       : message
 
     messages.push({ role: 'user', content: userContent })
 
-    const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+    const completion = await client.chat.completions.create({
+      model: MODEL,
       messages,
       temperature: 0.75,
       max_tokens: 1500,
@@ -134,7 +140,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
       }),
     }
   } catch (err) {
-    console.error('Groq error:', err)
+    console.error('OpenRouter error:', err)
     const msg = err instanceof Error ? err.message : String(err)
     const status = msg.includes('401') ? 401 : msg.includes('429') ? 429 : 500
     return {

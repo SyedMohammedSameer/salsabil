@@ -10,7 +10,7 @@
 
 | Decision | Choice |
 |---|---|
-| AI (V1) | Groq — `llama-3.3-70b-versatile` via Netlify function |
+| AI (V1) | OpenRouter — `meta-llama/llama-3.3-70b-instruct:free` via Netlify function (strictly free) |
 | AI (V2) | Anthropic Claude API — `claude-sonnet-4-6` |
 | Database | Supabase — new org |
 | Hosting | Netlify (`salsabil.netlify.app`, .com later) |
@@ -39,7 +39,7 @@
 | Command palette | cmdk | Cmd+K power user layer |
 | Virtual lists | @tanstack/react-virtual | Long task/session lists at 60fps |
 | Auth + DB | Supabase | Postgres, RLS, realtime, storage |
-| AI V1 | Groq SDK via Netlify function | Keep existing |
+| AI V1 | OpenRouter (openai-compat SDK) via Netlify function | Free tier, `llama-3.3-70b-instruct:free` |
 | AI V2 | Anthropic SDK via Netlify function | Claude tool use, streaming, caching |
 | Testing (unit) | Vitest + Testing Library | Fast, Vite-native |
 | Testing (e2e) | Playwright | Full browser automation |
@@ -148,7 +148,7 @@ NoorMiniOrb rendered inside Navigation, hidden on /ai route.
 ## Version 1 — Foundation
 
 **Goal:** Polished, tested, production-ready core.  
-**Scope:** Auth, Dashboard, Prayer, Quran, Adhkar, Tasks, Calendar/Planner, Pomodoro, Garden, Noor (Groq), Notifications, Challenges.  
+**Scope:** Auth, Dashboard, Prayer, Quran, Adhkar, Tasks, Calendar/Planner, Pomodoro, Garden, Noor (OpenRouter free), Notifications, Challenges.  
 **Non-negotiable:** Every view uses the same design system. No exceptions.
 
 ---
@@ -452,9 +452,9 @@ GardenView.tsx          React shell, handles tabs and overlays
 - Timer killed → `is_alive: false` → tree wilts in real time
 - Garden subscribes to `focus_sessions` via Supabase Realtime — no polling
 
-#### 5D — Noor AI V1 (Groq)
+#### 5D — Noor AI V1 (OpenRouter)
 - `/ai` route: full-screen panel
-- Groq via Netlify function — same architecture as current, rewritten clean
+- OpenRouter via Netlify function (openai-compat SDK) — `meta-llama/llama-3.3-70b-instruct:free`
 - Full context injected server-side: prayers, tasks, sessions, streaks, time of day
 - Streaming response — chunk by chunk rendering as tokens arrive
 - Voice input: Web Speech API → transcript → auto-send
@@ -574,11 +574,11 @@ CI: GitHub Actions — unit+integration on every push, E2E on PR to main.
 ### Phase 1 — Claude API + Noor V2
 
 #### 1A — Claude Migration
-- Replace Groq with Anthropic Claude API (`claude-sonnet-4-6`)
+- Replace OpenRouter free model with Anthropic Claude API (`claude-sonnet-4-6`)
 - `claude-haiku-4-5` for fast ops (action confirmations, quick summaries)
 - Prompt caching on system prompt — `cache_control: {type: "ephemeral"}` on first 2 turns
 - Streaming: `stream: true` — chunks rendered token by token in UI
-- Netlify function `claude-chat.ts` replaces `groq-chat.ts`
+- Netlify function `claude-chat.ts` replaces `ai-chat.ts`
 - All existing prompt structure migrated and improved
 
 #### 1B — Full Context Injection (Server-Side Only)
@@ -934,8 +934,8 @@ salsabil/
 │       └── formatting.ts
 ├── netlify/
 │   └── functions/
-│       ├── groq-chat.ts          # V1 AI
-│       ├── claude-chat.ts        # V2 AI (replaces groq-chat)
+│       ├── ai-chat.ts            # V1 AI (OpenRouter free)
+│       ├── claude-chat.ts        # V2 AI (replaces ai-chat)
 │       ├── claude-actions.ts     # V2 tool execution
 │       ├── award-coins.ts        # V2 server-side coin award
 │       ├── push-notify.ts        # Web Push sender

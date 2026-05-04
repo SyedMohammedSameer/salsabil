@@ -1,8 +1,10 @@
 import { Outlet, useNavigation } from 'react-router-dom'
 import { Navigation } from './Navigation'
+import { CommandPalette, useCommandPalette } from '@/components/shared/CommandPalette'
 
 export function RootLayout() {
   const { state } = useNavigation()
+  const { open, setOpen } = useCommandPalette()
 
   return (
     <div className="flex h-dvh bg-background text-foreground">
@@ -25,6 +27,9 @@ export function RootLayout() {
       >
         <Outlet />
       </main>
+
+      {/* Global Cmd+K command palette */}
+      <CommandPalette open={open} onClose={() => setOpen(false)} />
     </div>
   )
 }
