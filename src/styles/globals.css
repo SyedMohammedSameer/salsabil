@@ -1,0 +1,238 @@
+@import 'tailwindcss';
+
+/* ─── Dark mode variant ──────────────────────────────────────────────────── */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── Brand tokens ───────────────────────────────────────────────────────── */
+@theme {
+  /* Noor teal — primary brand */
+  --color-noor-50: #f0fdfa;
+  --color-noor-100: #ccfbf1;
+  --color-noor-200: #99f6e4;
+  --color-noor-300: #5eead4;
+  --color-noor-400: #2dd4bf;
+  --color-noor-500: #14b8a6;
+  --color-noor-600: #0d9488;
+  --color-noor-700: #0f766e;
+  --color-noor-800: #115e59;
+  --color-noor-900: #134e4a;
+  --color-noor-950: #042f2e;
+
+  /* Accent emerald — success, streaks */
+  --color-accent-50: #ecfdf5;
+  --color-accent-100: #d1fae5;
+  --color-accent-400: #34d399;
+  --color-accent-500: #10b981;
+  --color-accent-600: #059669;
+  --color-accent-700: #047857;
+
+  /* Warn amber — reminders */
+  --color-warn-400: #fbbf24;
+  --color-warn-500: #f59e0b;
+  --color-warn-600: #d97706;
+
+  /* Danger red — errors, kills */
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+
+  /* Islamic gold */
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+
+  /* Typography */
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', 'Fira Code', monospace;
+
+  /* Border radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+}
+
+/* ─── Semantic CSS variables (shadcn-compatible) ─────────────────────────── */
+:root {
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.627 0.131 177.9);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.961 0.01 177.9);
+  --secondary-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.961 0.005 177.9);
+  --muted-foreground: oklch(0.556 0.02 177.9);
+  --accent: oklch(0.961 0.01 177.9);
+  --accent-foreground: oklch(0.145 0 0);
+  --destructive: oklch(0.577 0.245 27.3);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.922 0.005 177.9);
+  --input: oklch(0.922 0.005 177.9);
+  --ring: oklch(0.627 0.131 177.9);
+  --sidebar: oklch(0.985 0.003 177.9);
+  --sidebar-border: oklch(0.914 0.007 177.9);
+}
+
+.dark {
+  --background: oklch(0.112 0.008 177.9);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.148 0.01 177.9);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.148 0.01 177.9);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.627 0.131 177.9);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.21 0.015 177.9);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.21 0.015 177.9);
+  --muted-foreground: oklch(0.65 0.02 177.9);
+  --accent: oklch(0.21 0.015 177.9);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.577 0.245 27.3);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.245 0.015 177.9);
+  --input: oklch(0.245 0.015 177.9);
+  --ring: oklch(0.627 0.131 177.9);
+  --sidebar: oklch(0.13 0.01 177.9);
+  --sidebar-border: oklch(0.245 0.015 177.9);
+}
+
+/* ─── Map CSS vars to Tailwind utilities ─────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-border: var(--sidebar-border);
+  --radius-default: var(--radius-lg);
+}
+
+/* ─── Base styles ────────────────────────────────────────────────────────── */
+* {
+  border-color: var(--border);
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings:
+    'rlig' 1,
+    'calt' 1;
+  min-height: 100dvh;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* ─── Geist font (self-hosted via CDN preload) ───────────────────────────── */
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Regular.woff2')
+    format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Medium.woff2')
+    format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-SemiBold.woff2')
+    format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Bold.woff2')
+    format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-mono/GeistMono-Regular.woff2')
+    format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* ─── Glassmorphism utility ──────────────────────────────────────────────── */
+@utility glass {
+  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+@utility glass-dark {
+  backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ─── Focus visible global ───────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ─── Scrollbar (subtle, matches theme) ─────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* ─── Selection colour ───────────────────────────────────────────────────── */
+::selection {
+  background: oklch(0.627 0.131 177.9 / 0.25);
+}
+
+/* ─── Arabic text rendering ──────────────────────────────────────────────── */
+.arabic {
+  font-family: 'Amiri', 'Scheherazade New', serif;
+  direction: rtl;
+  line-height: 2;
+}
