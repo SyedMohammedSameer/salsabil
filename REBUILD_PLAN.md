@@ -1,8 +1,8 @@
-# Salsabil — Full Rebuild Plan
+# Salsabil — Full Rebuild Plan (Final)
 
-> **Status:** Planning — ready to implement  
-> **Goal:** SF Bay Area startup-grade production app  
-> **Audience:** Muslim productivity users blending faith practice with focused work  
+> **Status:** Ready to build  
+> **Goal:** Peak-level fullstack product. SF Bay Area startup quality.  
+> **Principle:** Every view looks like it came from the same designer on the same day.
 
 ---
 
@@ -10,546 +10,644 @@
 
 | Decision | Choice |
 |---|---|
-| AI (V1) | Keep Groq (llama-3.3-70b-versatile) via Netlify function |
-| AI (V2) | Upgrade to Anthropic Claude API |
+| AI (V1) | Groq — `llama-3.3-70b-versatile` via Netlify function |
+| AI (V2) | Anthropic Claude API — `claude-sonnet-4-6` |
 | Database | Supabase — new org |
 | Hosting | Netlify (`salsabil.netlify.app`, .com later) |
 | Analytics | Self-hosted Umami |
-| Logo + icons | Carry over from existing (`salsabil-original.png` + all icon sizes) |
-| Brand colors | Teal/emerald primary (see Design System below) |
-| Theme | Dark + Light, both first-class |
+| Logo + icons | Carry over (`salsabil-original.png` 4096×4096 + all icon sizes) |
+| Brand primary | Teal `#14b8a6` — not blue (correcting original mistake) |
+| Themes | Dark + Light, both first-class, system preference on first load |
 
 ---
 
-## Stack
+## Final Stack
 
-| Layer | Choice | Reason |
+| Layer | Package | Why |
 |---|---|---|
-| Build | Vite + React 19 + TypeScript | Keep — already correct |
-| Styling | Tailwind v4 + shadcn/ui | shadcn gives owned, accessible primitives |
-| Animation | Framer Motion | Meaningful transitions only |
-| Garden rendering | PixiJS | GPU-accelerated 2D, Forest-app tier quality |
-| Auth + DB | Supabase | Postgres, RLS, versioned migrations |
-| AI V1 | Groq (Netlify function) | Keep existing, already works |
-| AI V2 | Anthropic Claude API | Context-aware, tool-use, streaming |
-| Notifications | Web Push API + Supabase | Replace Firebase FCM |
-| Router | React Router v7 | File-based routes, deep link support |
+| Build | Vite 6 + React 19 + TypeScript (strict) | Already correct |
+| Styling | Tailwind v4 + shadcn/ui | Owned primitives, no fighting a library |
+| Variants | class-variance-authority (CVA) | Replaces string-concat designSystem.ts |
+| Server state | TanStack Query v5 | Caching, background refetch, optimistic updates — this is what makes it feel instant |
+| Client state | Zustand v5 | Lightweight, no boilerplate |
+| Forms | React Hook Form + Zod | Type-safe validation, zero re-renders |
+| Animation | Framer Motion v12 | Page transitions, micro-interactions |
+| Garden | PixiJS v8 + GSAP v3 | GPU 2D canvas, GSAP for wind physics |
+| Router | React Router v7 | Lazy routes, deep link support |
+| Toasts | Sonner | Best-in-class, accessible |
+| Bottom sheets | Vaul | Native-feel mobile drawers |
+| Command palette | cmdk | Cmd+K power user layer |
+| Virtual lists | @tanstack/react-virtual | Long task/session lists at 60fps |
+| Auth + DB | Supabase | Postgres, RLS, realtime, storage |
+| AI V1 | Groq SDK via Netlify function | Keep existing |
+| AI V2 | Anthropic SDK via Netlify function | Claude tool use, streaming, caching |
+| Testing (unit) | Vitest + Testing Library | Fast, Vite-native |
+| Testing (e2e) | Playwright | Full browser automation |
+| DB tests | pgTAP | SQL-level RLS testing |
+| Linting | ESLint + eslint-plugin-tailwindcss | Enforces no arbitrary values in components |
+| Git hooks | Husky + lint-staged | Type-check + lint on every commit |
+
+### What makes this peak vs just good
+
+- **TanStack Query** — every Supabase query is cached. Navigate away and back = instant load from cache, background refetch silently updates. No spinner on repeat visits.
+- **CVA** — every component has typed variants. `<Button variant="primary" size="lg">` — zero string guessing, zero one-off styles in view files.
+- **Skeleton loaders everywhere** — no spinners. Skeletons match the exact shape of the content loading. Feels fast even on slow connections.
+- **Vaul bottom sheets** — on mobile, "Add task", "Log prayer", "Log Quran" all open as native-feel bottom sheets, not centred modals.
+- **cmdk command palette** — Cmd+K opens a global search/action palette. Type "add task", "start focus", "log prayer" — power users never touch the nav.
+- **View Transitions API** — page changes have a smooth crossfade. Not Framer Motion — the browser's native transition API, zero JS cost.
+- **eslint-plugin-tailwindcss** — CI fails if any component file uses an arbitrary Tailwind value (`text-[#abc]`, `p-[13px]`). Forces everything through the token system. This is what enforces uniformity.
 
 ---
 
-## Why Supabase over Firebase
+## Design System (Definitive)
 
-- Postgres gives real relational schema — prayers, tasks, sessions have foreign keys
-- RLS policies are testable SQL — not Firestore DSL that nobody can verify
-- Migrations are versioned files — schema changes are tracked, rollback-safe
-- `supabase start` for full local dev
-- **User migration:** Google OAuth users re-authenticate seamlessly (OAuth flow is identical, no action needed on their part). Email/password users get a password reset email. Data starts fresh as agreed.
+### Brand Tokens (Tailwind config)
+
+```
+noor-50:   #f0fdfa     noor-500:  #14b8a6  ← primary brand
+noor-100:  #ccfbf1     noor-600:  #0d9488
+noor-200:  #99f6e4     noor-700:  #0f766e
+noor-300:  #5eead4     noor-800:  #115e59
+noor-400:  #2dd4bf     noor-900:  #134e4a
+
+accent-500: #10b981    ← emerald, success, streaks
+warn-500:   #f59e0b    ← amber, reminders
+danger-500: #ef4444    ← red, errors, kills
+gold-500:   #f59e0b    ← Islamic gold accents
+
+PWA theme-color: #14b8a6
+```
+
+### 8-Point Grid
+All spacing is multiples of 8px. Tailwind units: `2=8px, 4=16px, 6=24px, 8=32px, 12=48px, 16=64px`. No `p-5`, no `p-3` except for tight inline text padding. This is what makes spacing feel intentional.
+
+### Typography Scale
+- Display: `text-4xl font-bold tracking-tight` — hero stats, timer
+- H1: `text-3xl font-bold`
+- H2: `text-2xl font-semibold`
+- H3: `text-xl font-semibold`
+- Body: `text-base` — 16px, line-height 1.6
+- Small: `text-sm` — 14px
+- Mono: `font-mono` — timers, counts, coin amounts
+- Font: Geist Sans + Geist Mono (loaded via CDN, preconnect)
+
+### Component Anatomy Rules
+These apply to every component, no exceptions:
+- Cards: `rounded-2xl bg-card border border-border shadow-sm p-6`
+- Modals: `rounded-3xl` on desktop, bottom sheet (Vaul) on mobile
+- Inputs: `rounded-xl border-input bg-background h-12 px-4` (min 44px touch target)
+- Buttons: `rounded-xl font-medium` — primary uses teal, sizes: sm/md/lg
+- All interactive elements: `min-h-[44px] min-w-[44px]` (WCAG touch target)
+- Focus rings: `focus-visible:ring-2 focus-visible:ring-noor-500 focus-visible:ring-offset-2`
+
+### Glassmorphism — Surgical Only
+```css
+.glass { backdrop-blur: 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); }
+.glass-dark { backdrop-blur: 20px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); }
+```
+Used on: sidebar rail, floating orb, modal backdrops, notification cards.
+Never on: list items, table rows, full-page backgrounds.
+
+### Uniformity Enforcement
+- `eslint-plugin-tailwindcss` — blocks arbitrary values in source files
+- `PageShell` component wraps every view — consistent max-width, padding, header slot
+- `SectionHeader` component — consistent h2 + subtitle + optional action button
+- `EmptyState` component — consistent illustrated empty states, not raw text
+- `SkeletonLoader` variants — match exact layout of each view's loaded state
+- Zero inline styles anywhere. Zero `style={{}}` in JSX.
 
 ---
 
-## Design System
-
-### Brand Colors (carried from original, corrected)
-
-The original app defined these in `tailwind.config.js` — we keep them, but promote **teal** as the true primary (the original used blue as primary but the whole visual identity is teal/emerald):
+## Navigation (Final Spec — Do Not Change During Build)
 
 ```
-noor teal:    #14b8a6  (primary brand color, Noor AI, active states)
-accent:       #10b981  (emerald, success states, streak indicators)
-warm sand:    #f5f0e8  (light mode backgrounds)
-deep slate:   #0f172a  (dark mode backgrounds)
+Desktop ≥1024px:
+  Left rail, fixed
+  Collapsed (default): 64px — icon only, tooltip on hover
+  Expanded: 240px — icon + label, toggle with chevron at bottom
+  Active: teal left-edge bar (4px) + filled icon + teal label
+  Hover: subtle bg-noor-50/10 pill
+  Groups: Core / Spiritual / Growth / (bottom) AI + Settings
+
+Mobile <1024px:
+  Bottom tab bar, fixed, z-50
+  Height: 64px + safe-area-inset-bottom
+  5 slots: Dashboard | Focus | Noor | Prayers | More
+  "More" opens Vaul bottom sheet with remaining nav items
+  Active: filled icon + teal label
+  NO hamburger. NO slide drawer. NO top navbar on mobile.
+
+Both rendered by one <Navigation> component.
+useNavigation() hook owns active route.
+Framer Motion layoutId="nav-pill" for active transition.
+NoorMiniOrb rendered inside Navigation, hidden on /ai route.
 ```
-
-PWA `theme-color`: `#14b8a6` (was `#3b82f6` — correcting this)
-
-### Typography
-- Geist Sans — body, UI
-- Geist Mono — timers, stats, coin counts
-
-### Glassmorphism — Surgical Use Only
-- Sidebar rail, modals, floating cards
-- Rule: glass = `backdrop-blur-xl bg-white/10 dark:bg-black/20 border border-white/20`
-- Never apply to full-page backgrounds or list items
-
-### Dark / Light Mode
-- CSS variables on `:root` and `.dark`
-- Toggled via `<html class="dark">`, persisted in `localStorage`
-- System preference respected on first load
-- `prefers-reduced-motion` respected throughout
-
-### Assets to Carry Over
-- `public/salsabil-original.png` — 4096×4096 source logo, copy directly
-- All `public/salsabil-icon-*.png` sizes — copy directly
-- `public/favicon.ico` + `public/favicon.png` — copy directly
-- `public/manifest.json` — rewrite content but keep icon references
-
----
-
-## Navigation — Locked Pattern
-
-Specified up front because this has broken before. **Do not deviate from this.**
-
-```
-Desktop (≥1024px):
-  Left sidebar rail
-  Collapsed: 64px wide — icons only
-  Expanded: 240px wide — icons + labels
-  Toggle chevron at bottom of rail
-  Active state: teal accent bar on left edge + filled icon
-  Max 8 items; overflow goes to Settings page link
-
-Mobile (<1024px):
-  Bottom tab bar — fixed, safe-area-inset-bottom padding
-  5 primary items max
-  Overflow items accessible via "More" bottom sheet
-  Active: filled icon + label in teal
-  NO hamburger menus. NO slide-out drawers. Zero exceptions.
-```
-
-Single `<Navigation>` component renders both layouts via responsive CSS.  
-`useNavigation` hook owns active route state.  
-Framer Motion `layoutId` for active indicator animation.
-
-**Nav items (primary 5 for mobile):**
-1. Dashboard (Home)
-2. Focus (Pomodoro + Garden combined entry)
-3. Noor (AI)
-4. Prayers
-5. More → sheet with: Tasks, Calendar, Quran, Adhkar, Workouts, Challenges
-
-**Desktop sidebar groups:**
-- Core: Dashboard, Focus, Tasks, Calendar
-- Spiritual: Prayers, Quran, Adhkar
-- Growth: Challenges, Workouts
-- Bottom: Noor AI, Profile/Settings
-
----
-
-## Feature Completeness Audit
-
-Cross-checked against original app. Everything below must be in the rebuild.
-
-### V1 Core (was missing from first draft of plan)
-- **Calendar view** — monthly grid with task dots, tap day to see tasks. Separate from the weekly Planner. Original had `CalendarViewImproved.tsx` as a distinct view.
-- **Weekly Planner** — week columns, time slots, task cards. Separate from Calendar.
-- **Fardh + Sunnah tracking** — original prayer tracker tracks both. Schema must store both. Plan had only fardh.
-- **Tahajjud** — 6th prayer type in the original. Include in schema and UI.
-- **Noor Mini Orb** — floating persistent bubble across all non-AI views. Tap = open Noor panel. Shows notification badge when Noor has a suggestion.
-- **Noor onboarding flow** — "Meet Noor" first-time walkthrough (4 steps: Meet / She Listens / She Thinks / She Acts). Shown once per user, stored in Supabase profile.
-- **Text-to-speech** — Noor speaks her responses aloud. Web Speech API, gender-selectable voice, platform-native voice quality (Samantha on macOS, Daniel on macOS UK, etc.). User can mute in settings.
-- **In-app Notification Center** — bell icon in header, list of unread in-app notifications (AI check-ins, streak alerts, challenge updates).
-- **Push notifications** — Web Push API via Supabase Edge Functions or Netlify. Replaces Firebase FCM. User grants permission on first login.
-- **Deep links for Study Rooms** — `/join/:roomId` route handling. Original had this. Must carry forward. Store pending invite in sessionStorage, resolve after auth.
-
-### V2 Additions (was missing from first draft)
-- **AI long-term memory** — original had `aiMemoryService.ts` with category-based memory (goals, struggles, preferences, milestones, spiritual, insights) and a relevance decay score. V2 stores this in Supabase `ai_memories` table instead of Firestore.
-- **AI Personality Profile** — original tracked `communicationStyle`, `engagementRate`, `mostProductiveTime`, `prayerConsistencyScore` etc. V2 carries this forward in `user_ai_profiles` table, updated by background analysis.
-- **Challenges with templates** — original had 75 Hard, 21-Day Consistency, Ramadan Challenge templates plus custom rules. Keep all three templates. Ramadan template is important (Islamic context).
-- **Challenge XP system** — original had XP per challenge day. In rebuild, XP is replaced by coins but the mechanic (daily check-off + reward) stays.
 
 ---
 
 ## Version 1 — Foundation
 
 **Goal:** Polished, tested, production-ready core.  
-**Scope:** Dashboard, Prayer, Quran, Adhkar, Tasks, Planner, Calendar, Pomodoro, Garden, Noor (Groq), Notifications.  
-**Timeline estimate:** 8–10 weeks
+**Scope:** Auth, Dashboard, Prayer, Quran, Adhkar, Tasks, Calendar/Planner, Pomodoro, Garden, Noor (Groq), Notifications, Challenges.  
+**Non-negotiable:** Every view uses the same design system. No exceptions.
 
 ---
 
-### Phase 1 — Infrastructure & Design System
+### Phase 1 — Scaffold, Design System & Navigation
 
-**Goal:** Zero features. Bones are unbreakable.
+**Parts:** 1A through 1F  
+**Output:** Zero features, but the skeleton of the app is flawless.
 
 #### 1A — Project Scaffold
-- Fresh Vite + React 19 + TypeScript on this branch (wipe existing src, keep public assets)
-- ESLint + Prettier + Husky pre-commit hooks (lint + type-check on commit)
-- Absolute imports: `@/components`, `@/lib`, `@/hooks`, `@/views`, `@/services`, `@/utils`
-- Tailwind v4 config with full design token set (colors, spacing, radius, shadows, blur)
-- shadcn/ui init — component theme matched to Salsabil brand colors
-- Dark/light mode system: `useTheme` hook, `ThemeProvider`, `ThemeToggle` component
-- `ErrorBoundary` at app root with friendly fallback UI
-- React Router v7 setup: `/`, `/focus`, `/ai`, `/prayers`, `/quran`, `/adhkar`, `/tasks`, `/calendar`, `/planner`, `/workouts`, `/challenges`, `/profile`, `/join/:roomId`
-- `<PageMeta>` component for per-page titles
+- Wipe existing `src/`. Keep `public/` assets (icons, logo, favicon).
+- Vite 6 + React 19 + TypeScript — `strict: true` in tsconfig
+- ESLint (airbnb-typescript) + eslint-plugin-tailwindcss + Prettier
+- Husky: pre-commit runs `tsc --noEmit` + `eslint --fix` + `prettier --write`
+- Absolute imports: `@/components`, `@/views`, `@/hooks`, `@/lib`, `@/services`, `@/utils`, `@/types`
+- Path aliases in `vite.config.ts` + `tsconfig.json`
+- `src/types/index.ts` — all shared TypeScript types defined here first (migrate from existing `types.ts`)
+- Environment: `.env.example` with all required keys documented
 
-#### 1B — Supabase Setup
-- New Supabase project (new org)
-- Schema migrations in `supabase/migrations/`
+#### 1B — Tailwind v4 + shadcn/ui + CVA
+- Tailwind v4 config with full brand token set (all noor-, accent-, warn-, danger-, gold- shades)
+- CSS variables on `:root` and `.dark` for all semantic colors
+- shadcn/ui init — theme configured to Salsabil brand tokens
+- Install CVA (`class-variance-authority`) + `tailwind-merge` + `clsx`
+- `src/lib/cn.ts` — `cn()` utility (clsx + tailwind-merge)
+- All shadcn components installed: Button, Input, Dialog, Sheet, Drawer, Select, Checkbox, Badge, Avatar, Tooltip, Popover, Command, Separator, Skeleton, Tabs, DropdownMenu, ScrollArea
+- Every installed shadcn component customised to brand tokens — no default blue anywhere
 
-**Tables:**
-```sql
-profiles            (id uuid PK → auth.users, username, avatar_url, display_name,
-                     preferences jsonb, ai_onboarding_done bool, created_at)
+#### 1C — Dark/Light Mode System
+- `useTheme` hook: reads `localStorage`, falls back to `prefers-color-scheme`
+- `ThemeProvider` wraps app, sets `<html class="dark|light">`
+- `ThemeToggle` component — animated sun/moon icon swap (Framer Motion)
+- Both themes tested for WCAG AA contrast before moving on
+- CSS variables verified: every color works in both modes
 
-prayer_logs         (id, user_id, date date, 
-                     fajr_fardh bool, fajr_sunnah bool,
-                     dhuhr_fardh bool, dhuhr_sunnah bool,
-                     asr_fardh bool, asr_sunnah bool,
-                     maghrib_fardh bool, maghrib_sunnah bool,
-                     isha_fardh bool, isha_sunnah bool,
-                     tahajjud bool, notes text,
-                     UNIQUE(user_id, date))
+#### 1D — Global Layout + PageShell
+- `src/app/App.tsx` — providers stack: `ThemeProvider > AuthProvider > QueryProvider > RouterProvider`
+- `src/app/router.tsx` — all routes defined with `React.lazy()`, wrapped in `<Suspense>`
+- `<PageShell>` component: consistent max-width (1280px), horizontal padding (16px mobile / 32px desktop / 48px wide), top padding clears nav
+- `<SectionHeader>` component: h2 + optional subtitle + optional right-side action
+- `<EmptyState>` component: icon slot + title + description + optional CTA button
+- `<SkeletonPage>` variants: one per view, matches loaded layout exactly
+- Skip-to-content link at top of DOM (visible on focus)
+- `<ErrorBoundary>` at router level with friendly recovery UI
 
-quran_logs          (id, user_id, date date, surah_number int, 
-                     ayah_start int, ayah_end int, pages numeric, 
-                     duration_minutes int, notes text, created_at)
+#### 1E — Supabase: Schema + Auth + RLS
+Full schema in `supabase/migrations/001_initial.sql`:
 
-adhkar_logs         (id, user_id, date date, set_id text, completed_at timestamptz)
+```
+profiles            id, username, display_name, avatar_url, preferences jsonb,
+                    ai_onboarding_done bool, created_at
+                    → auto-created by trigger on auth.users insert
 
-tasks               (id, user_id, title, description, due_date date, 
-                     start_time time, end_time time, priority text, 
-                     category text, completed bool, completed_at timestamptz,
-                     created_at, updated_at)
+prayer_logs         id, user_id, date (UNIQUE with user_id),
+                    fajr_fardh, fajr_sunnah, dhuhr_fardh, dhuhr_sunnah,
+                    asr_fardh, asr_sunnah, maghrib_fardh, maghrib_sunnah,
+                    isha_fardh, isha_sunnah, tahajjud, notes
 
-subtasks            (id, task_id, user_id, text, completed bool, sort_order int)
+quran_logs          id, user_id, date, surah_number, ayah_start, ayah_end,
+                    pages numeric, duration_minutes, notes, created_at
 
-focus_sessions      (id, user_id, started_at timestamptz, ended_at timestamptz,
-                     duration_minutes int, mode text, completed bool, 
-                     killed bool, task_id uuid → tasks, tree_id uuid → garden_trees)
+adhkar_logs         id, user_id, date, set_id, completed_at
 
-garden_trees        (id, user_id, session_id, species_id text, 
-                     planted_at timestamptz, growth_stage int, 
-                     is_alive bool, updated_at)
+tasks               id, user_id, title, description, due_date, start_time,
+                    end_time, priority, category, completed, completed_at,
+                    sort_order int, created_at, updated_at
 
-notifications       (id, user_id, type text, title, body, read bool, 
-                     read_at timestamptz, link text, created_at)
+subtasks            id, task_id, user_id, text, completed, sort_order
 
-push_tokens         (id, user_id, token text, platform text, 
-                     created_at, last_seen_at)
+focus_sessions      id, user_id, started_at, ended_at, duration_minutes,
+                    mode, completed, killed, task_id→tasks, tree_id→garden_trees
 
-workouts            (id, user_id, date date, type text, 
-                     duration_minutes int, intensity text, notes text, created_at)
+garden_trees        id, user_id, session_id, species_id, planted_at,
+                    growth_stage int (1–6), is_alive bool, updated_at
 
-challenges          (id, user_id, name, template_id text, start_date date, 
-                     duration_days int, active bool, created_at)
+notifications       id, user_id, type, title, body, read, read_at, link, created_at
 
-challenge_rules     (id, challenge_id, label, required bool, sort_order int)
+push_tokens         id, user_id, token, platform, created_at, last_seen_at
 
-challenge_days      (id, challenge_id, user_id, date date, completed bool,
-                     rule_status jsonb, updated_at,
-                     UNIQUE(challenge_id, date))
+workouts            id, user_id, date, type, duration_minutes, intensity,
+                    notes, created_at
+
+challenges          id, user_id, name, template_id, start_date,
+                    duration_days, active, created_at
+
+challenge_rules     id, challenge_id, label, required, sort_order
+
+challenge_days      id, challenge_id, user_id, date (UNIQUE with challenge_id),
+                    completed, rule_status jsonb, updated_at
 ```
 
 - RLS on every table: `auth.uid() = user_id`
 - Supabase Auth: Google OAuth + Email/Password
-- DB trigger: auto-create `profiles` row on `auth.users` insert
-- `lib/supabase.ts` singleton + `lib/supabase.types.ts` (generated via `supabase gen types`)
+- `lib/supabase.ts` — typed client singleton
+- `supabase gen types typescript` → `lib/database.types.ts` (run after every migration)
+- TanStack Query client in `lib/query.ts` — `staleTime: 60_000`, `gcTime: 300_000`
 
-#### 1C — Auth Flow
-- `<AuthProvider>` — session, user, loading, signOut
-- `<AuthPage>` — full-page auth (not a modal overlay): Google OAuth + email form, clean centered layout
-- Protected route wrapper — redirects unauthenticated users to `/auth`
-- `<UsernamePromptModal>` — triggered after first sign-in if `profiles.username` is null
-- Pending invite handling: deep link `/join/:roomId` stores roomId in sessionStorage before auth redirect, resumes join after auth
-
-#### 1D — Navigation Component
-- Built exactly to spec above — single `<Navigation>` component
-- Desktop sidebar: smooth 64px ↔ 240px transition, Framer Motion width animation
-- Mobile bottom bar: fixed, `pb-[env(safe-area-inset-bottom)]`, no overflow issues
-- `useNavigation` hook: current route, navigate function
-- Active indicator: Framer Motion `layoutId="nav-active"` pill
-- Noor Mini Orb: rendered here, always visible except on `/ai` route
-- Theme toggle in sidebar footer (desktop) / accessible via More sheet (mobile)
+#### 1F — Navigation + NoorMiniOrb Shell
+- `<Navigation>` built to exact spec above
+- Desktop sidebar: Framer Motion `width` animation 64px ↔ 240px, `200ms ease`
+- Mobile bottom bar: `pb-[env(safe-area-inset-bottom)]`, 5 primary slots, Vaul sheet for More
+- `useNavigation` hook: current route, `navigate()`, `isActive()`
+- All nav icons: custom SVG components (not emoji, not icon library) — consistent stroke weight
+- Active pill: `layoutId="nav-active"` Framer Motion spring
+- `<NoorMiniOrb>` — floating `fixed bottom-20 right-4 md:bottom-6 md:right-6`, pulsing teal, badge dot for unread notifications, hidden on `/ai` route
+- Theme toggle in sidebar footer
+- Full keyboard navigation (Tab, Enter, arrow keys)
 
 ---
 
-### Phase 2 — Core Views
+### Phase 2 — Dashboard, Auth & Onboarding
 
-**Goal:** Prayer, Quran, Adhkar, Tasks, Planner, Calendar — fully functional, beautiful, offline-tolerant.
+#### 2A — Auth Pages
+- `/auth` — full-page, centred, not a modal overlay
+- Google OAuth button (primary, with Google logo SVG)
+- Email/password form with React Hook Form + Zod validation
+- "Sign up" / "Sign in" toggle in same page
+- Loading states on both buttons (spinner inline with text)
+- Error messages below each field, not alert boxes
+- `<UsernamePromptModal>` — required after first sign-in, blocks app until set
 
-#### 2A — Dashboard
-- Today card: prayers done/5 (or 6 with Tahajjud), focus minutes, Quran pages, tasks done
-- Streak row: prayer streak, Quran streak, focus streak — tap each to go to that view
-- Rotating Islamic quote (curated local JSON, no API)
-- Quick actions: Start Focus, Log Prayer, Log Quran
-- Framer Motion entrance animations on stats (staggered)
-- Responsive: 1col mobile, 2col tablet, 4col desktop
+#### 2B — App Onboarding Flow (First-time users)
+- After username is set, show a 4-step onboarding (stored in `profiles.onboarding_step`)
+- Step 1: "Welcome to Salsabil" — what the app is, app screenshot/illustration
+- Step 2: "Your Garden" — brief garden explanation with animated tree growing
+- Step 3: "Track Your Deen" — prayer + quran + adhkar preview
+- Step 4: "Meet Noor" — the Noor 4-step intro (already designed in original)
+- Skip button on every step
+- Progress dots at bottom
+- Dismissible, never shows again
 
-#### 2B — Prayer Tracker
-- Week header tabs — tap a day to view it
+#### 2C — Dashboard
+- Responsive grid: 1col (mobile) → 2col (tablet) → 4col (desktop)
+- Today's stat cards: Prayers (x/5), Focus (xmin), Quran (x pages), Tasks (x/y)
+- Each stat card: large number, label, progress ring, tap → navigate to that view
+- Streak row: prayer streak + quran streak + focus streak — horizontal scroll on mobile
+- Active challenge card (if any): today's rules checklist, inline check-off
+- Garden preview: mini PixiJS canvas showing last 7 trees — tap → go to /focus
+- Today's tasks: top 3 due today, "View all" link
+- Motivational quote: curated local JSON (50 Islamic quotes), rotates daily by day-of-year
+- Noor suggestion card: if Noor has a proactive suggestion (from localStorage), shows at top
+- All data via TanStack Query: `useQuery` with `staleTime`, instant on revisit
+- Skeleton: exact layout matches, shown on first load and during background refetch
+
+---
+
+### Phase 3 — Spiritual Views
+
+#### 3A — Prayer Tracker
+- Week tab header: Mon–Sun, tap to select day, today highlighted
 - 6 prayer cards per day: Fajr, Dhuhr, Asr, Maghrib, Isha, Tahajjud
-- Each card: Fardh toggle (primary) + Sunnah toggle (secondary, smaller)
-- Color per prayer: Fajr=orange-pink, Dhuhr=yellow, Asr=amber, Maghrib=purple, Isha=indigo, Tahajjud=slate
-- Completion ring on each card (fardh = required, sunnah = bonus)
-- Monthly heatmap grid at bottom — tap a day to jump to it
-- Streak counter with milestone badges
-- Optimistic UI: local state update first, Supabase write in background
-- `UNIQUE(user_id, date)` means upsert, never duplicates
+- Each card: prayer name + icon, Fardh toggle (large, primary), Sunnah toggle (smaller, secondary)
+- Prayer-specific gradients (Fajr=orange-pink, Dhuhr=golden, Asr=amber, Maghrib=rose-purple, Isha=indigo, Tahajjud=deep slate)
+- Completion state: card background shifts to gradient, checkmark animates in
+- Haptic feedback on toggle (Vibration API: `navigator.vibrate(8)`)
+- Monthly heatmap below weekly: each cell = % of fardh prayers that day, tap to jump to that week
+- Streak counter with milestone badges (7, 30, 100 days)
+- Data: TanStack Query, optimistic update on toggle (updates cache instantly, Supabase write in background)
+- Empty state for days with no logs: "No prayers logged yet" with add prompt
 
-#### 2C — Quran Log
-- Log session modal: surah number + name picker (all 114 surahs), from/to ayah OR pages, duration (auto-counted or manual)
-- Today's card: pages today, minutes today
-- This week bar chart: pages per day (pure SVG, no chart lib)
-- Streak counter
-- Session history list: grouped by date
+#### 3B — Quran Log
+- Log session FAB → Vaul bottom sheet (mobile) / Dialog (desktop)
+- Form: surah picker (114 surahs with names), from/to ayah, pages (auto-calc or manual), duration
+- React Hook Form + Zod validation
+- Today card: pages + minutes + streak
+- Weekly bar chart: pages per day, pure SVG (no chart library), animated on mount
+- Session list: grouped by date, shows surah range + pages + duration
+- Empty state: illustrated open Quran, "Log your first reading session"
 
-#### 2D — Adhkar
-- Three tabs: Morning, Evening, After Prayer
-- Each tab has its authentic adhkar list (Arabic text, transliteration, translation, count)
-- Counter on each card — tap to increment, ring fills toward target count
-- Completion: card glows and checks off when count reached
-- Set completion: full-screen celebration (canvas confetti, JS only, ~2KB)
-- Session saved to `adhkar_logs` on set completion
-- Daily reset at midnight (local time)
+#### 3C — Adhkar
+- Three tabs: Morning | Evening | After Prayer (tab bar at top)
+- Cards with authentic Arabic text (large, right-aligned, correct font rendering), transliteration, translation, count target
+- Tap anywhere on card to increment counter
+- Count badge on card shows `x / target`
+- On reach target: card pulses green, counter locks, check appears
+- Full set completion: canvas confetti burst (pure JS, no library, ~60 particles)
+- Haptic: `navigator.vibrate([8, 50, 8])` on completion
+- Tab completion ring: shows 0–100% of set completed
+- `adhkar_logs` written on set completion (not per-dhikr)
+- Daily reset at midnight local time
 
-#### 2E — Task Manager
-- Four sections: Overdue (red), Today, This Week, Later
-- Each task card: title, priority dot, due date, subtask progress bar
-- Add task FAB → modal: title, due date+time (optional), priority, category, description, subtasks
+---
+
+### Phase 4 — Tasks & Calendar
+
+**This is the unified Calendar/Planner. One view, three modes.**
+
+#### 4A — Task Data Layer
+- TanStack Query: `useTasks()`, `useTasksByDate(date)`, `useTasksByWeek(weekStart)`
+- Mutations: `useCreateTask()`, `useUpdateTask()`, `useCompleteTask()`, `useDeleteTask()`
+- All mutations optimistic — cache updated before server write
+- `subtasks` table queried alongside tasks
+- Zod schema for task creation/update — validated before any DB write
+
+#### 4B — Calendar View (Month | Week | Day)
+Single `/calendar` route with view toggle at top right: **Month | Week | Day**
+
+**Month view:**
+- 7-col grid, 5–6 rows
+- Each cell: date number, up to 3 task dots (coloured by priority), "+N more" overflow
+- Tap cell → Vaul bottom sheet: day's tasks list + "Add task for this day" button
+- Today: teal ring on cell
+- Prev/next month navigation
+
+**Week view:**
+- 7 columns (Mon–Sun), date headers
+- Each column: tasks for that day as cards, timed tasks shown at relative vertical position
+- Add task FAB per column header ("+")
+- Today column: teal header highlight
+- Mobile: single day visible, swipe left/right to change day, day picker strip at top
+- Week navigation: chevron buttons
+
+**Day view:**
+- Single day, 24 hourly slots
+- Timed tasks render as blocks spanning their duration
+- All-day tasks at top
+- Tap empty slot → add task pre-filled with that time
+- Current time indicator line (auto-scrolls to now on load)
+
+**All three modes share:**
+- Same FAB → `<TaskModal>` (React Hook Form + Zod)
+- `<TaskModal>` fields: title (required), due date+time (optional), priority (Low/Medium/High), category (Work/Study/Personal/Deen), description, subtasks (add inline)
 - Swipe right to complete (mobile), checkbox on desktop
-- Swipe left to delete with undo toast (3 second window)
-- Category filter chips above list
-- Completed tasks collapse to "Done today" at bottom
-- Tasks are editable (tap → edit modal)
+- Swipe left → delete confirmation
+- Long press → context menu: Edit, Complete, Delete, Duplicate
+- Task cards show: title, priority dot, time (if set), subtask progress pill
+- Completed tasks: strikethrough, muted, collapse to "Done" section
 
-#### 2F — Weekly Planner
-- 7-day column view (Mon–Sun)
-- Each column: date header, list of tasks for that day
-- Time-slotted tasks show in timed position within column
-- Add task button per column
-- Week navigation: prev/next chevrons
-- Mobile: single day view with day picker at top, swipe left/right between days
-- Today's column always highlighted
-
-#### 2G — Calendar
-- Monthly grid view
-- Each day cell shows: dot count for tasks (color-coded by priority)
-- Tap a day → bottom sheet with tasks for that day + "Add task" button
-- Month navigation
-- Today highlighted with teal ring
-- Shared task data with Planner (same source of truth, different views)
+#### 4C — Command Palette (Cmd+K)
+- `cmdk` package, opens globally with Cmd+K (Mac) / Ctrl+K (Windows)
+- Fuzzy search across: tasks, nav views, quick actions
+- Quick actions available: "Add task", "Start 25min focus", "Log Fajr", "Log Quran session", "Open garden", "Open prayers"
+- Tasks shown with due date + priority colour
+- Nav items shown with icon
+- Keyboard: arrow keys to navigate, Enter to select, Esc to close
+- Renders as centred overlay with glass backdrop
 
 ---
 
-### Phase 3 — Garden & Pomodoro
+### Phase 5 — Pomodoro & Garden
 
-**Goal:** Forest-app quality. This phase has the highest UX bar.
+#### 5A — Pomodoro Timer
+- Full-screen view, distraction-free
+- Large countdown display: `font-mono text-8xl` — clear, commanding
+- Mode chips: Focus | Short Break | Long Break
+- Start/Pause: large teal circle button, Framer Motion scale animation on press
+- Reset: small ghost button, requires confirmation if session in progress
+- Progress ring: SVG circle around the countdown, fills as time passes
+- Session indicators: dots showing current position in the work/break cycle
+- Settings gear: opens right-side panel with duration inputs
+- **Kill flow:** browser navigation or FAB click mid-session → `<AlertDialog>`: "Your tree will die. Are you sure?" — Framer Motion entrance, two buttons: Stay / Kill Session
+- Sound: completion chime + haptic `navigator.vibrate([100, 50, 100])`
+- Session written to `focus_sessions` on completion (not during)
 
-#### 3A — Pomodoro Timer
-- Minimal full-screen timer: large countdown, mode label, start/pause/reset
-- Mode cycle: Focus → Short Break → Long Break (after N focus sessions)
-- All durations configurable in settings
-- Session saved to `focus_sessions` on completion
-- **Kill flow:** navigating away mid-session → modal: "Your tree will die if you leave. Stay focused?" → confirm kill → session marked `killed: true`, tree marked `is_alive: false`
-- Sound: completion chime (single audio file, ~10KB, user can mute)
+#### 5B — PixiJS Garden
 
-#### 3B — Tree Rendering System (PixiJS)
+**Architecture:**
+```
+GardenView.tsx          React shell, handles tabs and overlays
+  PixiGarden.tsx        PixiJS Application, manages scene
+    GardenScene.ts      Isometric grid, tree layout, camera
+    TreeRenderer.ts     Per-tree drawing, growth, wind animation
+    species/            Config per species (trunk curves, colors, leaf shapes)
+      olive.ts
+      palm.ts
+      cedar.ts
+      fig.ts
+      pomegranate.ts
+      lotus.ts
+```
 
-**The product differentiator. Gets the most engineering time.**
+**Tree Rendering (PixiJS Graphics API):**
+- Trunk: cubic bezier curves, tapers from base to crown
+- Branches: recursive generation, 2–4 levels deep depending on species and growth stage
+- Leaves: clusters of filled ellipses, slight random offset per cluster for organic feel
+- Colors: HSL with ±5° random hue variation per tree — no two identical
+- Wind: GSAP `gsap.to()` on trunk pivot, 0.3s ease-in-out, oscillating, staggered per tree
+- Growth stages animate: scale + alpha tween when stage advances
+- Dead trees: PixiJS ColorMatrixFilter (greyscale) + 15° lean + drooped branches
+- Night mode (dark theme): PixiJS viewport tint, stars rendered as small white circles
 
-**Tree Assets — Answered:**  
-The question was whether to commission an illustrator or build trees in code. **Decision: SVG-based procedural trees rendered in PixiJS.** This means:
-- Trees are drawn programmatically using PixiJS Graphics API (bezier curves, fills, layering)
-- Each species has a defined growth algorithm (branching rules, leaf shapes, color palette)
-- This is Forest-app quality because Forest itself uses programmatic rendering, not static illustrations
-- No illustrator cost, no asset pipeline, infinite variation
-- Wind sway: `gsap.to` on branch pivot points, ~0.3s ease-in-out loop
-- This approach also means trees can be killed/grown in real time with smooth transitions
+**Garden layout:**
+- Isometric grid (2:1 ratio tile projection)
+- Trees placed in rows, left-to-right, oldest first
+- Camera: PixiJS viewport plugin — pinch-zoom + drag on mobile, scroll + drag on desktop
+- Tap tree: React overlay tooltip (not PixiJS) — species, date, session duration, growth stage
 
-**Species V1 (6, all unlocked):**
-- Olive (`zaytoun`) — silver-green canopy, gnarled trunk
-- Palm (`nakhl`) — tall single trunk, frond crown
-- Cedar (`arz`) — triangular silhouette, layered branches
-- Fig (`teen`) — wide spreading canopy, thick trunk
-- Pomegranate (`rumman`) — rounded bushy, small leaves
-- Lotus (`lotus`) — aquatic, grows from water surface
+**Garden View tabs:**
+- My Garden — PixiJS canvas
+- Species Library — grid cards (React), locked species silhouetted
+- Sessions — virtual list (`@tanstack/react-virtual`) of past sessions with mini tree SVG
 
-**Growth stages (6):**
-1. Seed — small oval in soil
-2. Sprout — stem + 2 cotyledon leaves
-3. Sapling — 4–6 leaves, thin trunk
-4. Young tree — branching begins, fuller canopy
-5. Mature tree — full canopy, thick trunk, species-defining form
-6. Ancient tree — massive, gnarly, glowing faintly in dark mode
+**Performance:**
+- PixiJS loaded via `React.lazy` — only bundled when /focus route is visited
+- Target: 60fps with 200 trees on mid-range Android
+- `requestAnimationFrame` budget monitored, GSAP animations paused when tab hidden
 
-**Garden Layout:**
-- Isometric grid rendered in PixiJS
-- Trees placed in rows, oldest top-left, newest bottom-right
-- Tap a tree: tooltip card (species, planted date, session duration, growth stage)
-- Long-press a tree (mobile) or right-click (desktop): same tooltip
-- Pinch-to-zoom + two-finger pan (mobile), scroll-to-zoom + drag (desktop)
-- Day/night visual: light mode = warm daylight sky, dark mode = deep blue night with stars
-- Killed trees: desaturated, drooping, slightly transparent — stay as reminders
-- Active session: seed is visible in garden while timer runs
+#### 5C — Pomodoro ↔ Garden Live Connection
+- Timer start → `garden_trees` row created with `growth_stage: 1` → seed appears in PixiJS scene
+- Timer complete → `growth_stage` updated to 2 → tree grows to sprout with 500ms tween
+- Timer killed → `is_alive: false` → tree wilts in real time
+- Garden subscribes to `focus_sessions` via Supabase Realtime — no polling
 
-**Garden View Tabs:**
-- My Garden (main PixiJS canvas)
-- Species Library (grid of species cards, shows unlock status)
-- Sessions (chronological list with mini tree preview)
-
-#### 3C — Pomodoro ↔ Garden Integration
-- Timer start: seed placed in garden in real time (PixiJS scene updates)
-- Timer complete: seed grows to Sprout with animated transition
-- Timer killed: Sprout wilts with drooping animation + grey filter
-- All transitions use Framer Motion for the overlay, PixiJS for the tree itself
-
-#### 3D — Noor AI (V1 — Groq)
-This is V1 Noor: better than the current version, but not yet V2's full intelligence.
-
-- Groq via Netlify function (same architecture as current)
-- Full context injection server-side:
-  - Today's prayer status, tasks due, focus sessions today, streaks
-  - Time of day, day of week
-  - Last 5 conversation messages
-- Tool-like responses: Noor can express intent ("I'll add that task for you") but actual action execution is V2
-- Voice input: Web Speech API → transcript → send as text message
-- Text-to-speech: Noor speaks responses. Platform-native voices, gender-selectable. Mutable in settings.
-- Noor Mini Orb: persists across all views, pulsing teal animation, notification badge
-- Noor onboarding: "Meet Noor" 4-step flow on first login (stored in `profiles.ai_onboarding_done`)
-- Conversation stored in `localStorage` (ephemeral, clears on page reload) — Supabase persistence is V2
+#### 5D — Noor AI V1 (Groq)
+- `/ai` route: full-screen panel
+- Groq via Netlify function — same architecture as current, rewritten clean
+- Full context injected server-side: prayers, tasks, sessions, streaks, time of day
+- Streaming response — chunk by chunk rendering as tokens arrive
+- Voice input: Web Speech API → transcript → auto-send
+- Text-to-speech: Web Speech Synthesis, gender-selectable in settings, mutable
+- Noor onboarding: 4-step "Meet Noor" flow on first visit (stored in `profiles.ai_onboarding_done`)
+- NoorMiniOrb: floating, visible on all non-AI routes, tap → navigate to /ai
+- Conversation stored in `localStorage` — cleared on session end (Supabase persistence is V2)
 
 ---
 
-### Phase 4 — Testing & Hardening
+### Phase 6 — Workouts, Challenges & Notifications
 
-**Goal:** Ship nothing untested. No new features in this phase.
+#### 6A — Workouts
+- Log workout: type (Cardio / Strength / Flexibility / Sport / Walk / Yoga / Swim / Other), duration, intensity (Easy / Moderate / Hard), date, notes
+- Form: Vaul sheet (mobile) / Dialog (desktop), React Hook Form + Zod
+- View: weekly grid (7 columns, each showing workout icon + duration), monthly heatmap
+- Workout list: chronological, grouped by week
+- Streak + total hours stat at top
 
-#### 4A — Unit Tests (Vitest)
-- All utility functions: date formatting, streak calculation, prayer completion scoring, coin math
-- All custom hooks: `useTimer`, `useGarden`, `useStreak`, `useTheme`, `useAuth`
-- Supabase service functions: all queries tested with mocked `@supabase/supabase-js` client
-- Auth context: all state transitions (loading → authenticated, loading → unauthenticated, sign out)
-- Prayer log upsert logic: same-day upsert doesn't create duplicate
-- Target: 80%+ coverage on services + hooks
+#### 6B — Challenges
+Templates: 75 Hard | 21-Day Consistency | Ramadan | Custom
 
-#### 4B — Integration Tests (Vitest + Testing Library)
-- Prayer: tap Fajr fardh → optimistic UI updates → Supabase upsert called
-- Pomodoro: start timer → reach 0 → session saved → garden tree count +1
-- Task: create task → appears in today section → swipe complete → moves to done
-- Adhkar: complete full morning set → adhkar_log saved → completion animation fires
-- Calendar: add task from day tap → appears in planner week view for same date
-- Auth: sign in with Google → profile row created → username prompt shown if needed
+- 75 Hard rules: 2×45min workouts (one outdoor), diet, 1 gallon water, 10 pages non-fiction, progress photo
+- Ramadan rules: fast, Quran (≥1 page), Tahajjud (optional), charity (optional), dua
+- Custom: user names challenge, sets duration (1–100 days), adds rules (required/optional toggle)
+- Challenge detail: daily check-in with each rule as a toggle row
+- Calendar heatmap of completion history within challenge
+- Streak counter per challenge
+- Active challenge shown on Dashboard
 
-#### 4C — E2E Tests (Playwright)
-Runs against `supabase start` local instance:
+#### 6C — Notification Center
+- Bell icon in Navigation header (desktop) / in More sheet (mobile)
+- Unread badge count on bell
+- Panel: list of notifications (type icon + title + body + time ago)
+- Types: AI suggestion (teal), streak alert (amber), challenge update (purple), system (grey)
+- Tap notification → navigate to linked view, mark as read
+- "Mark all read" button
+- Notifications written by Netlify functions (AI scheduler, streak monitor)
 
-1. New user: sign up → username prompt → complete → land on dashboard
-2. Focus: start 25min session → complete → garden shows new tree
-3. Kill: start session → click kill → confirm → tree is dead in garden
-4. Prayers: log all 5 fardh prayers → streak increments to 1
-5. Quran: log session → appears in Quran log list
-6. Task: create task → mark complete → moves to done section
-7. Adhkar: complete morning set → completion celebration fires
-8. Calendar: navigate to calendar → tap today → add task → appears in planner
+#### 6D — Push Notifications
+- Service Worker registered on app load (`public/sw.js`)
+- Permission requested after first successful login (not on landing page)
+- `push_tokens` table stores VAPID subscription per user
+- Netlify function sends Web Push for: morning brief (user-configured time), streak at-risk alerts, AI check-ins
+- Notification click → deep links to relevant view
 
-CI: GitHub Actions workflow runs unit + integration on every push, E2E on every PR to main.
+---
 
-#### 4D — Database & Security Tests
-Using pgTAP in `supabase/tests/`:
-- User A cannot SELECT from `prayer_logs` where `user_id = User B`
-- Unauthenticated request returns 0 rows on all tables
-- `UNIQUE(user_id, date)` on `prayer_logs` — insert duplicate date throws, upsert succeeds
-- Profile creation trigger fires on new auth user
-- RLS on `notifications`: user can only read their own
+### Phase 7 — Testing & Hardening
 
-#### 4E — Performance & Accessibility
-- Lighthouse CI in GitHub Actions: target 95+ performance, 100 accessibility
-- PixiJS garden: 60fps verified on mid-range Android (Galaxy A-series target)
-- Bundle audit: `vite-bundle-visualizer` run, no chunk > 300KB
-- All icon buttons have `aria-label`
-- All interactive elements keyboard-navigable (Tab + Enter + Space)
-- Color contrast: WCAG AA in both dark and light mode
-- `prefers-reduced-motion`: all Framer Motion animations wrapped
+#### 7A — Unit Tests (Vitest)
+- All utility functions: date formatting, streak calculation, prayer completion scoring
+- All hooks: `useTimer`, `useGarden`, `useStreak`, `useTheme`, `useCoins` (V2)
+- All service functions: tested with mocked Supabase client
+- Auth context: all state transitions
+- Prayer log upsert: same-day upsert doesn't duplicate
+- Coin calculation (V2): all earn rules, daily caps, streak bonuses
+- Coverage target: 80%+ on `services/` and `hooks/`
 
-#### 4F — Cross-browser & Responsive
-- Chrome 120+, Firefox 120+, Safari 17+ (desktop)
+#### 7B — Integration Tests (Vitest + Testing Library)
+- Prayer: toggle Fajr fardh → optimistic UI → Supabase upsert called with correct params
+- Pomodoro: reach 0 → session written → garden tree count +1
+- Task: create → appears in today → swipe-complete → moves to done section
+- Adhkar: complete morning set → log saved → confetti fires
+- Calendar: add task from day sheet → appears in week view same date
+- Quran: submit log form → appears in session list
+
+#### 7C — E2E (Playwright — runs against `supabase start`)
+1. Sign up → username → onboarding → dashboard
+2. Start 25min focus → complete → garden tree appears
+3. Start focus → kill mid-session → tree is dead in garden
+4. Log all 5 fardh prayers → streak = 1
+5. Log Quran session → appears in log
+6. Create task → complete it → done section
+7. Complete morning adhkar set → confetti + log saved
+8. Calendar: month view → tap day → add task → week view shows it
+9. Cmd+K: open palette → type "add task" → modal opens
+10. Theme toggle: dark → light → dark
+
+CI: GitHub Actions — unit+integration on every push, E2E on PR to main.
+
+#### 7D — Database & Security (pgTAP)
+- User A cannot SELECT `prayer_logs` where `user_id = User B`
+- Unauthenticated returns 0 rows on all tables
+- `UNIQUE(user_id, date)` on `prayer_logs` — duplicate throws, upsert succeeds
+- Profile trigger fires on new auth user
+- `garden_trees`: client cannot write `is_alive = false` directly — only via server function (V2 coin system)
+
+#### 7E — Performance & Accessibility
+- Lighthouse CI in GitHub Actions: ≥95 performance, 100 accessibility, 100 best practices
+- Web Vitals targets: LCP <2.5s, FID <100ms, CLS <0.1
+- Bundle audit: `vite-bundle-visualizer` — initial JS <200KB (PixiJS excluded from initial bundle)
+- PixiJS chunk: loads only on `/focus` route
+- 60fps garden: profiled on Chrome DevTools, Galaxy A52 target
+- All buttons/inputs: `min-h-[44px]` verified in tests
+- All icon buttons: `aria-label` verified in accessibility tests
+- `prefers-reduced-motion`: all Framer Motion wrapped in `useReducedMotion()` check
+
+#### 7F — Cross-Browser & Responsive QA
+- Chrome 124+, Firefox 124+, Safari 17+
 - Chrome Android, Safari iOS 16+
-- Breakpoints: 375px (iPhone SE), 390px (iPhone 15), 768px (tablet), 1024px, 1440px
-- Bottom tab bar: `safe-area-inset-bottom` tested on iPhone with home indicator
-- Web Speech API: graceful degradation (mic button hidden if not supported)
+- Breakpoints: 375px, 390px, 430px, 768px, 1024px, 1280px, 1440px
+- Bottom tab bar: safe-area-inset tested on iPhone 15 Pro (home indicator clearance)
+- Web Speech API: mic button hidden if `!('webkitSpeechRecognition' in window)`
+- Vaul sheets: tested on iOS Safari (no rubber-band scroll bleed)
+
 
 ---
 
 ## Version 2 — AI Upgrade, Gamification & Growth
 
-**Goal:** The app becomes intelligent, rewarding, and the users' daily companion.  
-**Prerequisite:** V1 shipped, stable, all tests passing.  
+**Prerequisite:** V1 shipped, all tests green.  
 **Timeline estimate:** 10–12 weeks
 
 ---
 
-### Phase 1 — AI Upgrade (Noor V2)
+### Phase 1 — Claude API + Noor V2
 
-**Goal:** Replace Groq with Claude. Noor goes from chatbot to genuine productivity co-pilot.
+#### 1A — Claude Migration
+- Replace Groq with Anthropic Claude API (`claude-sonnet-4-6`)
+- `claude-haiku-4-5` for fast ops (action confirmations, quick summaries)
+- Prompt caching on system prompt — `cache_control: {type: "ephemeral"}` on first 2 turns
+- Streaming: `stream: true` — chunks rendered token by token in UI
+- Netlify function `claude-chat.ts` replaces `groq-chat.ts`
+- All existing prompt structure migrated and improved
 
-#### 1A — Claude API Migration
-- Replace Groq calls with Anthropic Claude API (`claude-sonnet-4-5` for conversations, `claude-haiku-4-5` for quick actions)
-- Prompt caching on system prompt — saves ~70% of token cost on repeated calls
-- Response streaming — chunks rendered as they arrive, no spinner wait
-- Netlify function rewrite: `ai-chat.ts` now calls Claude instead of Groq
-- All existing prompt structure migrated + improved
-
-#### 1B — Full Context Injection (Server-Side)
-Before every Claude call, Netlify function assembles:
+#### 1B — Full Context Injection (Server-Side Only)
+Assembled in Netlify function before every Claude call:
 ```
-- Current datetime + timezone + day of week + hijri date
-- Today's prayer log (which fardh + sunnah completed)
-- Tasks due today + overdue tasks
-- Focus sessions last 7 days (duration, completed/killed ratio)
-- Quran sessions last 7 days
-- Active streaks (prayer, quran, focus, workout)
-- User's ai_profile (communication style, most productive time, etc.)
-- Relevant memories from ai_memories (top 5 by recency + relevance score)
+- ISO datetime + timezone + hijri date approximation
+- Today's prayer log (per-prayer fardh + sunnah status)
+- Tasks: due today, overdue, upcoming 3 days
+- Focus sessions: last 7 days (completed vs killed ratio)
+- Quran: last 7 days sessions + total pages this week
+- Streaks: prayer, quran, focus, workout (current + longest)
+- User ai_profile: communication_style, most_productive_time, prayer_consistency_score
+- Top 5 memories by relevance_score from ai_memories table
 - Last 20 messages of current conversation
 ```
-No context is assembled client-side. Client sends only the user message.
+Client sends only the user message. Zero context assembled client-side.
 
-#### 1C — AI Actions (Tool Use)
-Noor can execute real actions via Claude's tool use feature:
-
+#### 1C — AI Tool Use (Claude)
 ```
-Tools:
+Tools Noor can call:
   create_task(title, due_date?, priority?, category?)
   complete_task(task_id)
   log_prayer(prayer_name, include_sunnah?, date?)
-  log_quran(pages?, surah?, duration_minutes?)
+  log_quran(pages?, surah_number?, duration_minutes?)
   log_adhkar(set_id)
   start_focus_session(duration_minutes?, task_id?)
-  get_todays_summary()             ← read-only, executes silently
-  get_streak_report()              ← read-only, executes silently
-  get_tasks(filter?)               ← read-only
+  log_workout(type, duration_minutes, intensity?)
+  get_todays_summary()          ← read-only, silent
+  get_streak_report()           ← read-only, silent
+  get_tasks(filter?)            ← read-only, silent
   schedule_reminder(message, iso_datetime)
-  log_workout(type, duration_minutes, notes?)
 ```
+- Read-only tools: execute immediately, result injected into Noor's next response
+- Write tools: show `<ActionCard>` in chat — user confirms or dismisses before execution
+- `ActionCard`: shows what Noor intends to do, confirm (teal) + cancel (ghost) buttons
+- Failed actions: reported back to Claude in next turn for recovery
 
-- Read-only tools execute and return data inline (no confirmation needed)
-- Write tools show a confirmation card in the chat before executing
-- User can approve or dismiss the action card
-- Failed actions report back to Noor in the next turn so she can recover
-
-#### 1D — AI Memory (Persistent)
-- `ai_memories` table: (id, user_id, category, content, relevance_score, created_at, source_conversation_id)
-- Categories: goal, struggle, preference, milestone, spiritual, insight
-- After each conversation, Claude (in a separate background call) extracts any memories worth storing
-- Relevance decay: cron job (Netlify scheduled function, weekly) reduces `relevance_score` of old memories by 0.1
-- Top 5 memories by score injected into every conversation context
+#### 1D — AI Memory (Persistent, Supabase)
+- `ai_memories` table: `id, user_id, category, content, relevance_score, created_at, source_conversation_id`
+- After each conversation (background Netlify function call): Claude extracts memories worth storing
+- Categories: goal / struggle / preference / milestone / spiritual / insight
+- Relevance decay: weekly Netlify scheduled function reduces `relevance_score` by 0.1 for entries older than 30 days
+- Memory viewer in Settings: list of all memories, delete individual memory, "Clear all" option
 
 #### 1E — AI Personality Profile
-- `user_ai_profiles` table: communication_style, preferred_notification_times[], engagement_rate, most_productive_time, prayer_consistency_score, etc.
-- Updated by background analysis after each session (not blocking the conversation)
-- Noor adapts tone based on `communication_style`: encouraging / direct / casual / formal
+- `user_ai_profiles` table: `communication_style, preferred_notification_times[], engagement_rate, most_productive_time, prayer_consistency_score, focus_sessions_per_week`
+- Updated by background analysis after each session
+- Noor adapts tone: `encouraging` | `direct` | `casual` | `formal`
+- User can override style in Settings
 
-#### 1F — Proactive Intelligence
-- Morning brief push notification at user-configured time
-- Prayer break reminder: if user is mid-focus-session and prayer time is near
-- Streak protection: if streak at risk and 2 hours left in the day
-- Pattern nudges: "You've been most productive on Tuesday mornings — want to block that time?"
-- All delivered via Web Push. Noor's push message text is Claude-generated per user (not templated).
+#### 1F — Proactive Intelligence + Push
+- Morning brief: Claude-generated push notification at user's configured time — personalised based on today's tasks, prayer schedule, active streaks
+- Prayer break: if mid-focus-session and prayer time is within 15 minutes → gentle notification
+- Streak protection: if streak at risk and <2 hours left in day → "Your [x]-day streak is at risk"
+- All notification text Claude-generated per user (not templated strings)
+- Netlify scheduled functions (every 15 minutes) check conditions, send if triggered
 
 #### 1G — Noor UI V2
-- Redesigned panel: full-height side panel on desktop, full-screen modal on mobile
-- Streaming text renders word by word
-- Action confirmation cards inline (not a separate modal)
-- Voice input: same Web Speech API, now with real-time transcript shown
-- Voice output: same TTS, now uses Claude's response directly
-- Memory viewer: settings section shows what Noor remembers about you, with delete per memory
-- Conversation history: last 10 conversations stored in Supabase, browsable
+- Full-height side panel on desktop, full-screen on mobile
+- Streaming text: word-by-word rendering, cursor blink while generating
+- Action cards inline in message thread
+- Voice input with live transcript shown as user speaks
+- Conversation history: last 10 conversations stored in Supabase, browsable in sidebar
+- Memory viewer accessible from Noor header
+- Settings shortcut in Noor panel
 
 ---
 
 ### Phase 2 — Gamification
-
-**Goal:** Coins for focus and faith. Trees as the reward. Garden as the flex.
 
 #### 2A — Coin Economy
 
@@ -558,37 +656,37 @@ Tools:
 | Complete focus session (25min) | 10 | — |
 | Complete focus session (50min+) | 25 | — |
 | Log all 5 fardh prayers | 20 | 20 |
-| Log individual fardh prayer | 2 | 10 |
-| Log all sunnah prayers (day) | 10 | 10 |
-| Log Quran (any session) | 5 | — |
-| Log Quran (30min+) | 15 | 15 |
-| Complete Morning or Evening adhkar set | 8 | 16 |
-| Complete a task | 3 | 30 |
+| Log each fardh prayer | 2 | 10 |
+| Log all sunnah (any day) | 10 | 10 |
 | Log Tahajjud | 5 | 5 |
-| Complete a workout | 10 | 10 |
+| Log Quran (any) | 5 | — |
+| Log Quran (30min+) | 15 | 15 |
+| Complete Morning adhkar set | 8 | 8 |
+| Complete Evening adhkar set | 8 | 8 |
+| Complete a task | 3 | 30 |
+| Log a workout | 10 | 10 |
 | Complete challenge day | 15 | 15 |
 | Study group session (30min+) | 20 | 20 |
-| 7-day prayer streak | 50 | — (milestone, once) |
-| 7-day focus streak | 50 | — (milestone, once) |
-| 30-day any-habit streak | 200 | — (milestone, once) |
+| 7-day prayer streak bonus | 50 | once per milestone |
+| 7-day focus streak bonus | 50 | once per milestone |
+| 30-day any streak | 200 | once per milestone |
 
-**Anti-gaming:**
-- Focus session coins only on `completed = true, killed = false, duration_minutes >= 0.8 * target`
-- Server-side coin award only (Netlify function checks the DB record before writing to ledger)
-- Daily caps enforced server-side (query coin_ledger for today's total per category)
+**Anti-gaming (server-side only):**
+- Focus coins: `completed = true AND killed = false AND duration_minutes >= 0.8 * target_minutes`
+- Daily caps enforced via SQL: `SUM(amount) WHERE user_id = ? AND reason_category = ? AND created_at >= today`
+- Streak milestones: boolean flag per milestone in `streak_milestones` table — can't double-claim
 
-#### 2B — Coin System Backend
-- `coin_ledger` — append-only (id, user_id, amount, reason, action_ref, created_at)
-- `user_coin_balance` — Postgres view: `SUM(amount) WHERE user_id = ?`
-- `species_owned` — (user_id, species_id, purchased_at)
-- Client never touches `coin_ledger` directly — RLS blocks INSERT for client
-- Only Netlify functions with service role key can insert coins
-- Client reads balance via `user_coin_balance` view (RLS: own row only)
+#### 2B — Coin Backend
+- `coin_ledger` — append-only: `id, user_id, amount, reason, reason_category, action_ref, created_at`
+- `user_coin_balance` — Postgres view: `SUM(amount) WHERE user_id = auth.uid()`
+- RLS on `coin_ledger`: `SELECT` allowed for own rows, `INSERT` blocked for all (service role only)
+- Netlify function `award-coins.ts` — validates action, checks daily cap, inserts ledger row
+- Client reads balance from `user_coin_balance` view
+- `species_owned` table: `user_id, species_id, purchased_at`
 
-#### 2C — Tree Shop
-12 total species (6 unlocked by default from V1, 6 purchasable):
+#### 2C — Tree Species Shop
 
-| Species | Price | Quranic Reference |
+| Species | Cost | Reference |
 |---|---|---|
 | Olive (Zaytoun) | Free | Surah An-Nur 24:35 |
 | Palm (Nakhl) | Free | Surah Maryam 19:25 |
@@ -596,222 +694,225 @@ Tools:
 | Fig (Teen) | Free | Surah At-Teen 95:1 |
 | Pomegranate (Rumman) | Free | Surah Al-An'am 6:141 |
 | Lotus (Sidr) | Free | Surah An-Najm 53:14 |
-| Ancient Olive (Zaytouna) | 100 coins | Surah Al-Mu'minun 23:20 |
-| Lote Tree (Sidrat al-Muntaha) | 300 coins | Surah An-Najm 53:14 |
-| Jasmine (Yasmeen) | 80 coins | — |
-| Rose of Jericho | 200 coins | — |
-| Tuba Tree (Paradise) | 500 coins | Hadith reference |
-| Sacred Fig (Bodhi-variant) | 150 coins | — |
+| Ancient Olive (Zaytouna) | 100 | Surah Al-Mu'minun 23:20 |
+| Sidrat al-Muntaha | 300 | Surah An-Najm 53:14 |
+| Jasmine (Yasmeen) | 80 | — |
+| Rose of Jericho | 200 | — |
+| Tuba Tree | 500 | Hadith — rarest |
+| Sacred Fig | 150 | — |
 
-**Shop UI:**
-- Grid of species cards: illustrated preview, name, Quranic reference, price or "Owned"
-- Locked: card slightly dimmed, coin badge with price, "Purchase" button
-- Owned but not active: "Select" button
-- Active for next session: teal checkmark border
-- Balance displayed in header of shop
+- Shop UI: grid of species cards with procedural tree preview (mini PixiJS render), name, Quranic reference, price
+- Locked: silhouetted preview, coin badge
+- Owned: "Select" button
+- Active: teal border
+- Coin balance in shop header, live-updating via TanStack Query
 
-#### 2D — Achievements (20 total)
-| Achievement | Trigger | Coin Reward |
-|---|---|---|
-| First Tree | Plant first tree | 20 |
-| Consistent | 7-day prayer streak | 50 |
-| Scholar | 30 Quran sessions | 30 |
-| Iron Focus | 50 completed sessions | 40 |
-| Green Thumb | 50 trees planted | 50 |
-| Never Quit | 30 sessions, 0 killed | 100 |
-| Night Prayer | Log Tahajjud 10 times | 30 |
-| Morning Person | Complete morning adhkar 21 days | 40 |
-| Balanced | Log all 3: prayer + quran + focus in same day, 7 days | 75 |
-| Challenger | Complete a 21-day challenge | 60 |
-| Ramadan | Complete Ramadan challenge | 150 |
-| Ancient Grove | Own an Ancient tree (stage 6) | 30 |
-| Collector | Own all 12 species | 100 |
-| Streak Master | Any single streak to 30 days | 100 |
-| Centurion | 100 focus sessions total | 80 |
-| ... | (5 more to define) | ... |
+#### 2D — Achievements (20)
 
-Achievement notification: slide-in toast with illustrated icon + coin amount earned.
+| # | Name | Trigger | Reward |
+|---|---|---|---|
+| 1 | First Tree | Plant first tree | 20 coins |
+| 2 | Consistent | 7-day prayer streak | 50 coins |
+| 3 | Scholar | 30 Quran sessions | 30 coins |
+| 4 | Iron Focus | 50 completed sessions | 40 coins |
+| 5 | Green Thumb | 50 trees planted | 50 coins |
+| 6 | Never Quit | 30 sessions, 0 killed | 100 coins |
+| 7 | Night Prayer | Log Tahajjud 10× | 30 coins |
+| 8 | Morning Person | Morning adhkar 21 days | 40 coins |
+| 9 | Balanced | Prayer + Quran + Focus same day, 7 days | 75 coins |
+| 10 | Challenger | Complete a 21-day challenge | 60 coins |
+| 11 | Ramadan Ready | Complete Ramadan challenge | 150 coins |
+| 12 | Ancient Grove | Own a stage-6 ancient tree | 30 coins |
+| 13 | Collector | Own all 12 species | 100 coins |
+| 14 | Streak Master | Any streak to 30 days | 100 coins |
+| 15 | Centurion | 100 focus sessions total | 80 coins |
+| 16 | Devoted | Log all 6 prayers (inc. Tahajjud) in one day | 25 coins |
+| 17 | Word Keeper | 365 days using the app (any activity) | 500 coins |
+| 18 | Garden of Eden | 100 trees in garden | 200 coins |
+| 19 | The Early Bird | Complete Fajr 30 days in a row | 75 coins |
+| 20 | Noor's Favourite | Use Noor AI 50 times | 40 coins |
+
+- Achievement check runs server-side on each coin award event
+- Notification: slide-in Sonner toast with achievement name + coin reward
+- Achievement showcase on profile: 3 pinned, full list on profile page
 
 ---
 
-### Phase 3 — Workouts, Study Rooms, Challenges & Analytics
+### Phase 3 — Study Rooms, Profile & Analytics
 
-#### 3A — Workouts (Full)
-- Log workout: type picker (cardio, strength, flexibility, sport, walk, yoga, swim, other), duration, intensity (easy/moderate/hard), notes
-- Weekly view: 7-day grid showing workout types + duration
-- Monthly heatmap
-- Personal records: for strength exercises, track max weight/reps
-- Streak tracking
-- Coin integration: 10 coins per session (server-side, via same Netlify function pattern)
+#### 3A — Study Rooms (Rebuilt)
+- Room creation: name, description, max participants, focus duration, tree species
+- Supabase Realtime subscriptions for presence and timer sync
+- Join by 6-char code or deep link `/join/:roomId`
+- Room state: `rooms` table with `status: waiting | active | ended`
+- Presence: `room_participants` — joins + leaves via Supabase Realtime
+- Shared timer: host starts, all clients sync via Realtime broadcast
+- Session: timer runs, participants see each other's status (active/idle/left)
+- Text chat: minimal — `room_messages` table, max 200 chars, Realtime subscription
+- Emoji reactions: 6 reactions, float up and fade (Framer Motion)
+- Session end: all completers → `award-coins.ts` called per user
+- Deep link handling: `/join/:roomId` stores roomId in `sessionStorage`, resolves post-auth
 
-#### 3B — Challenges (Rebuilt)
-- Templates: 75 Hard, 21-Day Consistency, Ramadan (30-day), + Custom
-- Ramadan template rules: fast, quran (1 page min), tahajjud (optional), charity (optional), dua
-- Custom: user names challenge, sets duration (1–100 days), adds custom rules (required/optional)
-- Daily check-in: check off each rule for today
-- Calendar view of completion history (heatmap within challenge)
-- Streak tracking per challenge
-- Completion reward: coin payout at end of full challenge
-- Active challenges listed on Dashboard
+#### 3B — Profile Page
+- Avatar: upload to Supabase Storage (image resize via Edge Function), or initials fallback
+- Username + display name (editable)
+- Coin balance with 7-day sparkline
+- Achievement showcase: 3 pinned (user-selectable) + "View all" grid
+- Stats: total focus hours, prayers logged, trees planted, longest streak, Quran pages
+- Join date + days active
+- Garden thumbnail: mini PixiJS render of user's garden
 
-#### 3C — Study Rooms (Rebuilt)
-- Room creation: name, description, focus duration, tree species for session
-- Join by code (6-char alphanumeric) or deep link `/join/:roomId`
-- Realtime via Supabase Realtime subscriptions
-- Participants: list of avatars, ready/not-ready state
-- Shared countdown timer — host starts it, all participants sync within 500ms
-- Session in progress: participant list shows who's still in, who killed
-- Chat: minimal — text messages + emoji reactions only, visible during session
-- Session end: all completers get coin reward
-- Room history per user
-- Username prompt for nameless users before joining
+#### 3C — Settings Page
+**Sections:**
+- Notifications: push on/off, morning brief time, streak alerts on/off, quiet hours
+- Prayer times: configure each of 6 prayer times manually
+- Focus timer: work duration, short break, long break, sessions before long break, sound on/off
+- Noor AI: communication style, TTS voice gender, TTS on/off, memory viewer, clear conversation
+- Theme: Light | Dark | System
+- Language: English (labels for prayers/adhkar — not full i18n in V2)
+- Account: change display name, change email, change password, export data (JSON download), delete account (requires typing "DELETE" to confirm)
 
-#### 3D — Profile
-- Avatar (upload to Supabase Storage or use initials fallback)
-- Username, display name
-- Coin balance with sparkline of last 7 days' earnings
-- Achievement showcase: 3 pinned + all unlocked
-- Stats: total focus hours, total prayers logged, total trees planted, longest streak
-- Joined date
-
-#### 3E — Settings
-- Notifications: push on/off, morning brief time, streak alerts, quiet hours (start/end)
-- Prayer times: configure each prayer time manually (no external API)
-- Timer: default durations, long break interval, sound on/off
-- Noor: communication style, TTS voice gender, TTS on/off, memory viewer
-- Theme: light/dark/system
-- Account: change email, change password, export data (JSON), delete account
-
-#### 3F — Analytics
-- Focus time: bar chart by day of week (last 4 weeks)
-- Prayer consistency: heatmap last 90 days (each cell = % of prayers done that day)
-- Quran progress: cumulative pages line chart
-- Coin earning: bar chart by category
-- All charts: custom SVG, no chart library dependency
-- Export as PNG: canvas capture button
+#### 3D — Analytics
+- Focus time: grouped bar chart by day-of-week (last 4 weeks) — pure SVG
+- Prayer consistency: 90-day heatmap grid — cell colour = fardh % that day
+- Quran: cumulative pages line chart over last 30 days
+- Coins earned: bar chart by category over last 30 days
+- All charts: custom SVG components, animated on mount with `requestAnimationFrame` counter
+- Export: "Save as PNG" — `canvas.toBlob()` from chart SVG rasterised via canvas
 
 ---
 
 ### Phase 4 — Testing, Security & Launch
 
-#### 4A — Extended Tests
-- All coin calculation: focus session → server function called → ledger entry created
-- Daily cap enforcement: 11th task completion → no coin awarded
-- Streak milestone bonus: exactly one milestone coin award per threshold
-- Species purchase: deduct coins → species_owned row → species available in garden
+#### 4A — Extended Unit + Integration Tests
+- All coin rules: every earn condition, every daily cap, every milestone
+- AI tools: all 10 tools with mock Supabase + mock Claude response
+- Study room sync: Realtime broadcast mock — timer start propagates to 3 clients
+- Species purchase: deduct coins → `species_owned` row created
 - Achievement triggers: all 20 achievements have dedicated test
-- Study room: 2 users complete session → both receive coins
-- AI tools: each of 10 tools tested with mock Supabase + Claude mock
-- AI memory extraction: conversation with memorable info → memory row saved
+- Memory extraction: conversation input → memory row inserted
 
 #### 4B — Security Audit
-- Full RLS re-audit: every table, SELECT + INSERT + UPDATE + DELETE
-- `coin_ledger`: verify client insert is blocked (test returns RLS error)
-- `species_owned`: client can read, only server can insert
-- All Netlify functions: validate JWT from `Authorization: Bearer <token>` header
-- Rate limiting: per user_id, 60 requests/minute per function
-- Input validation: all function inputs validated (no SQL injection via jsonb)
-- Claude/Groq API key: never in client bundle (grep check in CI)
-- CORS: Netlify `_headers` file limits to `salsabil.netlify.app`
-- CSP: `Content-Security-Policy` header configured
-- No PII in server logs (no logging of message content)
+- Full RLS re-audit: every table, every operation (SELECT/INSERT/UPDATE/DELETE)
+- `coin_ledger`: confirm client INSERT returns RLS violation (Playwright test against live Supabase)
+- `species_owned`: client read allowed, client insert blocked
+- All Netlify functions: validate `Authorization: Bearer <supabase_jwt>` header
+- Rate limiting: 60 req/min per user_id per function (Redis or in-memory with TTL)
+- Input validation: Zod schemas on all function inputs
+- API keys: `grep -r "sk-ant\|gsk_\|supabase_service_role" src/` fails CI if any match found
+- CORS: `_headers` file restricts to `salsabil.netlify.app`
+- CSP header in `netlify.toml`
+- No message content in server logs (only metadata: user_id, function_name, duration_ms)
 
 #### 4C — Load Testing (k6)
-- 100 concurrent focus session completions (POST `/api/award-coins`)
+- 100 concurrent focus session completions → `award-coins.ts`
 - 100 concurrent prayer log upserts
 - Study room: 20 participants subscribing to same Realtime channel
-- Supabase connection pool: verify no pool exhaustion under load
-- PixiJS garden: DOM test with 200 trees rendered simultaneously
+- Garden: 200 trees rendered, FPS profiled at 60fps floor
+- Supabase: verify no connection pool exhaustion, no slow queries (>500ms)
 
-#### 4D — E2E Tests (Full Suite)
-V1 tests + all of the following:
-- Earn coins from completed focus session → balance updates in shop
-- Purchase tree species → species shows in garden selector
-- Achievement triggered → toast notification → shows in profile
-- Study room: User A creates → User B joins → session completes → both get coins
-- AI V2: ask Claude to create task → action card shown → confirm → task in DB
-- AI V2: ask for today's summary → correct data returned from DB
-- AI memory: chat with goal statement → memory row exists in DB after conversation
-- Challenges: complete Ramadan challenge day → day marked done → coin awarded
+#### 4D — E2E Full Suite (Playwright)
+All V1 tests +
+- Complete focus session → coins awarded → balance in shop increases
+- Purchase species → species available in garden selector
+- Achievement unlocked → Sonner toast fires → shown in profile
+- Study room: User A creates → User B joins via link → session completes → both get coins
+- AI: ask Claude to create task → ActionCard shown → confirm → task in DB
+- AI: ask for summary → correct data from Supabase returned
+- Memory: chat with goal → memory row in `ai_memories` DB after convo ends
+- Challenge: complete day → check-off all rules → coins awarded
 
 #### 4E — Observability
-- Sentry (free tier): client + Netlify functions
-- Sentry performance traces on all Netlify function calls
-- Supabase dashboard: slow query monitor, alerts on queries > 1s
-- Uptime: UptimeRobot on `salsabil.netlify.app` (free tier, 5-min interval)
-- Self-hosted Umami: install on a $5/mo VPS or use Umami Cloud free tier
+- Sentry (free tier): client errors + Netlify function errors
+- Sentry performance traces on all Netlify function calls > 500ms
+- Supabase: slow query monitor, alerts on p95 > 1s
+- UptimeRobot: `salsabil.netlify.app` every 5 minutes
+- Self-hosted Umami: page views, session duration, top views — no cookies, no GDPR banner needed
 
 #### 4F — Launch Checklist
-- [ ] `salsabil.netlify.app` deployed, HTTPS forced, redirects configured
-- [ ] PWA: manifest.json + service worker, installable iOS + Android
-- [ ] All `og:` meta tags (title, description, image) on every page
-- [ ] `robots.txt` + sitemap
+- [ ] Netlify deploy live, HTTPS forced, www redirect
+- [ ] All env vars in Netlify dashboard (zero in code)
+- [ ] PWA: `manifest.json` + service worker, installable iOS + Android
+- [ ] All `og:` meta tags (title, description, image) on every route
+- [ ] `robots.txt` — allow all (no private routes indexed)
 - [ ] Privacy policy page (required for Google OAuth)
-- [ ] `netlify.toml`: security headers (CSP, HSTS, X-Frame-Options)
-- [ ] Supabase: daily backups enabled, point-in-time recovery enabled
-- [ ] Production Supabase project separate from dev project
-- [ ] Environment variables: all set in Netlify dashboard (never in code)
-- [ ] Umami analytics: tracking snippet in `index.html`
-- [ ] PWA icons: all sizes from `salsabil-original.png` regenerated (existing sizes are already correct)
+- [ ] `netlify.toml` security headers: CSP, HSTS, X-Frame-Options, Referrer-Policy
+- [ ] Supabase: daily automated backups + PITR enabled
+- [ ] Separate prod Supabase project from dev
+- [ ] Umami tracking snippet in `index.html`
+- [ ] All PWA icons verified (existing sizes from `salsabil-original.png` are correct — carry over as-is)
+- [ ] Sentry DSN configured in both client and Netlify functions
+- [ ] Load test results pass before go-live
+
 
 ---
 
-## File Structure (Target)
+## File Structure (Final)
 
 ```
 salsabil/
 ├── src/
 │   ├── app/
-│   │   ├── App.tsx               # Root — providers + router outlet
-│   │   ├── router.tsx            # All routes
-│   │   └── providers.tsx         # AuthProvider, ThemeProvider, QueryProvider
+│   │   ├── App.tsx               # Providers stack + RouterProvider
+│   │   ├── router.tsx            # All routes, all lazy-loaded
+│   │   └── providers.tsx         # ThemeProvider, AuthProvider, QueryProvider
 │   ├── components/
-│   │   ├── ui/                   # shadcn/ui (owned — not a dependency)
+│   │   ├── ui/                   # shadcn/ui — owned, not a dep
 │   │   ├── layout/
-│   │   │   ├── Navigation.tsx    # The only navigation component
-│   │   │   ├── Sidebar.tsx       # Desktop — used by Navigation
-│   │   │   ├── BottomBar.tsx     # Mobile — used by Navigation
-│   │   │   ├── PageShell.tsx     # Consistent page wrapper with title
-│   │   │   └── NoorMiniOrb.tsx   # Floating orb — rendered inside Navigation
-│   │   └── shared/               # Reusable: StreakBadge, CoinDisplay, etc.
+│   │   │   ├── Navigation.tsx    # THE only nav component
+│   │   │   ├── Sidebar.tsx       # Desktop rail (used by Navigation)
+│   │   │   ├── BottomBar.tsx     # Mobile tab bar (used by Navigation)
+│   │   │   ├── MoreSheet.tsx     # Vaul sheet for overflow nav items
+│   │   │   ├── PageShell.tsx     # Every view's outer wrapper
+│   │   │   ├── SectionHeader.tsx # Consistent h2 + subtitle + action
+│   │   │   └── NoorMiniOrb.tsx   # Floating orb, rendered in Navigation
+│   │   └── shared/
+│   │       ├── EmptyState.tsx    # Consistent illustrated empty states
+│   │       ├── SkeletonLoader.tsx # Per-view skeleton variants
+│   │       ├── CommandPalette.tsx # Cmd+K — cmdk wrapper
+│   │       ├── ConfirmDialog.tsx  # Reusable destructive action confirm
+│   │       ├── CoinDisplay.tsx   # Coin badge (V2)
+│   │       └── StreakBadge.tsx   # Streak counter badge
 │   ├── views/
-│   │   ├── dashboard/
-│   │   ├── prayer/
-│   │   ├── quran/
-│   │   ├── adhkar/
-│   │   ├── garden/
-│   │   │   ├── GardenView.tsx
-│   │   │   ├── PixiGarden.tsx    # PixiJS canvas component
-│   │   │   ├── TreeRenderer.ts   # Tree drawing logic
-│   │   │   └── species/          # Per-species drawing config
-│   │   ├── pomodoro/
-│   │   ├── tasks/
-│   │   ├── planner/
-│   │   ├── calendar/
-│   │   ├── workouts/
-│   │   ├── challenges/
-│   │   ├── study-rooms/
-│   │   ├── ai/
+│   │   ├── auth/                 # /auth
+│   │   ├── dashboard/            # /
+│   │   ├── prayer/               # /prayers
+│   │   ├── quran/                # /quran
+│   │   ├── adhkar/               # /adhkar
+│   │   ├── focus/                # /focus — Pomodoro + Garden combined
+│   │   │   ├── FocusView.tsx     # Tab shell: Timer | Garden | Shop(V2)
+│   │   │   ├── PomodoroTimer.tsx
+│   │   │   ├── GardenCanvas.tsx  # PixiJS wrapper
+│   │   │   ├── PixiGarden.ts     # PixiJS scene manager
+│   │   │   ├── TreeRenderer.ts   # Drawing logic
+│   │   │   └── species/          # Per-species config
+│   │   ├── tasks/                # /tasks
+│   │   ├── calendar/             # /calendar — Month|Week|Day views
+│   │   ├── workouts/             # /workouts
+│   │   ├── challenges/           # /challenges
+│   │   ├── study-rooms/          # /rooms, /rooms/:id, /join/:roomId
+│   │   ├── ai/                   # /ai
 │   │   │   ├── NoorView.tsx
-│   │   │   ├── NoorMiniOrb.tsx
-│   │   │   ├── NoorOnboarding.tsx
-│   │   │   ├── ActionCard.tsx
-│   │   │   └── MessageBubble.tsx
-│   │   ├── profile/
-│   │   ├── settings/
-│   │   └── analytics/
+│   │   │   ├── MessageBubble.tsx
+│   │   │   ├── ActionCard.tsx    # Tool use confirmation (V2)
+│   │   │   └── NoorOnboarding.tsx
+│   │   ├── profile/              # /profile
+│   │   ├── settings/             # /settings
+│   │   └── analytics/            # /analytics (V2)
 │   ├── hooks/
-│   │   ├── useTimer.ts
-│   │   ├── useGarden.ts
-│   │   ├── useStreak.ts
-│   │   ├── useCoins.ts           # V2
-│   │   ├── useAchievements.ts    # V2
-│   │   ├── useTheme.ts
-│   │   └── useNotifications.ts
+│   │   ├── useTimer.ts           # Pomodoro countdown logic
+│   │   ├── useGarden.ts          # Garden trees query + mutations
+│   │   ├── useStreak.ts          # Streak calculations
+│   │   ├── useTheme.ts           # Dark/light toggle
+│   │   ├── useNotifications.ts   # In-app notification query
+│   │   ├── useCommandPalette.ts  # Cmd+K state
+│   │   └── useCoins.ts           # Coin balance query (V2)
 │   ├── lib/
-│   │   ├── supabase.ts           # Client singleton
-│   │   └── supabase.types.ts     # Generated: `supabase gen types typescript`
-│   ├── services/                 # One file per domain, pure data access
+│   │   ├── supabase.ts           # Typed client singleton
+│   │   ├── database.types.ts     # Generated: supabase gen types
+│   │   ├── query.ts              # TanStack Query client
+│   │   └── cn.ts                 # clsx + tailwind-merge utility
+│   ├── services/                 # Pure data access, one file per domain
 │   │   ├── prayers.ts
 │   │   ├── quran.ts
 │   │   ├── adhkar.ts
@@ -822,6 +923,7 @@ salsabil/
 │   │   ├── challenges.ts
 │   │   ├── studyRooms.ts
 │   │   ├── notifications.ts
+│   │   ├── profile.ts
 │   │   ├── coins.ts              # V2
 │   │   └── achievements.ts       # V2
 │   ├── types/
@@ -832,55 +934,54 @@ salsabil/
 │       └── formatting.ts
 ├── netlify/
 │   └── functions/
-│       ├── groq-chat.ts          # V1 AI (Groq)
-│       ├── claude-chat.ts        # V2 AI (Claude, replaces above)
-│       ├── claude-actions.ts     # V2 AI tool execution
+│       ├── groq-chat.ts          # V1 AI
+│       ├── claude-chat.ts        # V2 AI (replaces groq-chat)
+│       ├── claude-actions.ts     # V2 tool execution
 │       ├── award-coins.ts        # V2 server-side coin award
 │       ├── push-notify.ts        # Web Push sender
-│       └── ai-memory-extract.ts  # V2 background memory extraction
+│       └── memory-extract.ts     # V2 background memory extraction
 ├── supabase/
-│   ├── migrations/               # 001_initial.sql, 002_garden.sql, etc.
-│   ├── seed.sql                  # Dev seed data
-│   └── tests/                   # pgTAP RLS policy tests
+│   ├── migrations/               # 001_initial.sql, 002_v2_coins.sql, etc.
+│   ├── seed.sql                  # Dev seed: 1 user, 30 days of data
+│   └── tests/                   # pgTAP RLS tests
 ├── tests/
 │   ├── unit/
 │   ├── integration/
 │   └── e2e/
 ├── public/
-│   ├── salsabil-original.png     # Source logo (4096×4096) — carried over
-│   ├── salsabil-icon-*.png       # All sizes — carried over unchanged
-│   ├── favicon.ico               # Carried over
-│   ├── favicon.png               # Carried over
-│   └── manifest.json             # Rewritten content, same icon references
+│   ├── salsabil-original.png     # Source logo — carry over unchanged
+│   ├── salsabil-icon-*.png       # All sizes — carry over unchanged
+│   ├── favicon.ico               # Carry over
+│   ├── favicon.png               # Carry over
+│   ├── manifest.json             # Rewrite content, same icon refs
+│   └── sw.js                     # Service Worker (generated by build)
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                # Unit + integration on push
+│       └── e2e.yml               # Playwright on PR to main
 └── ...
 ```
 
 ---
 
-## Garden Tree Rendering — Clarification
+## What We Are NOT Building
 
-**What "tree assets" question meant:**  
-In Forest app, the trees are hand-illustrated artwork (painted/drawn by a designer). To match that quality, you'd normally need someone to draw them. The question was: do we hire someone, or do we build them in code?
-
-**Answer: We build them in code (procedural PixiJS rendering).**
-
-This is actually how many polished games and apps do it. Each tree species is defined by a set of parameters (trunk curve, branch spread angle, leaf cluster shape, color palette) and drawn at runtime using PixiJS's Graphics API with bezier curves. Wind sway is a live animation, not a sprite sheet. Killed trees droop in real time.
-
-This means:
-- No illustrator cost
-- Trees can be infinitely varied (no two Pomodoro sessions produce the identical tree)
-- Growth stages are smooth transitions, not static images
-- The whole thing is ~300 lines of drawing code per species
-- Matches or exceeds Forest app quality because it's *alive*, not static sprites
+- Social feed, public profiles, leaderboards — stats are private
+- In-app purchases — free app
+- Native mobile app — PWA is the strategy
+- Third-party prayer time API — user-configured times only
+- Full Arabic UI — Arabic text for prayers/adhkar only
+- Offline-first — optimistic UI is sufficient
+- Competitive features — no comparing users to each other
 
 ---
 
-## What We Are NOT Building
+## Summary: Why This Will Be Peak Quality
 
-- Social feed / public profiles / leaderboards
-- In-app purchases (free app)
-- Native mobile app (PWA is the strategy)
-- Third-party prayer time API (user-configured times, no dependency)
-- Arabic-language UI (prayer/adhkar labels only)
-- Offline-first (optimistic UI is sufficient)
-- Leaderboards (all stats are personal, never competitive)
+1. **Uniformity** — CVA + design tokens + eslint enforcement means every component looks the same. No more "stacked branches" aesthetic.
+2. **Speed** — TanStack Query caching makes every revisited view instant. PixiJS lazy-loaded. Code split on every route. <200KB initial bundle.
+3. **Feel** — Vaul bottom sheets, View Transitions API, Framer Motion layouts, haptic feedback — the app feels native on mobile.
+4. **Garden** — Procedural PixiJS trees with GSAP wind physics. Real-time growth. Forest-app quality, not SVG clip-art.
+5. **AI** — In V2, Noor has full context, memory, and can actually take actions. Not a chatbot bolted on.
+6. **Trust** — pgTAP RLS tests, Playwright E2E, Vitest unit tests, Lighthouse CI. Nothing ships broken.
+
