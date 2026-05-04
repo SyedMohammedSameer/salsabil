@@ -1,0 +1,150 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getTasks,
+  getTasksForDate,
+  getTasksForDateRange,
+  createTask,
+  updateTask,
+  completeTask,
+  deleteTask,
+  getTodayTaskStats,
+} from '@/lib/api/tasks'
+import type { Task, TaskPriority } from '@/lib/database.types'
+import { useAuth } from './useAuth'
+
+export const taskKeys = {
+  all: (userId: string) => ['tasks', userId] as const,
+  byDate: (userId: string, date: string) => ['tasks', userId, 'date', date] as const,
+  byRange: (userId: string, from: string, to: string) =>
+    ['tasks', userId, 'range', from, to] as const,
+  stats: (userId: string, date: string) => ['tasks-stats', userId, date] as const,
+}
+
+export function useAllTasks() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: taskKeys.all(user?.id ?? ''),
+    queryFn: () => getTasks(user!.id),
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  })
+}
+
+export function useTasksForDate(date: string) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: taskKeys.byDate(user?.id ?? '', date),
+    queryFn: () => getTasksForDate(user!.id, date),
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  })
+}
+
+export function useTasksForRange(from: string, to: string) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: taskKeys.byRange(user?.id ?? '', from, to),
+    queryFn: () => getTasksForDateRange(user!.id, from, to),
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  })
+}
+
+export function useTaskStats(date: string) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: taskKeys.stats(user?.id ?? '', date),
+    queryFn: () => getTodayTaskStats(user!.id, date),
+    enabled: !!user?.id,
+    staleTime: 30_000,
+  })
+}
+
+export function useCreateTask() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      title: string
+      description?: string
+      priority?: TaskPriority
+      due_date?: string
+      due_time?: string
+      tags?: string[]
+    }) => createTask(user!.id, input),
+    onSuccess: (newTask) => {
+      // Optimistically prepend to all-tasks cache
+      qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) =>
+        old ? [newTask, ...old] : [newTask],
+      )
+      if (newTask.due_date) {
+        qc.invalidateQueries({ queryKey: taskKeys.byDate(user!.id, newTask.due_date) })
+        qc.invalidateQueries({ queryKey: taskKeys.stats(user!.id, newTask.due_date) })
+      }
+    },
+  })
+}
+
+export function useUpdateTask() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof updateTask>[1] }) =>
+      updateTask(id, updates),
+    onSuccess: (updated) => {
+      qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) =>
+        old?.map((t) => (t.id === updated.id ? updated : t)),
+      )
+      if (updated.due_date) {
+        qc.invalidateQueries({ queryKey: taskKeys.byDate(user!.id, updated.due_date) })
+      }
+    },
+  })
+}
+
+export function useCompleteTask() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
+      completeTask(id, completed),
+    // Optimistic update — instant UI feedback
+    onMutate: async ({ id, completed }) => {
+      await qc.cancelQueries({ queryKey: taskKeys.all(user!.id) })
+      const prev = qc.getQueryData<Task[]>(taskKeys.all(user!.id))
+      qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) =>
+        old?.map((t) =>
+          t.id === id
+            ? { ...t, completed, completed_at: completed ? new Date().toISOString() : null }
+            : t,
+        ),
+      )
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(taskKeys.all(user!.id), ctx.prev)
+    },
+    onSuccess: (updated) => {
+      if (updated.due_date) {
+        qc.invalidateQueries({ queryKey: taskKeys.stats(user!.id, updated.due_date) })
+      }
+    },
+  })
+}
+
+export function useDeleteTask() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: taskKeys.all(user!.id) })
+      const prev = qc.getQueryData<Task[]>(taskKeys.all(user!.id))
+      qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) => old?.filter((t) => t.id !== id))
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(taskKeys.all(user!.id), ctx.prev)
+    },
+  })
+}
