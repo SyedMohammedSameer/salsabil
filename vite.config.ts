@@ -27,4 +27,20 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['pixi.js'],
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/lib/**', 'src/hooks/**', 'src/data/**'],
+      exclude: ['src/lib/supabase.ts', 'src/lib/database.types.ts'],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+      },
+    },
+  },
 })
