@@ -3,7 +3,7 @@
 
 -- ─── Enum ───────────────────────────────────────────────────────────────────
 
-create type if not exists timer_state as enum ('idle', 'running', 'paused', 'done');
+create type timer_state as enum ('idle', 'running', 'paused', 'done');
 
 -- ─── Tables ─────────────────────────────────────────────────────────────────
 
