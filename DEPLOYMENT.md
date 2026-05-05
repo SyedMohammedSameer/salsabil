@@ -65,6 +65,10 @@ alter publication supabase_realtime add table
 | `VITE_SUPABASE_ANON_KEY` | `anon` / `public` key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key (keep secret) |
 
+> **Common mistake**: `VITE_SUPABASE_URL` must be the **API URL**, not the dashboard URL.
+> - Correct: `https://xqgfuhtnafuuugqigokr.supabase.co`
+> - Wrong: `https://supabase.com/dashboard/project/xqgfuhtnafuuugqigokr`
+
 ---
 
 ## 6. OpenRouter key
@@ -161,7 +165,35 @@ After adding variables → **Trigger deploy** for them to take effect.
 - **Site URL**: `https://your-site.netlify.app`
 - **Redirect URLs**: `https://your-site.netlify.app/**`
 
-This is required for email magic links and OAuth to redirect correctly.
+Also add `http://localhost:8888/**` to **Redirect URLs** so local sign-in works.
+
+---
+
+## 13. Google OAuth (optional but recommended)
+
+### Step 1 — Google Cloud Console
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → your project → **APIs & Services → Credentials**
+2. **Create Credentials → OAuth 2.0 Client ID** → Web application
+3. Under **Authorized redirect URIs** add:
+   ```
+   https://<project-ref>.supabase.co/auth/v1/callback
+   ```
+4. Copy the **Client ID** and **Client Secret**
+
+### Step 2 — Supabase Dashboard
+
+**Authentication → Providers → Google**:
+- Toggle **Enable**
+- Paste Client ID + Client Secret
+- Save
+
+### Step 3 — Local `.env` (optional, for local OAuth testing)
+
+Add to **Redirect URLs** in Supabase:
+```
+http://localhost:8888/**
+```
 
 ---
 
