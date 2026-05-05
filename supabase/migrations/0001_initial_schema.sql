@@ -402,7 +402,6 @@ create trigger prayer_streak_update
   for each row execute function public.update_streak_on_prayer();
 
 -- ─── Indexes for analytics queries ───────────────────────────
-create index focus_sessions_user_date_idx on public.focus_sessions(user_id, date(started_at) desc);
 create index prayers_streak_idx on public.prayers(user_id, date, status);
 
 -- ─── Storage buckets ─────────────────────────────────────────
