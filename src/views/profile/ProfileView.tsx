@@ -47,7 +47,7 @@ function Avatar({ initials, size = 'lg' }: { initials: string; size?: 'sm' | 'lg
 }
 
 export default function ProfileView() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const { data: profile, isLoading } = useProfile()
   const update = useUpdateProfile()
 
@@ -210,9 +210,7 @@ export default function ProfileView() {
               size="sm"
               className="text-destructive border-destructive/30 hover:bg-destructive/10 w-full"
               onClick={() => {
-                if (window.confirm('Sign out of your account?')) {
-                  // sign out handled by auth hook
-                }
+                if (window.confirm('Sign out of your account?')) signOut()
               }}
             >
               Sign out

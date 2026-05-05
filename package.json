@@ -6,6 +6,7 @@
   "description": "Productivity and spiritual growth companion",
   "scripts": {
     "dev": "netlify dev",
+    "generate-vapid": "node scripts/generate-vapid.js",
     "dev:vite": "vite",
     "build": "vite build",
     "preview": "vite preview",
