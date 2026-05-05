@@ -14,6 +14,7 @@ import {
   BarChart3,
   ChevronRight,
   MoreHorizontal,
+  Leaf,
 } from 'lucide-react'
 
 const sz = { size: 20, strokeWidth: 1.75 } as const
@@ -33,3 +34,4 @@ export const IconSettings = () => <Settings {...sz} />
 export const IconAnalytics = () => <BarChart3 {...sz} />
 export const IconChevronRight = () => <ChevronRight {...sz} />
 export const IconMore = () => <MoreHorizontal {...sz} />
+export const IconGarden = () => <Leaf {...sz} />

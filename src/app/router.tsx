@@ -16,6 +16,7 @@ const CalendarView = lazy(() => import('@/views/calendar/CalendarView'))
 const WorkoutsView = lazy(() => import('@/views/workouts/WorkoutsView'))
 const ChallengesView = lazy(() => import('@/views/challenges/ChallengesView'))
 const StudyRoomsView = lazy(() => import('@/views/study-rooms/StudyRoomsView'))
+const GardenView = lazy(() => import('@/views/garden/GardenView'))
 const StudyRoomDetail = lazy(() => import('@/views/study-rooms/StudyRoomDetail'))
 const NoorView = lazy(() => import('@/views/ai/NoorView'))
 const ProfileView = lazy(() => import('@/views/profile/ProfileView'))
@@ -108,6 +109,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={<Fallback />}>
                 <ChallengesView />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'garden',
+            element: (
+              <Suspense fallback={<Fallback />}>
+                <GardenView />
               </Suspense>
             ),
           },

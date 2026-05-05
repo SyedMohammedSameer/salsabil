@@ -173,7 +173,11 @@ export default function FocusView() {
   // Auto-complete when timer hits zero
   useEffect(() => {
     if (timerState === 'done' && sessionId) {
-      completeSession.mutate({ id: sessionId, coinsEarned: Math.floor(preset.minutes / 5) })
+      completeSession.mutate({
+        id: sessionId,
+        coinsEarned: Math.floor(preset.minutes / 5),
+        durationMins: preset.minutes,
+      })
       setSessionId(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,11 +206,11 @@ export default function FocusView() {
 
   const handleSkip = useCallback(() => {
     if (sessionId) {
-      completeSession.mutate({ id: sessionId, coinsEarned: 0 })
+      completeSession.mutate({ id: sessionId, coinsEarned: 0, durationMins: preset.minutes })
       setSessionId(null)
     }
     setTimerState('done')
-  }, [sessionId, completeSession])
+  }, [sessionId, completeSession, preset.minutes])
 
   const handlePresetChange = useCallback((p: Preset) => {
     setPreset(p)

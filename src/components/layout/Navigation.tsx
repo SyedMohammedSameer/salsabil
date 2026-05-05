@@ -14,6 +14,7 @@ import {
   IconWorkouts,
   IconChallenges,
   IconRooms,
+  IconGarden,
   IconProfile,
   IconSettings,
   IconChevronRight,
@@ -46,6 +47,7 @@ const SIDEBAR_NAV: NavItem[] = [
   { path: '/workouts', icon: <IconWorkouts />, label: 'Workouts' },
   { path: '/challenges', icon: <IconChallenges />, label: 'Challenges' },
   { path: '/rooms', icon: <IconRooms />, label: 'Study Rooms' },
+  { path: '/garden', icon: <IconGarden />, label: 'Garden' },
 ]
 
 export function Navigation() {

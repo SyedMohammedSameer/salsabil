@@ -501,7 +501,26 @@ export interface Database {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      award_coins: {
+        Args: {
+          p_user_id: string
+          p_action: string
+          p_amount: number
+          p_description?: string | null
+        }
+        Returns: number
+      }
+      spend_coins: {
+        Args: {
+          p_user_id: string
+          p_action: string
+          p_amount: number
+          p_description?: string | null
+        }
+        Returns: number
+      }
+    }
     Enums: {
       prayer_name: PrayerName
       prayer_status: PrayerStatus

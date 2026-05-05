@@ -6,6 +6,10 @@ import {
   completeFocusSession,
   getTodayFocusMinutes,
 } from '@/lib/api/focus'
+import { awardCoins } from '@/lib/api/coins'
+import { waterNewestActiveTree } from '@/lib/api/garden'
+import { profileKeys } from './useProfile'
+import { gardenKeys } from './useGarden'
 import type { SessionType } from '@/lib/database.types'
 
 export const focusKeys = {
@@ -45,12 +49,34 @@ export function useCreateFocusSession() {
 }
 
 export function useCompleteFocusSession() {
+  const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, coinsEarned }: { id: string; coinsEarned: number }) =>
-      completeFocusSession(id, coinsEarned),
+    mutationFn: async ({
+      id,
+      coinsEarned,
+      durationMins,
+    }: {
+      id: string
+      coinsEarned: number
+      durationMins: number
+    }) => {
+      const session = await completeFocusSession(id, coinsEarned)
+      if (user && coinsEarned > 0) {
+        // Award coins and water the garden in parallel — non-blocking
+        await Promise.allSettled([
+          awardCoins(user.id, 'focus_complete', coinsEarned, `${durationMins}m focus session`),
+          waterNewestActiveTree(user.id, Math.ceil(durationMins / 5)),
+        ])
+      }
+      return session
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: focusKeys.all })
+      if (user) {
+        qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
+        qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+      }
     },
   })
 }

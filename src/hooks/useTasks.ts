@@ -9,6 +9,8 @@ import {
   deleteTask,
   getTodayTaskStats,
 } from '@/lib/api/tasks'
+import { awardCoins } from '@/lib/api/coins'
+import { profileKeys } from './useProfile'
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { useAuth } from './useAuth'
 
@@ -124,9 +126,15 @@ export function useCompleteTask() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(taskKeys.all(user!.id), ctx.prev)
     },
-    onSuccess: (updated) => {
+    onSuccess: (updated, { completed }) => {
       if (updated.due_date) {
         qc.invalidateQueries({ queryKey: taskKeys.stats(user!.id, updated.due_date) })
+      }
+      // Award coins only when marking as done (not un-completing)
+      if (completed && user) {
+        awardCoins(user.id, 'task_complete', 3, `Task: ${updated.title}`).then(() =>
+          qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) }),
+        )
       }
     },
   })
