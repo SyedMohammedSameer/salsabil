@@ -43,12 +43,15 @@ Paste each file's contents and click **Run**.
 
 ## 4. Supabase — enable Realtime
 
-**Database → Replication → Source** → toggle on these tables:
+Run this in **SQL Editor** (more reliable than the UI):
 
-- `study_rooms`
-- `room_participants`
-- `room_messages`
-- `notifications`
+```sql
+alter publication supabase_realtime add table
+  public.study_rooms,
+  public.room_participants,
+  public.room_messages,
+  public.notifications;
+```
 
 ---
 
@@ -159,6 +162,41 @@ After adding variables → **Trigger deploy** for them to take effect.
 - **Redirect URLs**: `https://your-site.netlify.app/**`
 
 This is required for email magic links and OAuth to redirect correctly.
+
+---
+
+## Migrating users from Firebase
+
+Supabase supports Firebase's scrypt hash variant, so **email/password users won't need to reset their passwords**.
+
+### Step 1 — Export from Firebase
+
+```bash
+npm i -g firebase-tools
+firebase login
+firebase auth:export firebase-users.json --format=json
+```
+
+### Step 2 — Run the migration script
+
+```bash
+SUPABASE_URL=https://xxxx.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+npm run migrate-users firebase-users.json
+```
+
+### What happens per user type
+
+| User type | Result |
+|---|---|
+| Email + password | Imported with hash — signs in with same password, no reset needed |
+| Google / Apple OAuth | Just sign in with Google/Apple — Supabase auto-creates the account |
+| Email only (no password) | Imported — send a password reset email after migration |
+
+### Notes
+- The script preserves Firebase UIDs as Supabase user IDs — deep links and existing data references stay valid
+- Duplicate emails are skipped and reported (safe to re-run)
+- The `profiles` row is auto-created by the `handle_new_user` trigger on first sign-in for OAuth users; for imported password users it fires on import
 
 ---
 
