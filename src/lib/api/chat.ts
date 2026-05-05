@@ -37,20 +37,51 @@ export interface AiMessage {
   content: string
 }
 
-export async function callNoor(
+export async function streamNoor(
   message: string,
   history: AiMessage[],
-  context?: string,
-): Promise<{ reply: string; tokens?: number }> {
+  context: string | undefined,
+  onToken: (token: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const res = await fetch('/.netlify/functions/ai-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history, context }),
+    signal,
   })
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error ?? 'Noor is unavailable right now.')
   }
-  const data = (await res.json()) as { reply: string; usage?: { completionTokens?: number } }
-  return { reply: data.reply, tokens: data.usage?.completionTokens }
+
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const data = line.slice(6).trim()
+      if (data === '[DONE]') return
+      try {
+        const parsed = JSON.parse(data) as { text?: string; error?: string }
+        if (parsed.error) throw new Error(parsed.error)
+        if (parsed.text) onToken(parsed.text)
+      } catch (e) {
+        if (e instanceof SyntaxError) continue
+        throw e
+      }
+    }
+  }
 }

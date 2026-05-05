@@ -1,7 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './useAuth'
-import { getChatHistory, saveChatMessage, clearChatHistory, callNoor } from '@/lib/api/chat'
+import { getChatHistory, saveChatMessage, clearChatHistory, streamNoor } from '@/lib/api/chat'
 import type { AiMessage } from '@/lib/api/chat'
+import type { ChatMessage } from '@/lib/database.types'
 
 export const noorKeys = {
   history: (userId: string) => ['noor', 'history', userId] as const,
@@ -17,29 +19,78 @@ export function useChatHistory() {
   })
 }
 
-export function useSendMessage(context?: string) {
+// ─── Streaming send ───────────────────────────────────────────────────────────
+
+export function useStreamMessage(context?: string) {
   const { user } = useAuth()
   const qc = useQueryClient()
+  const [streamingText, setStreamingText] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
-  return useMutation({
-    mutationFn: async ({ message, history }: { message: string; history: AiMessage[] }) => {
-      if (!user) throw new Error('Not authenticated')
+  const send = useCallback(
+    async (message: string, history: AiMessage[]) => {
+      if (!user || isStreaming) return
+      setIsStreaming(true)
+      setStreamingText('')
 
-      // Save user message
-      await saveChatMessage(user.id, 'user', message)
+      // Optimistically append user message
+      const tempId = `temp-${Date.now()}`
+      const tempUserMsg: ChatMessage = {
+        id: tempId,
+        user_id: user.id,
+        role: 'user',
+        content: message,
+        model: null,
+        tokens: null,
+        created_at: new Date().toISOString(),
+      }
+      qc.setQueryData<ChatMessage[]>(noorKeys.history(user.id), (old) =>
+        old ? [...old, tempUserMsg] : [tempUserMsg],
+      )
 
-      // Call Noor
-      const { reply, tokens } = await callNoor(message, history, context)
+      const abortCtrl = new AbortController()
+      abortRef.current = abortCtrl
+      let reply = ''
 
-      // Save assistant reply
-      await saveChatMessage(user.id, 'assistant', reply, tokens)
+      try {
+        const saveUserPromise = saveChatMessage(user.id, 'user', message)
 
-      return reply
+        await streamNoor(
+          message,
+          history,
+          context,
+          (token) => {
+            reply += token
+            setStreamingText(reply)
+          },
+          abortCtrl.signal,
+        )
+
+        await saveUserPromise
+        await saveChatMessage(user.id, 'assistant', reply)
+
+        qc.invalidateQueries({ queryKey: noorKeys.history(user.id) })
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        qc.setQueryData<ChatMessage[]>(noorKeys.history(user.id), (old) =>
+          old?.filter((m) => m.id !== tempId),
+        )
+        throw err
+      } finally {
+        setIsStreaming(false)
+        setStreamingText('')
+        abortRef.current = null
+      }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noorKeys.history(user?.id ?? '') })
-    },
-  })
+    [user, isStreaming, context, qc],
+  )
+
+  const abort = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
+  return { send, streamingText, isStreaming, abort }
 }
 
 export function useClearChat() {

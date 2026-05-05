@@ -1,4 +1,3 @@
-import type { Handler, HandlerEvent } from '@netlify/functions'
 import OpenAI from 'openai'
 
 // Fast free model on OpenRouter (8B — ~3x faster than 70B, still great quality)
@@ -29,12 +28,14 @@ YOUR INTELLIGENCE:
 DATA YOU CAN SEE:
 Tasks, prayer logs, Quran reading, workouts, challenges, focus sessions, adhkar, and memories from past conversations.
 
-ACTIONS YOU CAN TAKE (include in your response when implied):
-[ACTION:createTask|{"title":"Task name","priority":"medium","date":"YYYY-MM-DD"}]
+ACTIONS YOU CAN TAKE:
+When the user asks you to do something or it's clearly implied, include an action tag at the END of your response (after your message). Format exactly:
+[ACTION:createTask|{"title":"Task name","priority":"medium","due_date":"YYYY-MM-DD"}]
 [ACTION:logPrayer|{"prayer":"dhuhr","status":"prayed"}]
 [ACTION:logQuranPages|{"pages":5}]
 [ACTION:startPomodoro|{"duration":25}]
-Always confirm what you're doing when executing an action.
+
+Only include an action when the user explicitly requests it or it's clearly implied. Do not include actions in general conversation. Always confirm what you're doing before the action tag.
 
 READING THE ROOM:
 - Stressed? Cut the fluff. Give solutions.
@@ -68,85 +69,114 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-export const handler: Handler = async (event: HandlerEvent) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: cors, body: '' }
+export default async (req: Request): Promise<Response> => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: cors })
   }
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: cors, body: JSON.stringify({ error: 'Method not allowed' }) }
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Server misconfiguration' }) }
+    return new Response(JSON.stringify({ error: 'Server misconfiguration' }), {
+      status: 500,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
   }
 
   let body: RequestBody
   try {
-    body = JSON.parse(event.body ?? '{}')
+    body = (await req.json()) as RequestBody
   } catch {
-    return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'Invalid JSON' }) }
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+      status: 400,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
   }
 
   const { message, history = [], context } = body
   if (!message?.trim()) {
-    return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'message is required' }) }
+    return new Response(JSON.stringify({ error: 'message is required' }), {
+      status: 400,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
   }
 
+  const client = new OpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey,
+    defaultHeaders: {
+      'HTTP-Referer': 'https://salsabil.app',
+      'X-Title': 'Salsabil',
+    },
+  })
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: 'system', content: NOOR_SYSTEM_PROMPT },
+  ]
+
+  for (const msg of history.slice(-20)) {
+    messages.push({ role: msg.role, content: msg.content })
+  }
+
+  const userContent = context ? `USER CONTEXT:\n${context}\n\nUSER MESSAGE:\n${message}` : message
+  messages.push({ role: 'user', content: userContent })
+
   try {
-    const client = new OpenAI({
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey,
-      defaultHeaders: {
-        'HTTP-Referer': 'https://salsabil.app',
-        'X-Title': 'Salsabil',
-      },
-    })
-
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: 'system', content: NOOR_SYSTEM_PROMPT },
-    ]
-
-    for (const msg of history.slice(-20)) {
-      messages.push({ role: msg.role, content: msg.content })
-    }
-
-    const userContent = context
-      ? `USER CONTEXT:\n${context}\n\nUSER MESSAGE:\n${message}`
-      : message
-
-    messages.push({ role: 'user', content: userContent })
-
-    const completion = await client.chat.completions.create({
+    const stream = await client.chat.completions.create({
       model: MODEL,
       messages,
       temperature: 0.75,
       max_tokens: 1500,
       top_p: 0.9,
+      stream: true,
     })
 
-    const reply = completion.choices[0]?.message?.content ?? ''
-    const usage = completion.usage
+    const encoder = new TextEncoder()
 
-    return {
-      statusCode: 200,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reply,
-        usage: {
-          promptTokens: usage?.prompt_tokens,
-          completionTokens: usage?.completion_tokens,
-        },
-      }),
-    }
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content ?? ''
+            if (text) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
+            }
+          }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`))
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(readable, {
+      status: 200,
+      headers: {
+        ...cors,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
   } catch (err) {
     console.error('OpenRouter error:', err)
     const msg = err instanceof Error ? err.message : String(err)
     const status = msg.includes('401') ? 401 : msg.includes('429') ? 429 : 500
-    return {
-      statusCode: status,
-      headers: cors,
-      body: JSON.stringify({ error: "Noor's unavailable right now. Try again in a moment." }),
-    }
+    return new Response(
+      JSON.stringify({ error: "Noor's unavailable right now. Try again in a moment." }),
+      { status, headers: { ...cors, 'Content-Type': 'application/json' } },
+    )
   }
+}
+
+export const config = {
+  path: '/.netlify/functions/ai-chat',
 }
