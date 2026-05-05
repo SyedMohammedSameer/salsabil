@@ -5,6 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [tailwindcss(), react()],
+  server: {
+    hmr: {
+      clientPort: 8888,
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
