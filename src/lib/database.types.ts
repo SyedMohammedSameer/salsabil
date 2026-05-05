@@ -499,6 +499,24 @@ export interface Database {
         Update: never
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+        }
+        Update: never
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -558,3 +576,4 @@ export type Notification = Database['public']['Tables']['notifications']['Row']
 export type StudyRoom = Database['public']['Tables']['study_rooms']['Row']
 export type RoomParticipant = Database['public']['Tables']['room_participants']['Row']
 export type RoomMessage = Database['public']['Tables']['room_messages']['Row']
+export type PushSubscriptionRow = Database['public']['Tables']['push_subscriptions']['Row']

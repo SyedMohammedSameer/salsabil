@@ -8,8 +8,10 @@ import {
 } from '@/lib/api/focus'
 import { awardCoins } from '@/lib/api/coins'
 import { waterNewestActiveTree } from '@/lib/api/garden'
+import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
+import { notificationKeys } from './useNotifications'
 import type { SessionType } from '@/lib/database.types'
 
 export const focusKeys = {
@@ -62,12 +64,23 @@ export function useCompleteFocusSession() {
       durationMins: number
     }) => {
       const session = await completeFocusSession(id, coinsEarned)
-      if (user && coinsEarned > 0) {
-        // Award coins and water the garden in parallel — non-blocking
-        await Promise.allSettled([
-          awardCoins(user.id, 'focus_complete', coinsEarned, `${durationMins}m focus session`),
+      if (user) {
+        const sideEffects: Promise<unknown>[] = [
           waterNewestActiveTree(user.id, Math.ceil(durationMins / 5)),
-        ])
+          createNotification({
+            user_id: user.id,
+            type: 'focus_complete',
+            title: 'Session complete! MashaAllah.',
+            body: `${durationMins}m focus — you earned ${coinsEarned} coins.`,
+            action_url: '/focus',
+          }),
+        ]
+        if (coinsEarned > 0) {
+          sideEffects.push(
+            awardCoins(user.id, 'focus_complete', coinsEarned, `${durationMins}m focus session`),
+          )
+        }
+        await Promise.allSettled(sideEffects)
       }
       return session
     },
@@ -76,6 +89,7 @@ export function useCompleteFocusSession() {
       if (user) {
         qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
         qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+        qc.invalidateQueries({ queryKey: notificationKeys.all(user.id) })
       }
     },
   })

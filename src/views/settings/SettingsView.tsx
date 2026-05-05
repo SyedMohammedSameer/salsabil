@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Moon, Sun, Monitor, Bell, Clock, Palette, ChevronRight } from 'lucide-react'
+import { Moon, Sun, Monitor, Bell, BellOff, BellRing, Clock, Palette } from 'lucide-react'
 import { PageShell } from '@/components/shared/PageShell'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useTheme } from '@/hooks/useTheme'
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
+import { usePushNotifications } from '@/hooks/useNotifications'
 import { cn } from '@/lib/cn'
 import type { Theme } from '@/types'
 
@@ -51,6 +52,7 @@ export default function SettingsView() {
   const { data: profile } = useProfile()
   const update = useUpdateProfile()
   const { signOut } = useAuth()
+  const { status: pushStatus, requestPermission, disablePush } = usePushNotifications()
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [savingName, setSavingName] = useState(false)
@@ -146,19 +148,42 @@ export default function SettingsView() {
             <CardContent className="p-4">
               <SettingRow
                 label="Push notifications"
-                description="Prayer reminders and streak alerts"
+                description={
+                  pushStatus === 'unsupported'
+                    ? 'Not supported in this browser'
+                    : pushStatus === 'denied'
+                      ? 'Blocked — enable in browser settings'
+                      : pushStatus === 'granted'
+                        ? 'Receiving prayer reminders and streak alerts'
+                        : 'Get prayer reminders and streak alerts'
+                }
               >
-                <button
-                  onClick={() => {
-                    if ('Notification' in window) {
-                      Notification.requestPermission()
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-sm text-noor-500 font-medium"
-                >
-                  Enable
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+                {pushStatus === 'unsupported' ? (
+                  <BellOff className="h-4 w-4 text-muted-foreground" />
+                ) : pushStatus === 'denied' ? (
+                  <BellOff className="h-4 w-4 text-destructive" />
+                ) : pushStatus === 'granted' ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => disablePush.mutate()}
+                    disabled={disablePush.isPending}
+                  >
+                    <BellOff className="h-3.5 w-3.5" />
+                    Disable
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => requestPermission.mutate()}
+                    disabled={requestPermission.isPending}
+                  >
+                    <BellRing className="h-3.5 w-3.5" />
+                    Enable
+                  </Button>
+                )}
               </SettingRow>
             </CardContent>
           </Card>

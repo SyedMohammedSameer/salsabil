@@ -1,5 +1,6 @@
 import { Outlet, useNavigation } from 'react-router-dom'
 import { Navigation } from './Navigation'
+import { NotificationBell } from './NotificationBell'
 import { CommandPalette, useCommandPalette } from '@/components/shared/CommandPalette'
 
 export function RootLayout() {
@@ -15,6 +16,11 @@ export function RootLayout() {
 
       {/* Desktop sidebar + Mobile bottom bar */}
       <Navigation />
+
+      {/* Notification bell — top-right corner */}
+      <div className="fixed top-3 right-3 z-40">
+        <NotificationBell />
+      </div>
 
       {/* Main content area */}
       <main

@@ -10,7 +10,9 @@ import {
   getTodayTaskStats,
 } from '@/lib/api/tasks'
 import { awardCoins } from '@/lib/api/coins'
+import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
+import { notificationKeys } from './useNotifications'
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { useAuth } from './useAuth'
 
@@ -132,9 +134,18 @@ export function useCompleteTask() {
       }
       // Award coins only when marking as done (not un-completing)
       if (completed && user) {
-        awardCoins(user.id, 'task_complete', 3, `Task: ${updated.title}`).then(() =>
-          qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) }),
-        )
+        Promise.allSettled([
+          awardCoins(user.id, 'task_complete', 3, `Task: ${updated.title}`).then(() =>
+            qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) }),
+          ),
+          createNotification({
+            user_id: user.id,
+            type: 'task_complete',
+            title: 'Task done!',
+            body: updated.title,
+            action_url: '/tasks',
+          }).then(() => qc.invalidateQueries({ queryKey: notificationKeys.all(user.id) })),
+        ])
       }
     },
   })
