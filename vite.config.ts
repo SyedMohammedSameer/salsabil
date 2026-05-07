@@ -30,7 +30,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['pixi.js'],
+    include: ['pixi.js', 'eventemitter3'],
   },
   test: {
     globals: true,

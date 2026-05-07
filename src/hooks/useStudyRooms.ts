@@ -61,7 +61,7 @@ export function useRoom(roomId: string | undefined) {
   useEffect(() => {
     if (!roomId) return
     const ch = supabase
-      .channel(`room-state-${roomId}`)
+      .channel(`room-state-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` },
@@ -90,7 +90,7 @@ export function useParticipants(roomId: string | undefined) {
   useEffect(() => {
     if (!roomId) return
     const ch = supabase
-      .channel(`room-participants-${roomId}`)
+      .channel(`room-participants-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -126,7 +126,7 @@ export function useMessages(roomId: string | undefined) {
   useEffect(() => {
     if (!roomId) return
     const ch = supabase
-      .channel(`room-messages-${roomId}`)
+      .channel(`room-messages-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
