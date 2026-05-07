@@ -679,7 +679,7 @@ export default function TasksView() {
   const complete = useMemo(() => tasks?.filter((t) => t.completed) ?? [], [tasks])
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="6xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

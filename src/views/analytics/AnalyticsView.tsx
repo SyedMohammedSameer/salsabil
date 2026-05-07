@@ -203,7 +203,7 @@ export default function AnalyticsView() {
   const totalQuranPages = (quranLogs ?? []).reduce((s, l) => s + l.pages_read, 0)
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="6xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

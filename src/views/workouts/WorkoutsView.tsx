@@ -220,7 +220,7 @@ export default function WorkoutsView() {
   const totalWeekMins = thisWeek.reduce((s, w) => s + w.duration_mins, 0)
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="5xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

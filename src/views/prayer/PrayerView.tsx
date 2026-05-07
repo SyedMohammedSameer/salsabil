@@ -207,7 +207,7 @@ export default function PrayerView() {
   }, [selectedDate])
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="5xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -244,52 +244,56 @@ export default function PrayerView() {
           </div>
         </div>
 
-        {/* Week strip */}
-        <Card>
-          <CardContent className="p-3">
-            <WeekStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
-          </CardContent>
-        </Card>
+        {/* Desktop 2-col: left = navigation/progress, right = prayer list */}
+        <div className="lg:grid lg:grid-cols-[340px_1fr] lg:gap-6 space-y-4 lg:space-y-0">
+          {/* Left column: week strip + progress */}
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-3">
+                <WeekStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+              </CardContent>
+            </Card>
 
-        {/* Progress */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-foreground">Daily progress</span>
-              <span className="text-sm font-semibold text-foreground">{prayedCount} / 5</span>
-            </div>
-            <Progress value={prayerPct} className="h-2" />
-            {prayedCount === 5 && (
-              <p className="mt-2 text-xs text-accent-600 dark:text-accent-400 font-medium">
-                ✓ All prayers completed — may Allah accept
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Daily progress</span>
+                  <span className="text-sm font-semibold text-foreground">{prayedCount} / 5</span>
+                </div>
+                <Progress value={prayerPct} className="h-2" />
+                {prayedCount === 5 && (
+                  <p className="mt-2 text-xs text-accent-600 dark:text-accent-400 font-medium">
+                    ✓ All prayers completed — may Allah accept
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Prayer list */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground font-medium">
-              Tap a status to mark each prayer
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 pb-4">
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-xl" />
-                ))
-              : PRAYER_ORDER.map((name) => (
-                  <PrayerRow
-                    key={name}
-                    name={name}
-                    currentStatus={prayerMap[name] ?? null}
-                    onStatusChange={(status) => handleStatusChange(name, status)}
-                    isPending={upsertPrayer.isPending}
-                  />
-                ))}
-          </CardContent>
-        </Card>
+          {/* Right column: prayer list */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground font-medium">
+                Tap a status to mark each prayer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 pb-4">
+              {isLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 rounded-xl" />
+                  ))
+                : PRAYER_ORDER.map((name) => (
+                    <PrayerRow
+                      key={name}
+                      name={name}
+                      currentStatus={prayerMap[name] ?? null}
+                      onStatusChange={(status) => handleStatusChange(name, status)}
+                      isPending={upsertPrayer.isPending}
+                    />
+                  ))}
+            </CardContent>
+          </Card>
+        </div>
       </motion.div>
     </PageShell>
   )

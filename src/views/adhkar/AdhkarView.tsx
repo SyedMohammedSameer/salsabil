@@ -146,7 +146,7 @@ export default function AdhkarView() {
   }
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="5xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -202,7 +202,7 @@ export default function AdhkarView() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="space-y-3"
+            className="grid gap-3 md:grid-cols-2"
           >
             {items.map((item) => (
               <AdhkarCounter

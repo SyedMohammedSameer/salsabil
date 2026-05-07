@@ -27,7 +27,7 @@ const maxWidthMap = {
 export function PageShell({
   children,
   className,
-  maxWidth = '4xl',
+  maxWidth = '6xl',
   noPadding = false,
 }: PageShellProps) {
   return (

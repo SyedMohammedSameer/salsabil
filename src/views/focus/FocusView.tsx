@@ -228,7 +228,7 @@ export default function FocusView() {
   const todayMins = todaySessions.reduce((sum, s) => sum + s.duration_mins, 0)
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="2xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

@@ -82,7 +82,7 @@ export default function ProfileView() {
 
   if (isLoading) {
     return (
-      <PageShell maxWidth="lg">
+      <PageShell maxWidth="3xl">
         <div className="space-y-4">
           <Skeleton className="h-32 rounded-2xl" />
           <Skeleton className="h-24 rounded-2xl" />
@@ -93,7 +93,7 @@ export default function ProfileView() {
   }
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="3xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

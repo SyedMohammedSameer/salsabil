@@ -106,7 +106,7 @@ export default function DashboardView() {
     'Friend'
 
   return (
-    <PageShell maxWidth="4xl">
+    <PageShell maxWidth="6xl">
       <motion.div
         variants={stagger.container}
         initial="hidden"

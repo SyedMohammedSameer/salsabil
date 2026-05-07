@@ -68,7 +68,7 @@ export default function SettingsView() {
   }
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="3xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

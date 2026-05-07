@@ -195,7 +195,7 @@ export default function GardenView() {
   }
 
   return (
-    <PageShell maxWidth="lg">
+    <PageShell maxWidth="5xl">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
