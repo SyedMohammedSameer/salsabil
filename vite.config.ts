@@ -33,7 +33,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['pixi.js', 'eventemitter3'],
+    include: ['eventemitter3'],
   },
   test: {
     globals: true,

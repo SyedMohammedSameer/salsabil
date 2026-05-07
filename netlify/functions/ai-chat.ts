@@ -1,8 +1,6 @@
-import OpenAI from 'openai'
-
 const MODEL = 'liquid/lfm-2.5-1.2b-instruct:free'
 
-const NOOR_SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
+const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
 WHO YOU ARE:
 Think of yourself as the user's sharp, caring best friend who also happens to have perfect memory and access to all their data. You're deeply intelligent but you talk like a real person — not a robot, not a motivational poster.
@@ -81,7 +79,7 @@ export default async (req: Request): Promise<Response> => {
 
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfiguration' }), {
+    return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY not set' }), {
       status: 500,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
@@ -91,7 +89,7 @@ export default async (req: Request): Promise<Response> => {
   try {
     body = (await req.json()) as RequestBody
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
@@ -105,77 +103,45 @@ export default async (req: Request): Promise<Response> => {
     })
   }
 
-  const client = new OpenAI({
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey,
-    defaultHeaders: {
+  const messages: { role: string; content: string }[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
+    {
+      role: 'user',
+      content: context ? `USER CONTEXT:\n${context}\n\nUSER MESSAGE:\n${message}` : message,
+    },
+  ]
+
+  const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
       'HTTP-Referer': 'https://salsabil.app',
       'X-Title': 'Salsabil',
     },
+    body: JSON.stringify({ model: MODEL, messages, stream: true, max_tokens: 1500 }),
   })
 
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: 'system', content: NOOR_SYSTEM_PROMPT },
-  ]
-
-  for (const msg of history.slice(-20)) {
-    messages.push({ role: msg.role, content: msg.content })
+  if (!upstream.ok) {
+    const err = await upstream.text()
+    console.error('[ai-chat] OpenRouter HTTP error', upstream.status, err)
+    return new Response(JSON.stringify({ error: `OpenRouter ${upstream.status}: ${err}` }), {
+      status: upstream.status,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
   }
 
-  const userContent = context ? `USER CONTEXT:\n${context}\n\nUSER MESSAGE:\n${message}` : message
-  messages.push({ role: 'user', content: userContent })
-
-  try {
-    const stream = await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      temperature: 0.75,
-      max_tokens: 1500,
-      top_p: 0.9,
-      stream: true,
-    })
-
-    const encoder = new TextEncoder()
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content ?? ''
-            if (text) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
-            }
-          }
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`))
-        } finally {
-          controller.close()
-        }
-      },
-    })
-
-    return new Response(readable, {
-      status: 200,
-      headers: {
-        ...cors,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
-  } catch (err) {
-    console.error('[ai-chat] OpenRouter error:', err)
-    const msg = err instanceof Error ? err.message : String(err)
-    const status = msg.includes('401') ? 401 : msg.includes('429') ? 429 : 500
-    return new Response(
-      JSON.stringify({ error: `OpenRouter error: ${msg}` }),
-      { status, headers: { ...cors, 'Content-Type': 'application/json' } },
-    )
-  }
+  // Pipe OpenRouter's SSE stream straight to the client — no re-wrapping needed
+  return new Response(upstream.body, {
+    status: 200,
+    headers: {
+      ...cors,
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  })
 }
 
-export const config = {
-  path: '/.netlify/functions/ai-chat',
-}
+export const config = { path: '/.netlify/functions/ai-chat' }
