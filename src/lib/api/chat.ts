@@ -61,6 +61,39 @@ export async function streamNoor(
 
   const decoder = new TextDecoder()
   let buffer = ''
+  // State for stripping <think>...</think> reasoning blocks
+  let inThink = false
+  let thinkBuf = ''
+
+  function emitContent(raw: string) {
+    let text = inThink ? thinkBuf + raw : raw
+    thinkBuf = ''
+
+    let out = ''
+    let i = 0
+    while (i < text.length) {
+      if (!inThink) {
+        const open = text.indexOf('<think>', i)
+        if (open === -1) {
+          out += text.slice(i)
+          break
+        }
+        out += text.slice(i, open)
+        inThink = true
+        i = open + 7
+      } else {
+        const close = text.indexOf('</think>', i)
+        if (close === -1) {
+          // incomplete block — buffer the rest
+          thinkBuf = text.slice(i)
+          break
+        }
+        inThink = false
+        i = close + 8
+      }
+    }
+    if (out) onToken(out)
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -87,7 +120,7 @@ export async function streamNoor(
           throw new Error(msg)
         }
         const content = parsed.choices?.[0]?.delta?.content
-        if (content) onToken(content)
+        if (content) emitContent(content)
       } catch (e) {
         if (e instanceof SyntaxError) continue
         throw e
