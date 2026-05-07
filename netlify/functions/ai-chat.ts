@@ -1,7 +1,6 @@
 import OpenAI from 'openai'
 
-// Fast free model on OpenRouter (8B — ~3x faster than 70B, still great quality)
-const MODEL = 'meta-llama/llama-3.1-8b-instruct:free'
+const MODEL = 'liquid/lfm-2.5-1.2b-instruct:free'
 
 const NOOR_SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
