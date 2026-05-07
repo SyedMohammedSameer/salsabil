@@ -1,7 +1,22 @@
 import { Outlet, useNavigation } from 'react-router-dom'
+import { Sun, Moon } from 'lucide-react'
 import { Navigation } from './Navigation'
 import { NotificationBell } from './NotificationBell'
 import { CommandPalette, useCommandPalette } from '@/components/shared/CommandPalette'
+import { useTheme } from '@/hooks/useTheme'
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  return (
+    <button
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm hover:text-foreground hover:bg-muted transition-colors"
+      aria-label="Toggle theme"
+    >
+      {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  )
+}
 
 export function RootLayout() {
   const { state } = useNavigation()
@@ -17,8 +32,9 @@ export function RootLayout() {
       {/* Desktop sidebar + Mobile bottom bar */}
       <Navigation />
 
-      {/* Notification bell — top-right corner */}
-      <div className="fixed top-3 right-3 z-40">
+      {/* Theme toggle + Notification bell — top-right corner */}
+      <div className="fixed top-3 right-3 z-40 flex items-center gap-1.5">
+        <ThemeToggle />
         <NotificationBell />
       </div>
 

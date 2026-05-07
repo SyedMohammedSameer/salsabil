@@ -50,7 +50,7 @@ function toKey(d: Date) {
 
 function getWeekStart(d: Date): Date {
   const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day // Monday-first
+  const diff = day === 0 ? -6 : 1 - day
   const start = new Date(d)
   start.setDate(d.getDate() + diff)
   start.setHours(0, 0, 0, 0)
@@ -65,19 +65,47 @@ function getWeekDays(weekStart: Date): Date[] {
   })
 }
 
+function getMonthGrid(year: number, month: number): (Date | null)[][] {
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const startDow = (firstDay.getDay() + 6) % 7 // Monday = 0
+  const cells: (Date | null)[] = [
+    ...Array<null>(startDow).fill(null),
+    ...Array.from({ length: lastDay.getDate() }, (_, i) => new Date(year, month, i + 1)),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+  const weeks: (Date | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  return weeks
+}
+
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 const PRIORITY_CONFIG: Record<
   TaskPriority,
-  { label: string; badgeVariant: 'default' | 'secondary' | 'warning' | 'danger' }
+  { label: string; dot: string; badgeVariant: 'default' | 'secondary' | 'warning' | 'danger' }
 > = {
-  low: { label: 'Low', badgeVariant: 'secondary' },
-  medium: { label: 'Med', badgeVariant: 'warning' },
-  high: { label: 'High', badgeVariant: 'danger' },
-  urgent: { label: '🔴', badgeVariant: 'danger' },
+  low: { label: 'Low', dot: 'bg-slate-400', badgeVariant: 'secondary' },
+  medium: { label: 'Med', dot: 'bg-warn-500', badgeVariant: 'warning' },
+  high: { label: 'High', dot: 'bg-destructive', badgeVariant: 'danger' },
+  urgent: { label: 'Urgent', dot: 'bg-destructive', badgeVariant: 'danger' },
 }
 
-// ─── Task form (shared by create + edit) ──────────────────────────────────────
+// ─── Task dialog (create + edit) ──────────────────────────────────────────────
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -90,7 +118,7 @@ interface TaskDialogProps {
   open: boolean
   onClose: () => void
   defaultDate?: string
-  task?: Task // present = edit mode
+  task?: Task
 }
 
 function TaskDialog({ open, onClose, defaultDate, task }: TaskDialogProps) {
@@ -172,7 +200,7 @@ function TaskDialog({ open, onClose, defaultDate, task }: TaskDialogProps) {
                 <SelectContent>
                   {(['low', 'medium', 'high', 'urgent'] as TaskPriority[]).map((p) => (
                     <SelectItem key={p} value={p}>
-                      {PRIORITY_CONFIG[p].label === '🔴' ? 'Urgent' : PRIORITY_CONFIG[p].label}
+                      {PRIORITY_CONFIG[p].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -192,7 +220,7 @@ function TaskDialog({ open, onClose, defaultDate, task }: TaskDialogProps) {
   )
 }
 
-// ─── Compact task card (calendar view) ───────────────────────────────────────
+// ─── Compact task card (week calendar) ───────────────────────────────────────
 
 function CalendarTaskCard({
   task,
@@ -252,7 +280,7 @@ function CalendarTaskCard({
   )
 }
 
-// ─── Week calendar ────────────────────────────────────────────────────────────
+// ─── Week view ────────────────────────────────────────────────────────────────
 
 function WeekView({ tasks }: { tasks: Task[] }) {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
@@ -276,17 +304,14 @@ function WeekView({ tasks }: { tasks: Task[] }) {
   }, [tasks])
 
   const weekLabel = (() => {
-    const s = days[0]
-    const e = days[6]
     const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    return `${fmt(s)} – ${fmt(e)}`
+    return `${fmt(days[0])} – ${fmt(days[6])}`
   })()
 
   const noDateTasks = tasksByDay['__nodate__'] ?? []
 
   return (
     <div className="space-y-4">
-      {/* Week nav */}
       <div className="flex items-center justify-between">
         <button
           onClick={() =>
@@ -301,7 +326,7 @@ function WeekView({ tasks }: { tasks: Task[] }) {
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{weekLabel}</span>
+          <span className="text-sm font-medium">{weekLabel}</span>
           <button
             onClick={() => setWeekStart(getWeekStart(new Date()))}
             className="text-xs text-noor-600 dark:text-noor-400 hover:underline"
@@ -323,7 +348,6 @@ function WeekView({ tasks }: { tasks: Task[] }) {
         </button>
       </div>
 
-      {/* 7-column grid — horizontal scroll on mobile */}
       <div className="overflow-x-auto pb-2 -mx-4 px-4">
         <div className="grid grid-cols-7 gap-2 min-w-[560px]">
           {days.map((day, i) => {
@@ -332,7 +356,6 @@ function WeekView({ tasks }: { tasks: Task[] }) {
             const dayTasks = tasksByDay[key] ?? []
             return (
               <div key={key} className="flex flex-col gap-1.5">
-                {/* Day header */}
                 <div
                   className={cn(
                     'rounded-lg px-2 py-1.5 text-center',
@@ -353,8 +376,6 @@ function WeekView({ tasks }: { tasks: Task[] }) {
                     {day.getDate()}
                   </p>
                 </div>
-
-                {/* Tasks for this day */}
                 <div className="flex flex-col gap-1 min-h-[60px]">
                   <AnimatePresence>
                     {dayTasks.map((task) => (
@@ -376,8 +397,6 @@ function WeekView({ tasks }: { tasks: Task[] }) {
                     ))}
                   </AnimatePresence>
                 </div>
-
-                {/* Add button */}
                 <button
                   onClick={() => setDialog({ open: true, date: key })}
                   className="flex items-center justify-center gap-0.5 rounded-lg border border-dashed border-border py-1 text-[10px] text-muted-foreground/50 hover:border-noor-500/40 hover:text-noor-500 transition-colors"
@@ -390,7 +409,6 @@ function WeekView({ tasks }: { tasks: Task[] }) {
         </div>
       </div>
 
-      {/* No-date tasks */}
       {noDateTasks.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground px-1">No due date</p>
@@ -407,6 +425,166 @@ function WeekView({ tasks }: { tasks: Task[] }) {
           </div>
         </div>
       )}
+
+      <TaskDialog
+        open={dialog.open}
+        onClose={() => setDialog({ open: false })}
+        defaultDate={dialog.date}
+        task={dialog.task}
+      />
+    </div>
+  )
+}
+
+// ─── Month view ───────────────────────────────────────────────────────────────
+
+function MonthView({ tasks }: { tasks: Task[] }) {
+  const now = new Date()
+  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth())
+  const [dialog, setDialog] = useState<{ open: boolean; date?: string; task?: Task }>({
+    open: false,
+  })
+
+  const today = todayStr()
+  const grid = useMemo(() => getMonthGrid(year, month), [year, month])
+
+  const tasksByDay = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    tasks.forEach((t) => {
+      if (!t.due_date) return
+      if (!map[t.due_date]) map[t.due_date] = []
+      map[t.due_date].push(t)
+    })
+    return map
+  }, [tasks])
+
+  const prevMonth = () => {
+    if (month === 0) {
+      setMonth(11)
+      setYear((y) => y - 1)
+    } else setMonth((m) => m - 1)
+  }
+  const nextMonth = () => {
+    if (month === 11) {
+      setMonth(0)
+      setYear((y) => y + 1)
+    } else setMonth((m) => m + 1)
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Month nav */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={prevMonth}
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">
+            {MONTH_NAMES[month]} {year}
+          </span>
+          <button
+            onClick={() => {
+              setYear(now.getFullYear())
+              setMonth(now.getMonth())
+            }}
+            className="text-xs text-noor-600 dark:text-noor-400 hover:underline"
+          >
+            Today
+          </button>
+        </div>
+        <button
+          onClick={nextMonth}
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-px">
+        {DAY_NAMES.map((d) => (
+          <div key={d} className="py-1 text-center text-[10px] font-medium text-muted-foreground">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-px rounded-xl overflow-hidden border border-border bg-border">
+        {grid.flat().map((day, idx) => {
+          if (!day) {
+            return (
+              <div key={`empty-${idx}`} className="bg-background min-h-[72px] sm:min-h-[88px]" />
+            )
+          }
+          const key = toKey(day)
+          const isToday = key === today
+          const dayTasks = tasksByDay[key] ?? []
+          const visible = dayTasks.slice(0, 2)
+          const overflow = dayTasks.length - visible.length
+
+          return (
+            <div
+              key={key}
+              onClick={() => setDialog({ open: true, date: key })}
+              className={cn(
+                'group bg-background min-h-[72px] sm:min-h-[88px] p-1.5 cursor-pointer',
+                'hover:bg-muted/30 transition-colors',
+              )}
+            >
+              {/* Day number */}
+              <div
+                className={cn(
+                  'w-6 h-6 flex items-center justify-center rounded-full text-xs font-semibold mb-1',
+                  isToday ? 'bg-noor-500 text-white' : 'text-foreground',
+                )}
+              >
+                {day.getDate()}
+              </div>
+
+              {/* Task chips */}
+              <div className="space-y-0.5">
+                {visible.map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDialog({ open: true, task })
+                    }}
+                    className={cn(
+                      'flex items-center gap-1 rounded px-1 py-0.5 text-[9px] leading-tight truncate',
+                      'hover:opacity-80 transition-opacity',
+                      task.completed
+                        ? 'bg-muted/50 text-muted-foreground line-through'
+                        : 'bg-noor-500/10 text-noor-700 dark:text-noor-300',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'h-1.5 w-1.5 rounded-full shrink-0',
+                        PRIORITY_CONFIG[task.priority].dot,
+                      )}
+                    />
+                    <span className="truncate">{task.title}</span>
+                  </div>
+                ))}
+                {overflow > 0 && (
+                  <p className="text-[9px] text-muted-foreground px-1">+{overflow} more</p>
+                )}
+              </div>
+
+              {/* Hover add hint */}
+              <div className="hidden group-hover:flex items-center gap-0.5 mt-0.5 text-[9px] text-noor-500">
+                <Plus className="h-2.5 w-2.5" /> Add
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
       <TaskDialog
         open={dialog.open}
@@ -449,7 +627,6 @@ function ListTaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
           />
         )}
       </button>
-
       <div className="flex-1 min-w-0">
         <p
           className={cn(
@@ -462,7 +639,7 @@ function ListTaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
         <div className="flex items-center gap-2 mt-0.5">
           <Badge variant={pCfg.badgeVariant} className="h-4 px-1.5 text-[10px]">
             <Flag className="h-2.5 w-2.5 mr-0.5" />
-            {pCfg.label === '🔴' ? 'Urgent' : pCfg.label}
+            {pCfg.label}
           </Badge>
           {task.due_date && (
             <span className="text-[10px] text-muted-foreground">
@@ -474,7 +651,6 @@ function ListTaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
           )}
         </div>
       </div>
-
       <button
         onClick={onEdit}
         className="shrink-0 rounded-lg p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors"
@@ -494,7 +670,7 @@ function ListTaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export default function TasksView() {
-  const [tab, setTab] = useState<'week' | 'all'>('week')
+  const [tab, setTab] = useState<'week' | 'month' | 'all'>('week')
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const { data: tasks, isLoading } = useAllTasks()
@@ -510,7 +686,6 @@ export default function TasksView() {
         transition={{ duration: 0.25 }}
         className="space-y-4"
       >
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground">Tasks</h1>
@@ -521,11 +696,13 @@ export default function TasksView() {
           </Button>
         </div>
 
-        {/* Tabs */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList className="w-full">
             <TabsTrigger value="week" className="flex-1">
               Week
+            </TabsTrigger>
+            <TabsTrigger value="month" className="flex-1">
+              Month
             </TabsTrigger>
             <TabsTrigger value="all" className="flex-1">
               All
@@ -541,8 +718,9 @@ export default function TasksView() {
           </div>
         ) : tab === 'week' ? (
           <WeekView tasks={tasks ?? []} />
+        ) : tab === 'month' ? (
+          <MonthView tasks={tasks ?? []} />
         ) : (
-          /* All tab */
           <div className="space-y-4">
             {incomplete.length === 0 && complete.length === 0 ? (
               <div className="flex flex-col items-center py-16 text-center">
@@ -584,10 +762,7 @@ export default function TasksView() {
         )}
       </motion.div>
 
-      {/* Global add dialog */}
       <TaskDialog open={addOpen} onClose={() => setAddOpen(false)} />
-
-      {/* Edit dialog */}
       <TaskDialog
         open={!!editTask}
         onClose={() => setEditTask(null)}

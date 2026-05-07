@@ -12,7 +12,7 @@ const QuranView = lazy(() => import('@/views/quran/QuranView'))
 const AdhkarView = lazy(() => import('@/views/adhkar/AdhkarView'))
 const FocusView = lazy(() => import('@/views/focus/FocusView'))
 const TasksView = lazy(() => import('@/views/tasks/TasksView'))
-const CalendarView = lazy(() => import('@/views/calendar/CalendarView'))
+
 const WorkoutsView = lazy(() => import('@/views/workouts/WorkoutsView'))
 const ChallengesView = lazy(() => import('@/views/challenges/ChallengesView'))
 const StudyRoomsView = lazy(() => import('@/views/study-rooms/StudyRoomsView'))
@@ -88,14 +88,7 @@ export const router = createBrowserRouter([
               </Suspense>
             ),
           },
-          {
-            path: 'calendar',
-            element: (
-              <Suspense fallback={<Fallback />}>
-                <CalendarView />
-              </Suspense>
-            ),
-          },
+          { path: 'calendar', element: <Navigate to="/tasks" replace /> },
           {
             path: 'workouts',
             element: (

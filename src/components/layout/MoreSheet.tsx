@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom'
 import { Drawer } from 'vaul'
 import {
   IconTasks,
-  IconCalendar,
   IconQuran,
   IconAdhkar,
   IconWorkouts,
@@ -21,7 +20,7 @@ interface MoreSheetProps {
 
 const MORE_ITEMS = [
   { path: '/tasks', icon: <IconTasks />, label: 'Tasks' },
-  { path: '/calendar', icon: <IconCalendar />, label: 'Calendar' },
+
   { path: '/quran', icon: <IconQuran />, label: 'Quran' },
   { path: '/adhkar', icon: <IconAdhkar />, label: 'Adhkar' },
   { path: '/workouts', icon: <IconWorkouts />, label: 'Workouts' },

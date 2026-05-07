@@ -8,7 +8,6 @@ import {
   IconFocus,
   IconPrayer,
   IconTasks,
-  IconCalendar,
   IconQuran,
   IconAdhkar,
   IconWorkouts,
@@ -40,7 +39,7 @@ const SIDEBAR_NAV: NavItem[] = [
   { path: '/', icon: <IconHome />, label: 'Dashboard' },
   { path: '/focus', icon: <IconFocus />, label: 'Focus' },
   { path: '/tasks', icon: <IconTasks />, label: 'Tasks' },
-  { path: '/calendar', icon: <IconCalendar />, label: 'Calendar' },
+
   { path: '/prayers', icon: <IconPrayer />, label: 'Prayers' },
   { path: '/quran', icon: <IconQuran />, label: 'Quran' },
   { path: '/adhkar', icon: <IconAdhkar />, label: 'Adhkar' },

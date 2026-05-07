@@ -8,7 +8,6 @@ import {
   Heart,
   Timer,
   CheckSquare,
-  Calendar,
   Dumbbell,
   Trophy,
   Users,
@@ -34,7 +33,7 @@ const NAV_ITEMS = [
   { label: 'Adhkar', path: '/adhkar', icon: Heart },
   { label: 'Focus', path: '/focus', icon: Timer },
   { label: 'Tasks', path: '/tasks', icon: CheckSquare },
-  { label: 'Calendar', path: '/calendar', icon: Calendar },
+
   { label: 'Workouts', path: '/workouts', icon: Dumbbell },
   { label: 'Challenges', path: '/challenges', icon: Trophy },
   { label: 'Study Rooms', path: '/rooms', icon: Users },
