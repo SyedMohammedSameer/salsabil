@@ -1,23 +1,25 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, CheckCircle2, Circle, Trash2, Flag, Calendar } from 'lucide-react'
+import {
+  Plus,
+  CheckCircle2,
+  Circle,
+  Trash2,
+  Flag,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+} from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { PageShell } from '@/components/shared/PageShell'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -26,37 +28,74 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/shared/SkeletonLoader'
-import { useAllTasks, useCreateTask, useCompleteTask, useDeleteTask } from '@/hooks/useTasks'
+import {
+  useAllTasks,
+  useCreateTask,
+  useUpdateTask,
+  useCompleteTask,
+  useDeleteTask,
+} from '@/hooks/useTasks'
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
-type TabId = 'today' | 'upcoming' | 'all'
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function toKey(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function getWeekStart(d: Date): Date {
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day // Monday-first
+  const start = new Date(d)
+  start.setDate(d.getDate() + diff)
+  start.setHours(0, 0, 0, 0)
+  return start
+}
+
+function getWeekDays(weekStart: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setDate(weekStart.getDate() + i)
+    return d
+  })
+}
+
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const PRIORITY_CONFIG: Record<
   TaskPriority,
-  { label: string; color: string; badgeVariant: 'default' | 'secondary' | 'warning' | 'danger' }
+  { label: string; badgeVariant: 'default' | 'secondary' | 'warning' | 'danger' }
 > = {
-  low: { label: 'Low', color: 'text-muted-foreground', badgeVariant: 'secondary' },
-  medium: { label: 'Medium', color: 'text-warn-600 dark:text-warn-400', badgeVariant: 'warning' },
-  high: { label: 'High', color: 'text-destructive', badgeVariant: 'danger' },
-  urgent: { label: 'Urgent', color: 'text-destructive', badgeVariant: 'danger' },
+  low: { label: 'Low', badgeVariant: 'secondary' },
+  medium: { label: 'Med', badgeVariant: 'warning' },
+  high: { label: 'High', badgeVariant: 'danger' },
+  urgent: { label: '🔴', badgeVariant: 'danger' },
 }
 
-const addSchema = z.object({
+// ─── Task form (shared by create + edit) ──────────────────────────────────────
+
+const taskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   due_date: z.string().optional(),
 })
+type TaskForm = z.infer<typeof taskSchema>
 
-type AddForm = z.infer<typeof addSchema>
-
-function today() {
-  return new Date().toISOString().split('T')[0]
+interface TaskDialogProps {
+  open: boolean
+  onClose: () => void
+  defaultDate?: string
+  task?: Task // present = edit mode
 }
 
-function AddTaskDialog({ onAdded }: { onAdded: () => void }) {
-  const [open, setOpen] = useState(false)
+function TaskDialog({ open, onClose, defaultDate, task }: TaskDialogProps) {
   const createTask = useCreateTask()
+  const updateTask = useUpdateTask()
 
   const {
     register,
@@ -65,45 +104,61 @@ function AddTaskDialog({ onAdded }: { onAdded: () => void }) {
     watch,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<AddForm>({ resolver: zodResolver(addSchema), defaultValues: { priority: 'medium' } })
+  } = useForm<TaskForm>({
+    resolver: zodResolver(taskSchema),
+    values: task
+      ? { title: task.title, priority: task.priority, due_date: task.due_date ?? '' }
+      : { title: '', priority: 'medium', due_date: defaultDate ?? '' },
+  })
 
   const priority = watch('priority')
 
-  const onSubmit = async (data: AddForm) => {
-    await createTask.mutateAsync({
-      title: data.title,
-      priority: data.priority,
-      due_date: data.due_date || undefined,
-    })
+  const onSubmit = async (data: TaskForm) => {
+    if (task) {
+      await updateTask.mutateAsync({
+        id: task.id,
+        updates: {
+          title: data.title,
+          priority: data.priority,
+          due_date: data.due_date || undefined,
+        },
+      })
+    } else {
+      await createTask.mutateAsync({
+        title: data.title,
+        priority: data.priority,
+        due_date: data.due_date || undefined,
+      })
+    }
     reset()
-    setOpen(false)
-    onAdded()
+    onClose()
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Add task
-        </Button>
-      </DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          reset()
+          onClose()
+        }
+      }}
+    >
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
+          <DialogTitle>{task ? 'Edit Task' : 'New Task'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="task-title">Title</Label>
+            <Label htmlFor="td-title">Title</Label>
             <Input
-              id="task-title"
+              id="td-title"
               placeholder="What needs to be done?"
               autoFocus
               {...register('title')}
             />
             {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Priority</Label>
@@ -115,23 +170,21 @@ function AddTaskDialog({ onAdded }: { onAdded: () => void }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map((p) => (
+                  {(['low', 'medium', 'high', 'urgent'] as TaskPriority[]).map((p) => (
                     <SelectItem key={p} value={p}>
-                      {PRIORITY_CONFIG[p].label}
+                      {PRIORITY_CONFIG[p].label === '🔴' ? 'Urgent' : PRIORITY_CONFIG[p].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label htmlFor="task-due">Due date</Label>
-              <Input id="task-due" type="date" min={today()} {...register('due_date')} />
+              <Label htmlFor="td-due">Due date</Label>
+              <Input id="td-due" type="date" {...register('due_date')} />
             </div>
           </div>
-
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Adding…' : 'Add Task'}
+            {isSubmitting ? (task ? 'Saving…' : 'Adding…') : task ? 'Save Changes' : 'Add Task'}
           </Button>
         </form>
       </DialogContent>
@@ -139,29 +192,253 @@ function AddTaskDialog({ onAdded }: { onAdded: () => void }) {
   )
 }
 
-interface TaskRowProps {
+// ─── Compact task card (calendar view) ───────────────────────────────────────
+
+function CalendarTaskCard({
+  task,
+  onEdit,
+  onComplete,
+  onDelete,
+}: {
   task: Task
-  onComplete: (id: string, completed: boolean) => void
-  onDelete: (id: string) => void
+  onEdit: () => void
+  onComplete: () => void
+  onDelete: () => void
+}) {
+  const pCfg = PRIORITY_CONFIG[task.priority]
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1.5 text-xs',
+        task.completed && 'opacity-40',
+      )}
+    >
+      <button onClick={onComplete} className="shrink-0">
+        {task.completed ? (
+          <CheckCircle2 className="h-3.5 w-3.5 text-accent-500" strokeWidth={1.75} />
+        ) : (
+          <Circle
+            className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground"
+            strokeWidth={1.75}
+          />
+        )}
+      </button>
+      <span
+        className={cn(
+          'flex-1 min-w-0 truncate',
+          task.completed && 'line-through text-muted-foreground',
+        )}
+      >
+        {task.title}
+      </span>
+      <Badge variant={pCfg.badgeVariant} className="h-3.5 px-1 text-[9px] shrink-0">
+        {pCfg.label}
+      </Badge>
+      <div className="hidden group-hover:flex items-center gap-0.5">
+        <button
+          onClick={onEdit}
+          className="rounded p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="rounded p-0.5 text-muted-foreground/50 hover:text-destructive transition-colors"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
-function TaskRow({ task, onComplete, onDelete }: TaskRowProps) {
+// ─── Week calendar ────────────────────────────────────────────────────────────
+
+function WeekView({ tasks }: { tasks: Task[] }) {
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
+  const [dialog, setDialog] = useState<{ open: boolean; date?: string; task?: Task }>({
+    open: false,
+  })
+  const completeTask = useCompleteTask()
+  const deleteTask = useDeleteTask()
+
+  const days = getWeekDays(weekStart)
+  const today = todayStr()
+
+  const tasksByDay = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    tasks.forEach((t) => {
+      const key = t.due_date ?? '__nodate__'
+      if (!map[key]) map[key] = []
+      map[key].push(t)
+    })
+    return map
+  }, [tasks])
+
+  const weekLabel = (() => {
+    const s = days[0]
+    const e = days[6]
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return `${fmt(s)} – ${fmt(e)}`
+  })()
+
+  const noDateTasks = tasksByDay['__nodate__'] ?? []
+
+  return (
+    <div className="space-y-4">
+      {/* Week nav */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() =>
+            setWeekStart((w) => {
+              const d = new Date(w)
+              d.setDate(d.getDate() - 7)
+              return d
+            })
+          }
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">{weekLabel}</span>
+          <button
+            onClick={() => setWeekStart(getWeekStart(new Date()))}
+            className="text-xs text-noor-600 dark:text-noor-400 hover:underline"
+          >
+            Today
+          </button>
+        </div>
+        <button
+          onClick={() =>
+            setWeekStart((w) => {
+              const d = new Date(w)
+              d.setDate(d.getDate() + 7)
+              return d
+            })
+          }
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* 7-column grid — horizontal scroll on mobile */}
+      <div className="overflow-x-auto pb-2 -mx-4 px-4">
+        <div className="grid grid-cols-7 gap-2 min-w-[560px]">
+          {days.map((day, i) => {
+            const key = toKey(day)
+            const isToday = key === today
+            const dayTasks = tasksByDay[key] ?? []
+            return (
+              <div key={key} className="flex flex-col gap-1.5">
+                {/* Day header */}
+                <div
+                  className={cn(
+                    'rounded-lg px-2 py-1.5 text-center',
+                    isToday ? 'bg-noor-500 text-white' : 'bg-muted/50',
+                  )}
+                >
+                  <p
+                    className={cn(
+                      'text-[10px] font-medium',
+                      isToday ? 'text-white/80' : 'text-muted-foreground',
+                    )}
+                  >
+                    {DAY_NAMES[i]}
+                  </p>
+                  <p
+                    className={cn('text-sm font-bold', isToday ? 'text-white' : 'text-foreground')}
+                  >
+                    {day.getDate()}
+                  </p>
+                </div>
+
+                {/* Tasks for this day */}
+                <div className="flex flex-col gap-1 min-h-[60px]">
+                  <AnimatePresence>
+                    {dayTasks.map((task) => (
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                      >
+                        <CalendarTaskCard
+                          task={task}
+                          onEdit={() => setDialog({ open: true, task })}
+                          onComplete={() =>
+                            completeTask.mutate({ id: task.id, completed: !task.completed })
+                          }
+                          onDelete={() => deleteTask.mutate(task.id)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                {/* Add button */}
+                <button
+                  onClick={() => setDialog({ open: true, date: key })}
+                  className="flex items-center justify-center gap-0.5 rounded-lg border border-dashed border-border py-1 text-[10px] text-muted-foreground/50 hover:border-noor-500/40 hover:text-noor-500 transition-colors"
+                >
+                  <Plus className="h-2.5 w-2.5" /> Add
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* No-date tasks */}
+      {noDateTasks.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground px-1">No due date</p>
+          <div className="space-y-1">
+            {noDateTasks.map((task) => (
+              <CalendarTaskCard
+                key={task.id}
+                task={task}
+                onEdit={() => setDialog({ open: true, task })}
+                onComplete={() => completeTask.mutate({ id: task.id, completed: !task.completed })}
+                onDelete={() => deleteTask.mutate(task.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <TaskDialog
+        open={dialog.open}
+        onClose={() => setDialog({ open: false })}
+        defaultDate={dialog.date}
+        task={dialog.task}
+      />
+    </div>
+  )
+}
+
+// ─── List row (All tab) ───────────────────────────────────────────────────────
+
+function ListTaskRow({ task, onEdit }: { task: Task; onEdit: () => void }) {
+  const completeTask = useCompleteTask()
+  const deleteTask = useDeleteTask()
   const pCfg = PRIORITY_CONFIG[task.priority]
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20, transition: { duration: 0.15 } }}
+      exit={{ opacity: 0, x: -16, transition: { duration: 0.15 } }}
       className={cn(
-        'flex items-start gap-3 rounded-xl border border-border px-3 py-3 transition-colors',
+        'flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 transition-colors',
         task.completed && 'opacity-50',
       )}
     >
       <button
-        onClick={() => onComplete(task.id, !task.completed)}
-        className="mt-0.5 shrink-0 transition-transform active:scale-90"
+        onClick={() => completeTask.mutate({ id: task.id, completed: !task.completed })}
+        className="shrink-0 transition-transform active:scale-90"
       >
         {task.completed ? (
           <CheckCircle2 className="h-5 w-5 text-accent-500" strokeWidth={1.75} />
@@ -176,20 +453,19 @@ function TaskRow({ task, onComplete, onDelete }: TaskRowProps) {
       <div className="flex-1 min-w-0">
         <p
           className={cn(
-            'text-sm font-medium text-foreground leading-snug',
+            'text-sm font-medium leading-snug',
             task.completed && 'line-through text-muted-foreground',
           )}
         >
           {task.title}
         </p>
-        <div className="flex items-center gap-2 mt-1">
-          <Badge variant={pCfg.badgeVariant} className="text-[10px] h-4 px-1.5">
+        <div className="flex items-center gap-2 mt-0.5">
+          <Badge variant={pCfg.badgeVariant} className="h-4 px-1.5 text-[10px]">
             <Flag className="h-2.5 w-2.5 mr-0.5" />
-            {pCfg.label}
+            {pCfg.label === '🔴' ? 'Urgent' : pCfg.label}
           </Badge>
           {task.due_date && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Calendar className="h-2.5 w-2.5" />
+            <span className="text-[10px] text-muted-foreground">
               {new Date(task.due_date + 'T00:00:00').toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -200,7 +476,13 @@ function TaskRow({ task, onComplete, onDelete }: TaskRowProps) {
       </div>
 
       <button
-        onClick={() => onDelete(task.id)}
+        onClick={onEdit}
+        className="shrink-0 rounded-lg p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={() => deleteTask.mutate(task.id)}
         className="shrink-0 rounded-lg p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -209,25 +491,16 @@ function TaskRow({ task, onComplete, onDelete }: TaskRowProps) {
   )
 }
 
+// ─── Main view ────────────────────────────────────────────────────────────────
+
 export default function TasksView() {
-  const [tab, setTab] = useState<TabId>('today')
+  const [tab, setTab] = useState<'week' | 'all'>('week')
+  const [editTask, setEditTask] = useState<Task | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const { data: tasks, isLoading } = useAllTasks()
-  const completeTask = useCompleteTask()
-  const deleteTask = useDeleteTask()
 
-  const todayStr = today()
-
-  const filtered = useMemo(() => {
-    if (!tasks) return []
-    if (tab === 'today') return tasks.filter((t) => t.due_date === todayStr || !t.due_date)
-    if (tab === 'upcoming') {
-      return tasks.filter((t) => t.due_date && t.due_date > todayStr && !t.completed)
-    }
-    return tasks
-  }, [tasks, tab, todayStr])
-
-  const incomplete = filtered.filter((t) => !t.completed)
-  const complete = filtered.filter((t) => t.completed)
+  const incomplete = useMemo(() => tasks?.filter((t) => !t.completed) ?? [], [tasks])
+  const complete = useMemo(() => tasks?.filter((t) => t.completed) ?? [], [tasks])
 
   return (
     <PageShell maxWidth="lg">
@@ -243,17 +516,16 @@ export default function TasksView() {
             <h1 className="text-xl font-bold tracking-tight text-foreground">Tasks</h1>
             <p className="text-sm text-muted-foreground">{incomplete.length} remaining</p>
           </div>
-          <AddTaskDialog onAdded={() => {}} />
+          <Button size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" /> Add task
+          </Button>
         </div>
 
         {/* Tabs */}
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList className="w-full">
-            <TabsTrigger value="today" className="flex-1">
-              Today
-            </TabsTrigger>
-            <TabsTrigger value="upcoming" className="flex-1">
-              Upcoming
+            <TabsTrigger value="week" className="flex-1">
+              Week
             </TabsTrigger>
             <TabsTrigger value="all" className="flex-1">
               All
@@ -263,63 +535,64 @@ export default function TasksView() {
 
         {isLoading ? (
           <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
           </div>
-        ) : incomplete.length === 0 && complete.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-center">
-            <CheckCircle2 className="h-12 w-12 text-muted-foreground/20 mb-3" strokeWidth={1.25} />
-            <p className="text-sm font-medium text-foreground">No tasks here</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {tab === 'today' ? 'Add tasks to track what needs doing today.' : 'Nothing to show.'}
-            </p>
-          </div>
+        ) : tab === 'week' ? (
+          <WeekView tasks={tasks ?? []} />
         ) : (
+          /* All tab */
           <div className="space-y-4">
-            {/* Incomplete */}
-            {incomplete.length > 0 && (
-              <Card>
-                <CardContent className="p-3 space-y-2">
-                  <AnimatePresence mode="popLayout">
-                    {incomplete.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onComplete={(id, c) => completeTask.mutate({ id, completed: c })}
-                        onDelete={(id) => deleteTask.mutate(id)}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Completed */}
-            {complete.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground px-1 mb-2">
-                  Completed ({complete.length})
+            {incomplete.length === 0 && complete.length === 0 ? (
+              <div className="flex flex-col items-center py-16 text-center">
+                <CheckCircle2
+                  className="h-12 w-12 text-muted-foreground/20 mb-3"
+                  strokeWidth={1.25}
+                />
+                <p className="text-sm font-medium text-foreground">No tasks yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tap &quot;Add task&quot; to get started.
                 </p>
-                <Card>
-                  <CardContent className="p-3 space-y-2">
-                    <AnimatePresence>
-                      {complete.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          onComplete={(id, c) => completeTask.mutate({ id, completed: c })}
-                          onDelete={(id) => deleteTask.mutate(id)}
-                        />
+              </div>
+            ) : (
+              <>
+                {incomplete.length > 0 && (
+                  <div className="space-y-1.5">
+                    <AnimatePresence mode="popLayout">
+                      {incomplete.map((task) => (
+                        <ListTaskRow key={task.id} task={task} onEdit={() => setEditTask(task)} />
                       ))}
                     </AnimatePresence>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                )}
+                {complete.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground px-1">
+                      Completed ({complete.length})
+                    </p>
+                    <AnimatePresence>
+                      {complete.map((task) => (
+                        <ListTaskRow key={task.id} task={task} onEdit={() => setEditTask(task)} />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
       </motion.div>
+
+      {/* Global add dialog */}
+      <TaskDialog open={addOpen} onClose={() => setAddOpen(false)} />
+
+      {/* Edit dialog */}
+      <TaskDialog
+        open={!!editTask}
+        onClose={() => setEditTask(null)}
+        task={editTask ?? undefined}
+      />
     </PageShell>
   )
 }

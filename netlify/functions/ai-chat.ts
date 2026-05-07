@@ -1,4 +1,4 @@
-const MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+const MODEL = 'google/gemini-2.0-flash-exp:free'
 
 const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
