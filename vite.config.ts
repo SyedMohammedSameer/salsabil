@@ -30,7 +30,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['pixi.js', 'eventemitter3'],
+    include: ['pixi.js', 'eventemitter3', 'framer-motion'],
   },
   test: {
     globals: true,

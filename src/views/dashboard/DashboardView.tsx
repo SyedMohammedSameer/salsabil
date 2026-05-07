@@ -11,12 +11,20 @@ import {
   Star,
   CheckCircle2,
   Circle,
+  Dumbbell,
+  Target,
+  TreePine,
+  Moon,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { usePrayersForDate } from '@/hooks/usePrayers'
+import { useWorkouts } from '@/hooks/useWorkouts'
+import { useChallenges } from '@/hooks/useChallenges'
+import { useAdhkarLogs } from '@/hooks/useAdhkar'
+import { useGardenTrees } from '@/hooks/useGarden'
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { StatCard } from '@/components/shared/StatCard'
@@ -104,8 +112,25 @@ export default function DashboardView() {
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
   const quote = useMemo(() => getDailyQuote(), [])
 
+  const weekAgo = useMemo(() => new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0], [])
+
   const { data: stats, isLoading: statsLoading } = useDashboardStats(today)
   const { data: prayers, isLoading: prayersLoading } = usePrayersForDate(today)
+  const { data: workouts } = useWorkouts()
+  const { data: challenges } = useChallenges()
+  const { data: adhkarLogs } = useAdhkarLogs(today)
+  const { data: trees } = useGardenTrees()
+
+  const workoutsThisWeek = useMemo(
+    () => workouts?.filter((w) => w.date >= weekAgo).length ?? 0,
+    [workouts, weekAgo],
+  )
+  const activeChallenges = useMemo(
+    () => challenges?.filter((c) => c.status === 'active') ?? [],
+    [challenges],
+  )
+  const adhkarDone = adhkarLogs?.filter((a) => a.completed).length ?? 0
+  const treesPlanted = trees?.length ?? 0
 
   const displayName =
     profile?.username ??
@@ -152,7 +177,7 @@ export default function DashboardView() {
           </Card>
         </motion.div>
 
-        {/* ─── Stats ─────────────────────────────────────────────────────────── */}
+        {/* ─── Stats row 1 ───────────────────────────────────────────────────── */}
         <motion.div variants={stagger.item}>
           {statsLoading ? (
             <StatsSkeleton />
@@ -188,6 +213,40 @@ export default function DashboardView() {
               />
             </div>
           )}
+        </motion.div>
+
+        {/* ─── Stats row 2 ───────────────────────────────────────────────────── */}
+        <motion.div variants={stagger.item}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard
+              label="Workouts (week)"
+              value={String(workoutsThisWeek)}
+              icon={Dumbbell}
+              iconColor="text-rose-500"
+              iconBg="bg-rose-500/10"
+            />
+            <StatCard
+              label="Challenges"
+              value={String(activeChallenges.length)}
+              icon={Target}
+              iconColor="text-violet-500"
+              iconBg="bg-violet-500/10"
+            />
+            <StatCard
+              label="Adhkar today"
+              value={`${adhkarDone}/3`}
+              icon={Moon}
+              iconColor="text-indigo-500"
+              iconBg="bg-indigo-500/10"
+            />
+            <StatCard
+              label="Trees planted"
+              value={String(treesPlanted)}
+              icon={TreePine}
+              iconColor="text-emerald-600"
+              iconBg="bg-emerald-500/10"
+            />
+          </div>
         </motion.div>
 
         {/* ─── Main grid ─────────────────────────────────────────────────────── */}
@@ -357,6 +416,47 @@ export default function DashboardView() {
             </div>
           )}
         </motion.div>
+
+        {/* ─── Active challenges ────────────────────────────────────────────── */}
+        {activeChallenges.length > 0 && (
+          <motion.div variants={stagger.item}>
+            <SectionHeader
+              title="Active Challenges"
+              action={
+                <Button variant="ghost" size="sm" onClick={() => navigate('/challenges')}>
+                  View all <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              }
+            />
+            <div className="mt-3 space-y-2">
+              {activeChallenges.slice(0, 3).map((challenge) => {
+                const pct = Math.min(
+                  100,
+                  Math.round((challenge.current_days / challenge.target_days) * 100),
+                )
+                return (
+                  <div
+                    key={challenge.id}
+                    className="flex items-center gap-3 rounded-xl border border-border px-4 py-3"
+                  >
+                    <Target className="h-4 w-4 shrink-0 text-violet-500" strokeWidth={1.75} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {challenge.title}
+                        </p>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {challenge.current_days}/{challenge.target_days}d
+                        </span>
+                      </div>
+                      <Progress value={pct} className="mt-1.5 h-1" />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
       </motion.div>
     </PageShell>
   )
