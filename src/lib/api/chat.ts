@@ -75,9 +75,19 @@ export async function streamNoor(
       const data = line.slice(6).trim()
       if (data === '[DONE]') return
       try {
-        const parsed = JSON.parse(data) as { text?: string; error?: string }
-        if (parsed.error) throw new Error(parsed.error)
-        if (parsed.text) onToken(parsed.text)
+        const parsed = JSON.parse(data) as {
+          choices?: { delta?: { content?: string } }[]
+          error?: { message?: string } | string
+        }
+        if (parsed.error) {
+          const msg =
+            typeof parsed.error === 'string'
+              ? parsed.error
+              : (parsed.error.message ?? 'Noor is unavailable right now.')
+          throw new Error(msg)
+        }
+        const content = parsed.choices?.[0]?.delta?.content
+        if (content) onToken(content)
       } catch (e) {
         if (e instanceof SyntaxError) continue
         throw e
