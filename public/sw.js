@@ -1,4 +1,4 @@
-const CACHE_NAME = 'salsabil-v1'
+const CACHE_NAME = 'salsabil-v2'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -30,8 +30,13 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Skip non-GET and cross-origin requests
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return
+  // Skip non-GET, cross-origin, and API/function requests
+  if (
+    request.method !== 'GET' ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/.netlify/') ||
+    url.pathname.startsWith('/api/')
+  ) return
 
   // Network-first for navigation (HTML pages)
   if (request.mode === 'navigate') {

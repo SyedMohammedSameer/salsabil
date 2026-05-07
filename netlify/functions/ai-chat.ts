@@ -144,4 +144,3 @@ export default async (req: Request): Promise<Response> => {
   })
 }
 
-export const config = { path: '/.netlify/functions/ai-chat' }
