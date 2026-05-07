@@ -220,76 +220,14 @@ function TaskDialog({ open, onClose, defaultDate, task }: TaskDialogProps) {
   )
 }
 
-// ─── Compact task card (week calendar) ───────────────────────────────────────
-
-function CalendarTaskCard({
-  task,
-  onEdit,
-  onComplete,
-  onDelete,
-}: {
-  task: Task
-  onEdit: () => void
-  onComplete: () => void
-  onDelete: () => void
-}) {
-  const pCfg = PRIORITY_CONFIG[task.priority]
-  return (
-    <div
-      className={cn(
-        'group flex items-center gap-1.5 rounded-lg border border-border bg-background px-2 py-1.5 text-xs',
-        task.completed && 'opacity-40',
-      )}
-    >
-      <button onClick={onComplete} className="shrink-0">
-        {task.completed ? (
-          <CheckCircle2 className="h-3.5 w-3.5 text-accent-500" strokeWidth={1.75} />
-        ) : (
-          <Circle
-            className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground"
-            strokeWidth={1.75}
-          />
-        )}
-      </button>
-      <span
-        className={cn(
-          'flex-1 min-w-0 truncate',
-          task.completed && 'line-through text-muted-foreground',
-        )}
-      >
-        {task.title}
-      </span>
-      <Badge variant={pCfg.badgeVariant} className="h-3.5 px-1 text-[9px] shrink-0">
-        {pCfg.label}
-      </Badge>
-      <div className="hidden group-hover:flex items-center gap-0.5">
-        <button
-          onClick={onEdit}
-          className="rounded p-0.5 text-muted-foreground/50 hover:text-foreground transition-colors"
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="rounded p-0.5 text-muted-foreground/50 hover:text-destructive transition-colors"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ─── Week view ────────────────────────────────────────────────────────────────
 
 function WeekView({ tasks }: { tasks: Task[] }) {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
+  const [selectedDay, setSelectedDay] = useState(() => todayStr())
   const [dialog, setDialog] = useState<{ open: boolean; date?: string; task?: Task }>({
     open: false,
   })
-  const completeTask = useCompleteTask()
-  const deleteTask = useDeleteTask()
-
   const days = getWeekDays(weekStart)
   const today = todayStr()
 
@@ -308,121 +246,159 @@ function WeekView({ tasks }: { tasks: Task[] }) {
     return `${fmt(days[0])} – ${fmt(days[6])}`
   })()
 
+  const selectedTasks = tasksByDay[selectedDay] ?? []
   const noDateTasks = tasksByDay['__nodate__'] ?? []
 
+  const selectedDayLabel = (() => {
+    const d = new Date(selectedDay + 'T00:00:00')
+    if (selectedDay === today) return 'Today'
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  })()
+
+  const shiftWeek = (n: number) => {
+    setWeekStart((w) => {
+      const d = new Date(w)
+      d.setDate(d.getDate() + n * 7)
+      return d
+    })
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Week nav */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() =>
-            setWeekStart((w) => {
-              const d = new Date(w)
-              d.setDate(d.getDate() - 7)
-              return d
-            })
-          }
+          onClick={() => shiftWeek(-1)}
           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{weekLabel}</span>
-          <button
-            onClick={() => setWeekStart(getWeekStart(new Date()))}
-            className="text-xs text-noor-600 dark:text-noor-400 hover:underline"
-          >
-            Today
-          </button>
+          <span className="text-sm font-medium text-foreground">{weekLabel}</span>
+          {selectedDay !== today && (
+            <button
+              onClick={() => {
+                setWeekStart(getWeekStart(new Date()))
+                setSelectedDay(todayStr())
+              }}
+              className="text-xs text-noor-600 dark:text-noor-400 hover:underline"
+            >
+              Today
+            </button>
+          )}
         </div>
         <button
-          onClick={() =>
-            setWeekStart((w) => {
-              const d = new Date(w)
-              d.setDate(d.getDate() + 7)
-              return d
-            })
-          }
+          onClick={() => shiftWeek(1)}
           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="overflow-x-auto pb-2 -mx-4 px-4">
-        <div className="grid grid-cols-7 gap-2 min-w-[560px]">
-          {days.map((day, i) => {
-            const key = toKey(day)
-            const isToday = key === today
-            const dayTasks = tasksByDay[key] ?? []
-            return (
-              <div key={key} className="flex flex-col gap-1.5">
-                <div
+      {/* Day strip */}
+      <div className="grid grid-cols-7 gap-1.5">
+        {days.map((day, i) => {
+          const key = toKey(day)
+          const isToday = key === today
+          const isSelected = key === selectedDay
+          const count = (tasksByDay[key] ?? []).filter((t) => !t.completed).length
+
+          return (
+            <button
+              key={key}
+              onClick={() => setSelectedDay(key)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-2xl py-3 px-1 transition-all',
+                isSelected
+                  ? 'bg-noor-500 text-white shadow-md shadow-noor-500/20'
+                  : isToday
+                    ? 'bg-noor-500/10 text-noor-600 dark:text-noor-400'
+                    : 'bg-muted/40 text-muted-foreground hover:bg-muted',
+              )}
+            >
+              <span className={cn('text-[11px] font-medium', isSelected ? 'text-white/75' : '')}>
+                {DAY_NAMES[i]}
+              </span>
+              <span className={cn('text-base font-bold leading-none')}>{day.getDate()}</span>
+              {count > 0 ? (
+                <span
                   className={cn(
-                    'rounded-lg px-2 py-1.5 text-center',
-                    isToday ? 'bg-noor-500 text-white' : 'bg-muted/50',
+                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold',
+                    isSelected
+                      ? 'bg-white/25 text-white'
+                      : 'bg-noor-500/15 text-noor-600 dark:text-noor-400',
                   )}
                 >
-                  <p
-                    className={cn(
-                      'text-[10px] font-medium',
-                      isToday ? 'text-white/80' : 'text-muted-foreground',
-                    )}
-                  >
-                    {DAY_NAMES[i]}
-                  </p>
-                  <p
-                    className={cn('text-sm font-bold', isToday ? 'text-white' : 'text-foreground')}
-                  >
-                    {day.getDate()}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1 min-h-[60px]">
-                  <AnimatePresence>
-                    {dayTasks.map((task) => (
-                      <motion.div
-                        key={task.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                      >
-                        <CalendarTaskCard
-                          task={task}
-                          onEdit={() => setDialog({ open: true, task })}
-                          onComplete={() =>
-                            completeTask.mutate({ id: task.id, completed: !task.completed })
-                          }
-                          onDelete={() => deleteTask.mutate(task.id)}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-                <button
-                  onClick={() => setDialog({ open: true, date: key })}
-                  className="flex items-center justify-center gap-0.5 rounded-lg border border-dashed border-border py-1 text-[10px] text-muted-foreground/50 hover:border-noor-500/40 hover:text-noor-500 transition-colors"
-                >
-                  <Plus className="h-2.5 w-2.5" /> Add
-                </button>
-              </div>
-            )
-          })}
-        </div>
+                  {count}
+                </span>
+              ) : (
+                <span className="h-4" />
+              )}
+            </button>
+          )
+        })}
       </div>
 
-      {noDateTasks.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground px-1">No due date</p>
-          <div className="space-y-1">
-            {noDateTasks.map((task) => (
-              <CalendarTaskCard
-                key={task.id}
-                task={task}
-                onEdit={() => setDialog({ open: true, task })}
-                onComplete={() => completeTask.mutate({ id: task.id, completed: !task.completed })}
-                onDelete={() => deleteTask.mutate(task.id)}
-              />
-            ))}
+      {/* Selected day tasks */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-foreground">{selectedDayLabel}</h2>
+          <button
+            onClick={() => setDialog({ open: true, date: selectedDay })}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-noor-600 dark:text-noor-400 hover:bg-noor-500/10 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add
+          </button>
+        </div>
+
+        {selectedTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              No tasks for {selectedDayLabel.toLowerCase()}
+            </p>
+            <button
+              onClick={() => setDialog({ open: true, date: selectedDay })}
+              className="mt-2 text-xs text-noor-600 dark:text-noor-400 hover:underline"
+            >
+              + Add one
+            </button>
           </div>
+        ) : (
+          <AnimatePresence mode="popLayout">
+            {selectedTasks.map((task) => (
+              <motion.div
+                key={task.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -16, transition: { duration: 0.15 } }}
+              >
+                <ListTaskRow task={task} onEdit={() => setDialog({ open: true, task })} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
+      </div>
+
+      {/* No-date tasks */}
+      {noDateTasks.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            No due date
+          </p>
+          <AnimatePresence>
+            {noDateTasks.map((task) => (
+              <motion.div
+                key={task.id}
+                layout
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <ListTaskRow task={task} onEdit={() => setDialog({ open: true, task })} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
