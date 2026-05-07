@@ -254,7 +254,7 @@ export default function QuranView() {
   const { data: logs, isLoading: loadingLogs } = useQuranLogs()
 
   return (
-    <PageShell maxWidth="5xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -270,71 +270,79 @@ export default function QuranView() {
           <LogSessionDialog onLogged={() => {}} />
         </div>
 
-        {/* Today's pages */}
-        <Card variant="glass-noor">
-          <CardContent className="p-5 flex items-center gap-5">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 shadow-lg">
-              <BookOpen className="h-8 w-8 text-white" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Today
-              </p>
-              {loadingToday ? (
-                <Skeleton className="h-10 w-20 mt-1" />
+        {/* Desktop 2-col layout */}
+        <div className="lg:grid lg:grid-cols-[380px_1fr] lg:gap-6 space-y-4 lg:space-y-0">
+          {/* Left: today + weekly chart */}
+          <div className="space-y-4">
+            {/* Today's pages */}
+            <Card variant="glass-noor">
+              <CardContent className="p-5 flex items-center gap-5">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 shadow-lg">
+                  <BookOpen className="h-8 w-8 text-white" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Today
+                  </p>
+                  {loadingToday ? (
+                    <Skeleton className="h-10 w-20 mt-1" />
+                  ) : (
+                    <p className="text-4xl font-bold text-foreground">
+                      {todayPages ?? 0}
+                      <span className="text-base font-normal text-muted-foreground ml-1.5">
+                        pages
+                      </span>
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Weekly chart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">This Week</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                {loadingWeekly ? (
+                  <Skeleton className="h-28 rounded-xl" />
+                ) : (
+                  <WeeklyChart data={weeklyData ?? []} />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right: recent sessions */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Recent Sessions</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-2">
+              {loadingLogs ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 rounded-lg" />
+                  ))}
+                </div>
+              ) : !logs || logs.length === 0 ? (
+                <div className="py-8 text-center">
+                  <BookOpen
+                    className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30"
+                    strokeWidth={1.5}
+                  />
+                  <p className="text-sm text-muted-foreground">No sessions logged yet</p>
+                </div>
               ) : (
-                <p className="text-4xl font-bold text-foreground">
-                  {todayPages ?? 0}
-                  <span className="text-base font-normal text-muted-foreground ml-1.5">pages</span>
-                </p>
+                <div>
+                  {logs.slice(0, 20).map((log) => (
+                    <LogRow key={log.id} log={log} />
+                  ))}
+                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Weekly chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">This Week</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {loadingWeekly ? (
-              <Skeleton className="h-28 rounded-xl" />
-            ) : (
-              <WeeklyChart data={weeklyData ?? []} />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent sessions */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Recent Sessions</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-2">
-            {loadingLogs ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 rounded-lg" />
-                ))}
-              </div>
-            ) : !logs || logs.length === 0 ? (
-              <div className="py-8 text-center">
-                <BookOpen
-                  className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30"
-                  strokeWidth={1.5}
-                />
-                <p className="text-sm text-muted-foreground">No sessions logged yet</p>
-              </div>
-            ) : (
-              <div>
-                {logs.slice(0, 10).map((log) => (
-                  <LogRow key={log.id} log={log} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </motion.div>
     </PageShell>
   )

@@ -207,7 +207,7 @@ export default function PrayerView() {
   }, [selectedDate])
 
   return (
-    <PageShell maxWidth="5xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

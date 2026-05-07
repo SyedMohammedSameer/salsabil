@@ -297,7 +297,7 @@ export default function ChallengesView() {
   const others = challenges?.filter((c) => c.status !== 'active' && c.status !== 'completed') ?? []
 
   return (
-    <PageShell maxWidth="5xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -318,9 +318,9 @@ export default function ChallengesView() {
         </div>
 
         {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-36 rounded-2xl" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-2xl" />
             ))}
           </div>
         ) : !challenges || challenges.length === 0 ? (
@@ -332,7 +332,7 @@ export default function ChallengesView() {
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-6">
             {/* Active */}
             {active.length > 0 && (
               <div className="space-y-3">
@@ -340,20 +340,22 @@ export default function ChallengesView() {
                   Active ({active.length})
                 </p>
                 <AnimatePresence>
-                  {active.map((c) => (
-                    <ChallengeCard
-                      key={c.id}
-                      challenge={c}
-                      onIncrement={() =>
-                        increment.mutate({
-                          id: c.id,
-                          currentDays: c.current_days,
-                          targetDays: c.target_days,
-                        })
-                      }
-                      onDelete={() => deleteChallenge.mutate(c.id)}
-                    />
-                  ))}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {active.map((c) => (
+                      <ChallengeCard
+                        key={c.id}
+                        challenge={c}
+                        onIncrement={() =>
+                          increment.mutate({
+                            id: c.id,
+                            currentDays: c.current_days,
+                            targetDays: c.target_days,
+                          })
+                        }
+                        onDelete={() => deleteChallenge.mutate(c.id)}
+                      />
+                    ))}
+                  </div>
                 </AnimatePresence>
               </div>
             )}
@@ -365,14 +367,16 @@ export default function ChallengesView() {
                   Completed ({completed.length})
                 </p>
                 <AnimatePresence>
-                  {completed.map((c) => (
-                    <ChallengeCard
-                      key={c.id}
-                      challenge={c}
-                      onIncrement={() => {}}
-                      onDelete={() => deleteChallenge.mutate(c.id)}
-                    />
-                  ))}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {completed.map((c) => (
+                      <ChallengeCard
+                        key={c.id}
+                        challenge={c}
+                        onIncrement={() => {}}
+                        onDelete={() => deleteChallenge.mutate(c.id)}
+                      />
+                    ))}
+                  </div>
                 </AnimatePresence>
               </div>
             )}
@@ -384,14 +388,16 @@ export default function ChallengesView() {
                   Other ({others.length})
                 </p>
                 <AnimatePresence>
-                  {others.map((c) => (
-                    <ChallengeCard
-                      key={c.id}
-                      challenge={c}
-                      onIncrement={() => {}}
-                      onDelete={() => deleteChallenge.mutate(c.id)}
-                    />
-                  ))}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {others.map((c) => (
+                      <ChallengeCard
+                        key={c.id}
+                        challenge={c}
+                        onIncrement={() => {}}
+                        onDelete={() => deleteChallenge.mutate(c.id)}
+                      />
+                    ))}
+                  </div>
                 </AnimatePresence>
               </div>
             )}

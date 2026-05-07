@@ -383,7 +383,7 @@ export default function StudyRoomsView() {
   const otherRooms = rooms.filter((r) => r.owner_id !== user?.id)
 
   return (
-    <PageShell maxWidth="5xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -402,108 +402,113 @@ export default function StudyRoomsView() {
           </Button>
         </div>
 
-        {/* Join by code */}
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Join by room code
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={codeInput}
-                onChange={(e) => {
-                  setCodeInput(e.target.value.toUpperCase().slice(0, 6))
-                  setCodeError('')
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
-                placeholder="6-digit code"
-                maxLength={6}
-                className={cn(
-                  'flex-1 rounded-xl border bg-muted px-3.5 py-2 text-sm',
-                  'text-foreground placeholder:text-muted-foreground',
-                  'outline-none focus:border-noor-500/50 uppercase tracking-widest font-mono',
-                  codeError ? 'border-destructive' : 'border-border',
-                )}
-              />
-              <Button
-                size="sm"
-                className="h-10 px-4"
-                onClick={handleJoinByCode}
-                disabled={codeInput.length !== 6 || codeLoading}
-              >
-                {codeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Join'}
-              </Button>
-            </div>
-            {codeError && <p className="text-xs text-destructive mt-2">{codeError}</p>}
-          </CardContent>
-        </Card>
-
-        {/* My rooms */}
-        {myRooms.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 mb-3">
-              My rooms
-            </p>
-            <div className="space-y-3">
-              <AnimatePresence mode="popLayout">
-                {myRooms.map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    onJoin={handleJoin}
-                    isOwner={true}
-                    onDelete={handleDelete}
+        {/* Desktop 2-col: join + rooms */}
+        <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-6 space-y-5 lg:space-y-0">
+          {/* Left: join by code */}
+          <div className="space-y-5">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                  Join by room code
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={codeInput}
+                    onChange={(e) => {
+                      setCodeInput(e.target.value.toUpperCase().slice(0, 6))
+                      setCodeError('')
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
+                    placeholder="6-digit code"
+                    maxLength={6}
+                    className={cn(
+                      'flex-1 rounded-xl border bg-muted px-3.5 py-2 text-sm',
+                      'text-foreground placeholder:text-muted-foreground',
+                      'outline-none focus:border-noor-500/50 uppercase tracking-widest font-mono',
+                      codeError ? 'border-destructive' : 'border-border',
+                    )}
                   />
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
+                  <Button
+                    size="sm"
+                    className="h-10 px-4"
+                    onClick={handleJoinByCode}
+                    disabled={codeInput.length !== 6 || codeLoading}
+                  >
+                    {codeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Join'}
+                  </Button>
+                </div>
+                {codeError && <p className="text-xs text-destructive mt-2">{codeError}</p>}
+              </CardContent>
+            </Card>
 
-        {/* Public rooms */}
-        <div>
-          <div className="flex items-center justify-between px-1 mb-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              {myRooms.length > 0 ? 'Public rooms' : 'Active rooms'}
-            </p>
-            {!isLoading && (
-              <button onClick={() => refetch()} className="text-xs text-noor-500 hover:underline">
-                Refresh
-              </button>
+            {/* My rooms */}
+            {myRooms.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 mb-3">
+                  My rooms
+                </p>
+                <div className="space-y-3">
+                  <AnimatePresence mode="popLayout">
+                    {myRooms.map((room) => (
+                      <RoomCard
+                        key={room.id}
+                        room={room}
+                        onJoin={handleJoin}
+                        isOwner={true}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
             )}
           </div>
 
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />
-              ))}
+          {/* Right: public rooms */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {myRooms.length > 0 ? 'Public rooms' : 'Active rooms'}
+              </p>
+              {!isLoading && (
+                <button onClick={() => refetch()} className="text-xs text-noor-500 hover:underline">
+                  Refresh
+                </button>
+              )}
             </div>
-          ) : otherRooms.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Search className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">No active public rooms right now.</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Create one and invite a friend — or study solo with a private room.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              <AnimatePresence mode="popLayout">
-                {otherRooms.map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    onJoin={handleJoin}
-                    isOwner={false}
-                    onDelete={handleDelete}
-                  />
+
+            {isLoading ? (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />
                 ))}
-              </AnimatePresence>
-            </div>
-          )}
+              </div>
+            ) : otherRooms.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Search className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No active public rooms right now.</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Create one and invite a friend — or study solo with a private room.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-3">
+                <AnimatePresence mode="popLayout">
+                  {otherRooms.map((room) => (
+                    <RoomCard
+                      key={room.id}
+                      room={room}
+                      onJoin={handleJoin}
+                      isOwner={false}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 

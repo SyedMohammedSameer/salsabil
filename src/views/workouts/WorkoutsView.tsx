@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { PageShell } from '@/components/shared/PageShell'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -164,44 +164,54 @@ function AddWorkoutDialog({ onAdded }: { onAdded: () => void }) {
   )
 }
 
-function WorkoutRow({ workout, onDelete }: { workout: Workout; onDelete: (id: string) => void }) {
+function WorkoutCard({ workout, onDelete }: { workout: Workout; onDelete: (id: string) => void }) {
   const cfg = WORKOUT_TYPES[workout.type]
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20, transition: { duration: 0.15 } }}
-      className="flex items-center gap-3 py-3 border-b border-border last:border-0"
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
     >
-      <span className="text-2xl shrink-0">{cfg.emoji}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{workout.title}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-            {cfg.label}
-          </Badge>
-          <span className="text-xs text-muted-foreground">{workout.duration_mins} min</span>
-          <span className="text-xs text-muted-foreground">
+      <Card className="h-full">
+        <CardContent className="p-4 flex flex-col gap-3 h-full">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl shrink-0">{cfg.emoji}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{workout.title}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                    {cfg.label}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">{workout.duration_mins} min</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => onDelete(workout.id)}
+              className={cn(
+                'shrink-0 rounded-lg p-1.5 transition-colors',
+                'text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10',
+              )}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {workout.notes && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{workout.notes}</p>
+          )}
+
+          <p className="text-xs text-muted-foreground mt-auto">
             {new Date(workout.date + 'T00:00:00').toLocaleDateString('en-US', {
+              weekday: 'short',
               month: 'short',
               day: 'numeric',
             })}
-          </span>
-        </div>
-        {workout.notes && (
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">{workout.notes}</p>
-        )}
-      </div>
-      <button
-        onClick={() => onDelete(workout.id)}
-        className={cn(
-          'shrink-0 rounded-lg p-1.5 transition-colors',
-          'text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10',
-        )}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+          </p>
+        </CardContent>
+      </Card>
     </motion.div>
   )
 }
@@ -220,7 +230,7 @@ export default function WorkoutsView() {
   const totalWeekMins = thisWeek.reduce((s, w) => s + w.duration_mins, 0)
 
   return (
-    <PageShell maxWidth="5xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -242,7 +252,7 @@ export default function WorkoutsView() {
 
         {/* Stats row */}
         {!isLoading && workouts && workouts.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
             {[
               { label: 'This week', value: thisWeek.length, unit: 'sessions' },
               { label: 'Week mins', value: totalWeekMins, unit: 'min' },
@@ -261,38 +271,33 @@ export default function WorkoutsView() {
           </div>
         )}
 
-        {/* Workout list */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">All Workouts</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-14 rounded-xl" />
-                ))}
-              </div>
-            ) : !workouts || workouts.length === 0 ? (
-              <div className="py-10 text-center">
-                <Dumbbell
-                  className="mx-auto mb-2 h-10 w-10 text-muted-foreground/20"
-                  strokeWidth={1.5}
-                />
-                <p className="text-sm font-medium text-foreground">No workouts yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Log your first session to start tracking.
-                </p>
-              </div>
-            ) : (
-              <AnimatePresence>
-                {workouts.map((w) => (
-                  <WorkoutRow key={w.id} workout={w} onDelete={(id) => deleteWorkout.mutate(id)} />
-                ))}
-              </AnimatePresence>
-            )}
-          </CardContent>
-        </Card>
+        {/* Workout grid */}
+        {isLoading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))}
+          </div>
+        ) : !workouts || workouts.length === 0 ? (
+          <div className="flex flex-col items-center py-20 text-center">
+            <Dumbbell
+              className="mx-auto mb-2 h-12 w-12 text-muted-foreground/20"
+              strokeWidth={1.5}
+            />
+            <p className="text-sm font-medium text-foreground">No workouts yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Log your first session to start tracking.
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {workouts.map((w) => (
+                <WorkoutCard key={w.id} workout={w} onDelete={(id) => deleteWorkout.mutate(id)} />
+              ))}
+            </div>
+          </AnimatePresence>
+        )}
       </motion.div>
     </PageShell>
   )

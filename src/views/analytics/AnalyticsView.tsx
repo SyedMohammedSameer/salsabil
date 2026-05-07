@@ -203,7 +203,7 @@ export default function AnalyticsView() {
   const totalQuranPages = (quranLogs ?? []).reduce((s, l) => s + l.pages_read, 0)
 
   return (
-    <PageShell maxWidth="6xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -242,36 +242,39 @@ export default function AnalyticsView() {
               </div>
             )}
 
-            {/* Focus chart */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Focus minutes — last 7 days</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <BarChart data={focusData} color="fill-noor-500" unit="minutes" />
-              </CardContent>
-            </Card>
+            {/* Charts grid */}
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {/* Focus chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Focus minutes — last 7 days</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <BarChart data={focusData} color="fill-noor-500" unit="minutes" />
+                </CardContent>
+              </Card>
 
-            {/* Tasks chart */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Tasks completed — last 7 days</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <BarChart data={tasksData} color="fill-accent-500" unit="tasks" />
-              </CardContent>
-            </Card>
+              {/* Tasks chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Tasks completed — last 7 days</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <BarChart data={tasksData} color="fill-accent-500" unit="tasks" />
+                </CardContent>
+              </Card>
 
-            {/* Quran cumulative line */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Quran pages — cumulative (30 days)</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <LineChart data={quranData} color="stroke-gold-500" />
-                <p className="text-xs text-muted-foreground text-right mt-1">pages</p>
-              </CardContent>
-            </Card>
+              {/* Quran cumulative line */}
+              <Card className="lg:col-span-2 xl:col-span-1">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Quran pages — cumulative (30 days)</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <LineChart data={quranData} color="stroke-gold-500" />
+                  <p className="text-xs text-muted-foreground text-right mt-1">pages</p>
+                </CardContent>
+              </Card>
+            </div>
           </>
         )}
       </motion.div>
