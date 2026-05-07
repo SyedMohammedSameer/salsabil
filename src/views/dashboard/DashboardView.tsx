@@ -4,39 +4,33 @@ import {
   Flame,
   CheckSquare,
   BookOpen,
-  Timer,
-  HandMetal,
-  Plus,
   ArrowRight,
   Star,
   CheckCircle2,
-  Circle,
+  Plus,
   Dumbbell,
   Target,
   TreePine,
   Moon,
+  Timer,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
-import { usePrayersForDate } from '@/hooks/usePrayers'
 import { useWorkouts } from '@/hooks/useWorkouts'
 import { useChallenges } from '@/hooks/useChallenges'
 import { useAdhkarLogs } from '@/hooks/useAdhkar'
 import { useGardenTrees } from '@/hooks/useGarden'
+import { SPECIES_INFO } from '@/lib/api/garden'
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
 import { StatCard } from '@/components/shared/StatCard'
 import { Skeleton } from '@/components/shared/SkeletonLoader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { PRAYER_META, type PrayerName } from '@/types'
 import { getDailyQuote } from '@/data/quotes'
-
-const PRAYER_ORDER: PrayerName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
 
 function getGreeting(hour: number) {
   if (hour < 6) return { ar: 'بِسْمِ اللهِ', en: 'Bismillah — start your day' }
@@ -47,10 +41,7 @@ function getGreeting(hour: number) {
 }
 
 const stagger = {
-  container: {
-    hidden: {},
-    show: { transition: { staggerChildren: 0.06 } },
-  },
+  container: { hidden: {}, show: { transition: { staggerChildren: 0.06 } } },
   item: {
     hidden: { opacity: 0, y: 16 },
     show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
@@ -65,39 +56,17 @@ interface QuickAction {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'Add task', icon: Plus, path: '/tasks', color: 'text-noor-600 dark:text-noor-400' },
-  {
-    label: 'Log prayer',
-    icon: HandMetal,
-    path: '/prayers',
-    color: 'text-accent-600 dark:text-accent-400',
-  },
+  { label: 'Workouts', icon: Dumbbell, path: '/workouts', color: 'text-rose-500' },
+  { label: 'Challenges', icon: Target, path: '/challenges', color: 'text-violet-500' },
+  { label: 'Adhkar', icon: Moon, path: '/adhkar', color: 'text-indigo-500' },
   { label: 'Quran', icon: BookOpen, path: '/quran', color: 'text-gold-500 dark:text-gold-400' },
-  { label: 'Focus', icon: Timer, path: '/focus', color: 'text-warn-600 dark:text-warn-400' },
 ]
-
-const PRAYER_STATUS_LABEL: Record<string, string> = {
-  prayed: 'Prayed',
-  late: 'Late',
-  missed: 'Missed',
-  qada: 'Qada',
-}
 
 function StatsSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
         <Skeleton key={i} className="h-24 rounded-2xl" />
-      ))}
-    </div>
-  )
-}
-
-function PrayerSkeleton() {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-12 rounded-xl" />
       ))}
     </div>
   )
@@ -111,11 +80,9 @@ export default function DashboardView() {
   const greeting = useMemo(() => getGreeting(hour), [hour])
   const today = useMemo(() => new Date().toISOString().split('T')[0], [])
   const quote = useMemo(() => getDailyQuote(), [])
-
   const weekAgo = useMemo(() => new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0], [])
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats(today)
-  const { data: prayers, isLoading: prayersLoading } = usePrayersForDate(today)
   const { data: workouts } = useWorkouts()
   const { data: challenges } = useChallenges()
   const { data: adhkarLogs } = useAdhkarLogs(today)
@@ -138,9 +105,6 @@ export default function DashboardView() {
     user?.email?.split('@')[0] ??
     'Friend'
 
-  const prayedCount = prayers?.filter((p) => p.status && p.status !== 'missed').length ?? 0
-  const prayerPct = Math.round((prayedCount / 5) * 100)
-
   return (
     <PageShell maxWidth="4xl">
       <motion.div
@@ -149,7 +113,7 @@ export default function DashboardView() {
         animate="show"
         className="space-y-6"
       >
-        {/* ─── Header ────────────────────────────────────────────────────────── */}
+        {/* ─── Header ──────────────────────────────────────────────────────────── */}
         <motion.div variants={stagger.item} className="space-y-1">
           <p className="font-arabic text-xl text-noor-600 dark:text-noor-400">{greeting.ar}</p>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -164,7 +128,7 @@ export default function DashboardView() {
           </p>
         </motion.div>
 
-        {/* ─── Daily quote ───────────────────────────────────────────────────── */}
+        {/* ─── Daily quote ─────────────────────────────────────────────────────── */}
         <motion.div variants={stagger.item}>
           <Card variant="glass-noor" className="overflow-hidden">
             <CardContent className="p-4">
@@ -177,7 +141,7 @@ export default function DashboardView() {
           </Card>
         </motion.div>
 
-        {/* ─── Stats row 1 ───────────────────────────────────────────────────── */}
+        {/* ─── Stats row 1: spiritual + productivity ───────────────────────────── */}
         <motion.div variants={stagger.item}>
           {statsLoading ? (
             <StatsSkeleton />
@@ -215,7 +179,7 @@ export default function DashboardView() {
           )}
         </motion.div>
 
-        {/* ─── Stats row 2 ───────────────────────────────────────────────────── */}
+        {/* ─── Stats row 2: body + garden ──────────────────────────────────────── */}
         <motion.div variants={stagger.item}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard
@@ -249,93 +213,81 @@ export default function DashboardView() {
           </div>
         </motion.div>
 
-        {/* ─── Main grid ─────────────────────────────────────────────────────── */}
+        {/* ─── Garden + Quick actions ───────────────────────────────────────────── */}
         <div className="grid gap-4 lg:grid-cols-3">
-          {/* Prayer tracker */}
+          {/* Garden widget */}
           <motion.div variants={stagger.item} className="lg:col-span-2">
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Today&apos;s Prayers</CardTitle>
+                  <CardTitle className="text-base">My Garden</CardTitle>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="gap-1 text-xs text-muted-foreground"
-                    onClick={() => navigate('/prayers')}
+                    onClick={() => navigate('/garden')}
                   >
-                    View all <ArrowRight className="h-3 w-3" />
+                    Visit <ArrowRight className="h-3 w-3" />
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {prayersLoading ? (
-                  <PrayerSkeleton />
+                {treesPlanted === 0 ? (
+                  <div className="py-10 text-center">
+                    <TreePine
+                      className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30"
+                      strokeWidth={1.25}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      No trees yet — complete a focus session to plant your first
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => navigate('/focus')}
+                    >
+                      Start focusing
+                    </Button>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {PRAYER_ORDER.map((name) => {
-                      const meta = PRAYER_META[name]
-                      const prayer = prayers?.find((p) => p.prayer === name)
-                      const prayed =
-                        prayer?.status === 'prayed' ||
-                        prayer?.status === 'late' ||
-                        prayer?.status === 'qada'
-                      return (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {trees?.slice(0, 9).map((tree) => (
                         <div
-                          key={name}
-                          className="flex items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-muted/50"
+                          key={tree.id}
+                          className="flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl border border-border p-2"
                         >
-                          <div className="flex items-center gap-3">
-                            {prayed ? (
-                              <CheckCircle2
-                                className="h-4 w-4 text-accent-500"
-                                strokeWidth={1.75}
-                              />
-                            ) : (
-                              <Circle
-                                className="h-4 w-4 text-muted-foreground/40"
-                                strokeWidth={1.75}
-                              />
-                            )}
-                            <div>
-                              <p className="text-sm font-medium text-foreground">{meta.label}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{name}</p>
-                            </div>
-                          </div>
-                          {prayer?.status ? (
-                            <Badge
-                              variant={
-                                prayer.status === 'prayed'
-                                  ? 'default'
-                                  : prayer.status === 'missed'
-                                    ? 'destructive'
-                                    : 'secondary'
-                              }
-                              className="text-xs"
-                            >
-                              {PRAYER_STATUS_LABEL[prayer.status] ?? prayer.status}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">
-                              Pending
-                            </Badge>
-                          )}
+                          <span className="text-2xl leading-none">
+                            {SPECIES_INFO[tree.species].emoji}
+                          </span>
+                          <span className="text-[10px] capitalize text-muted-foreground">
+                            {tree.stage}
+                          </span>
                         </div>
-                      )
-                    })}
+                      ))}
+                      {treesPlanted > 9 && (
+                        <div className="flex min-w-[56px] items-center justify-center rounded-xl border border-dashed border-border p-2">
+                          <span className="text-xs text-muted-foreground">+{treesPlanted - 9}</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {treesPlanted} tree{treesPlanted !== 1 ? 's' : ''} in your garden •{' '}
+                      <button
+                        onClick={() => navigate('/garden')}
+                        className="text-noor-600 hover:underline dark:text-noor-400"
+                      >
+                        Plant more
+                      </button>
+                    </p>
                   </div>
                 )}
-                <div className="mt-4 space-y-1.5">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Daily progress</span>
-                    <span>{prayedCount} / 5</span>
-                  </div>
-                  <Progress value={prayerPct} className="h-1.5" />
-                </div>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Quick actions + Noor */}
+          {/* Quick actions + Noor shortcut */}
           <motion.div variants={stagger.item} className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
@@ -373,7 +325,7 @@ export default function DashboardView() {
           </motion.div>
         </div>
 
-        {/* ─── Today&apos;s tasks ────────────────────────────────────────────── */}
+        {/* ─── Today's tasks ────────────────────────────────────────────────────── */}
         <motion.div variants={stagger.item}>
           <SectionHeader
             title="Today's Tasks"
@@ -417,7 +369,7 @@ export default function DashboardView() {
           )}
         </motion.div>
 
-        {/* ─── Active challenges ────────────────────────────────────────────── */}
+        {/* ─── Active challenges ────────────────────────────────────────────────── */}
         {activeChallenges.length > 0 && (
           <motion.div variants={stagger.item}>
             <SectionHeader
