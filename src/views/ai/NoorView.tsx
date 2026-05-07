@@ -95,19 +95,22 @@ type NoorAction =
   | { type: 'startPomodoro'; duration: number }
   | { type: 'logPrayer'; prayer: string; status: string }
 
+const KNOWN_ACTIONS = new Set(['createTask', 'logPrayer', 'logQuranPages', 'startPomodoro'])
+
 function parseActions(text: string): { cleanText: string; actions: NoorAction[] } {
-  const actionRegex = /\[ACTION:(\w+)\|({[^}]+})\]/g
+  const actionRegex = /\[ACTION:(\w+)\\?\|({.*?})\]/g
   const actions: NoorAction[] = []
   let match
   while ((match = actionRegex.exec(text)) !== null) {
+    if (!KNOWN_ACTIONS.has(match[1])) continue
     try {
       const payload = JSON.parse(match[2])
       actions.push({ type: match[1] as NoorAction['type'], ...payload })
     } catch {
-      // malformed action JSON — skip
+      // malformed JSON — skip
     }
   }
-  const cleanText = text.replace(actionRegex, '').trim()
+  const cleanText = text.replace(/\[ACTION:\w+\\?\|{.*?}\]/g, '').trim()
   return { cleanText, actions }
 }
 
