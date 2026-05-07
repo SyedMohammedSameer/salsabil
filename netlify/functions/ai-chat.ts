@@ -1,4 +1,4 @@
-const MODEL = 'meta-llama/llama-3.2-3b-instruct:free'
+const MODEL = 'nvidia/nemotron-3-nano-30b-a3b:free'
 
 const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
