@@ -166,11 +166,11 @@ export default async (req: Request): Promise<Response> => {
       },
     })
   } catch (err) {
-    console.error('OpenRouter error:', err)
+    console.error('[ai-chat] OpenRouter error:', err)
     const msg = err instanceof Error ? err.message : String(err)
     const status = msg.includes('401') ? 401 : msg.includes('429') ? 429 : 500
     return new Response(
-      JSON.stringify({ error: "Noor's unavailable right now. Try again in a moment." }),
+      JSON.stringify({ error: `OpenRouter error: ${msg}` }),
       { status, headers: { ...cors, 'Content-Type': 'application/json' } },
     )
   }
