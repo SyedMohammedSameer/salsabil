@@ -228,7 +228,7 @@ export default function FocusView() {
   const todayMins = todaySessions.reduce((sum, s) => sum + s.duration_mins, 0)
 
   return (
-    <PageShell maxWidth="2xl">
+    <PageShell maxWidth="full">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -243,145 +243,157 @@ export default function FocusView() {
           </p>
         </div>
 
-        {/* Preset selector */}
-        <div className="grid grid-cols-4 gap-2">
-          {PRESETS.map((p) => {
-            const Icon = p.icon
-            return (
-              <button
-                key={p.type}
-                onClick={() => handlePresetChange(p)}
-                disabled={timerState === 'running'}
-                className={cn(
-                  'flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border text-xs font-medium transition-all',
-                  preset.type === p.type
-                    ? 'border-noor-500 bg-noor-500/10 text-noor-600 dark:text-noor-400'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-                  timerState === 'running' && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:block">{p.label}</span>
-                <span className="text-[10px]">{p.minutes}m</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Timer ring */}
-        <Card>
-          <CardContent className="flex flex-col items-center py-8 gap-6">
-            {/* Ring */}
-            <div className="relative w-52 h-52 flex items-center justify-center">
-              <CircularRing progress={progress} ringColor={preset.ringColor} />
-              <div className="text-center">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={remaining}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className={cn('text-5xl font-bold tabular-nums tracking-tight', preset.color)}
+        {/* Desktop 2-col: timer left, history right */}
+        <div className="lg:grid lg:grid-cols-[440px_1fr] lg:gap-6 space-y-5 lg:space-y-0">
+          {/* Left: preset selector + timer */}
+          <div className="space-y-4">
+            {/* Preset selector */}
+            <div className="grid grid-cols-4 gap-2">
+              {PRESETS.map((p) => {
+                const Icon = p.icon
+                return (
+                  <button
+                    key={p.type}
+                    onClick={() => handlePresetChange(p)}
+                    disabled={timerState === 'running'}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border text-xs font-medium transition-all',
+                      preset.type === p.type
+                        ? 'border-noor-500 bg-noor-500/10 text-noor-600 dark:text-noor-400'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                      timerState === 'running' && 'opacity-50 cursor-not-allowed',
+                    )}
                   >
-                    {formatTime(remaining)}
-                  </motion.p>
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:block">{p.label}</span>
+                    <span className="text-[10px]">{p.minutes}m</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Timer ring */}
+            <Card>
+              <CardContent className="flex flex-col items-center py-8 gap-6">
+                {/* Ring */}
+                <div className="relative w-52 h-52 flex items-center justify-center">
+                  <CircularRing progress={progress} ringColor={preset.ringColor} />
+                  <div className="text-center">
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={remaining}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className={cn(
+                          'text-5xl font-bold tabular-nums tracking-tight',
+                          preset.color,
+                        )}
+                      >
+                        {formatTime(remaining)}
+                      </motion.p>
+                    </AnimatePresence>
+                    <p className="text-xs text-muted-foreground mt-1">{preset.label}</p>
+                  </div>
+                </div>
+
+                {/* Done state message */}
+                <AnimatePresence>
+                  {timerState === 'done' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-center"
+                    >
+                      <p className="text-sm font-semibold text-foreground">
+                        MashaAllah! Session complete.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Take a breath. You earned it.
+                      </p>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
-                <p className="text-xs text-muted-foreground mt-1">{preset.label}</p>
-              </div>
-            </div>
 
-            {/* Done state message */}
-            <AnimatePresence>
-              {timerState === 'done' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="text-center"
-                >
-                  <p className="text-sm font-semibold text-foreground">
-                    MashaAllah! Session complete.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Take a breath. You earned it.
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                {/* Controls */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleReset}
+                    className="rounded-full p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <RotateCcw className="h-5 w-5" />
+                  </button>
 
-            {/* Controls */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleReset}
-                className="rounded-full p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <RotateCcw className="h-5 w-5" />
-              </button>
+                  {timerState === 'running' ? (
+                    <Button size="lg" className="rounded-full h-14 w-14 p-0" onClick={handlePause}>
+                      <Pause className="h-6 w-6" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      className="rounded-full h-14 w-14 p-0"
+                      onClick={handleStart}
+                      disabled={timerState === 'done' || createSession.isPending}
+                    >
+                      <Play className="h-6 w-6 ml-0.5" />
+                    </Button>
+                  )}
 
-              {timerState === 'running' ? (
-                <Button size="lg" className="rounded-full h-14 w-14 p-0" onClick={handlePause}>
-                  <Pause className="h-6 w-6" />
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  className="rounded-full h-14 w-14 p-0"
-                  onClick={handleStart}
-                  disabled={timerState === 'done' || createSession.isPending}
-                >
-                  <Play className="h-6 w-6 ml-0.5" />
-                </Button>
-              )}
+                  <button
+                    onClick={handleSkip}
+                    disabled={timerState === 'idle' || timerState === 'done'}
+                    className={cn(
+                      'rounded-full p-2.5 transition-colors',
+                      timerState === 'idle' || timerState === 'done'
+                        ? 'text-muted-foreground/30 cursor-not-allowed'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                    )}
+                  >
+                    <SkipForward className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              <button
-                onClick={handleSkip}
-                disabled={timerState === 'idle' || timerState === 'done'}
-                className={cn(
-                  'rounded-full p-2.5 transition-colors',
-                  timerState === 'idle' || timerState === 'done'
-                    ? 'text-muted-foreground/30 cursor-not-allowed'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-                )}
-              >
-                <SkipForward className="h-5 w-5" />
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's sessions */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Today&apos;s Sessions</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            {loadingSessions ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 rounded-lg" />
-                ))}
-              </div>
-            ) : todaySessions.length === 0 ? (
-              <div className="py-6 text-center">
-                <Timer
-                  className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30"
-                  strokeWidth={1.5}
-                />
-                <p className="text-sm text-muted-foreground">No sessions yet today</p>
-              </div>
-            ) : (
-              <div>
-                {todaySessions.slice(0, 10).map((s) => (
-                  <SessionRow
-                    key={s.id}
-                    type={s.type}
-                    duration={s.duration_mins}
-                    completedAt={s.ended_at ?? s.started_at}
+          {/* Right: today's sessions */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Today&apos;s Sessions</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {loadingSessions ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 rounded-lg" />
+                  ))}
+                </div>
+              ) : todaySessions.length === 0 ? (
+                <div className="py-10 text-center">
+                  <Timer
+                    className="mx-auto mb-2 h-10 w-10 text-muted-foreground/30"
+                    strokeWidth={1.5}
                   />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <p className="text-sm text-muted-foreground">No sessions yet today</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Complete a session to see it here.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  {todaySessions.slice(0, 20).map((s) => (
+                    <SessionRow
+                      key={s.id}
+                      type={s.type}
+                      duration={s.duration_mins}
+                      completedAt={s.ended_at ?? s.started_at}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </motion.div>
     </PageShell>
   )
