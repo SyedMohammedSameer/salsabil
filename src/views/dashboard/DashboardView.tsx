@@ -13,6 +13,7 @@ import {
   TreePine,
   Moon,
   Timer,
+  Circle,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
@@ -22,6 +23,7 @@ import { useWorkouts } from '@/hooks/useWorkouts'
 import { useChallenges } from '@/hooks/useChallenges'
 import { useAdhkarLogs } from '@/hooks/useAdhkar'
 import { useGardenTrees } from '@/hooks/useGarden'
+import { useAllTasks, useCompleteTask } from '@/hooks/useTasks'
 import { SPECIES_INFO } from '@/lib/api/garden'
 import { PageShell } from '@/components/shared/PageShell'
 import { SectionHeader } from '@/components/shared/SectionHeader'
@@ -31,6 +33,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { getDailyQuote } from '@/data/quotes'
+import { cn } from '@/lib/cn'
+
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: 'bg-destructive',
+  high: 'bg-warn-500',
+  medium: 'bg-noor-500',
+  low: 'bg-muted-foreground/40',
+}
 
 function getGreeting(hour: number) {
   if (hour < 6) return { ar: 'بِسْمِ اللهِ', en: 'Bismillah — start your day' }
@@ -87,6 +97,15 @@ export default function DashboardView() {
   const { data: challenges } = useChallenges()
   const { data: adhkarLogs } = useAdhkarLogs(today)
   const { data: trees } = useGardenTrees()
+  const { data: allTasks, isLoading: tasksLoading } = useAllTasks()
+  const completeTask = useCompleteTask()
+
+  const todayTasks = useMemo(
+    () => (allTasks ?? []).filter((t) => t.due_date === today),
+    [allTasks, today],
+  )
+  const todayPending = todayTasks.filter((t) => !t.completed)
+  const todayDone = todayTasks.filter((t) => t.completed)
 
   const workoutsThisWeek = useMemo(
     () => workouts?.filter((w) => w.date >= weekAgo).length ?? 0,
@@ -335,38 +354,70 @@ export default function DashboardView() {
               </Button>
             }
           />
-          {stats && stats.tasks.completed > 0 ? (
-            <div className="mt-3 rounded-2xl border border-border bg-muted/20 py-8 text-center">
-              <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-accent-500" strokeWidth={1.5} />
-              <p className="text-sm font-medium text-foreground">
-                {stats.tasks.completed} task{stats.tasks.completed !== 1 ? 's' : ''} completed today
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => navigate('/tasks')}
-              >
-                View tasks
-              </Button>
-            </div>
-          ) : (
-            <div className="mt-3 rounded-2xl border border-dashed border-border bg-muted/20 py-12 text-center">
-              <CheckSquare
-                className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"
-                strokeWidth={1.5}
-              />
-              <p className="text-sm text-muted-foreground">No tasks yet — add your first one</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => navigate('/tasks')}
-              >
-                <Plus className="mr-1.5 h-3.5 w-3.5" /> Add task
-              </Button>
-            </div>
-          )}
+          <div className="mt-3">
+            {tasksLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 rounded-xl" />
+                ))}
+              </div>
+            ) : todayTasks.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-muted/20 py-10 text-center">
+                <CheckSquare
+                  className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40"
+                  strokeWidth={1.5}
+                />
+                <p className="text-sm text-muted-foreground">No tasks for today</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => navigate('/tasks')}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Add task
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border overflow-hidden">
+                {todayPending.slice(0, 5).map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  >
+                    <button
+                      onClick={() => completeTask.mutate({ id: task.id, completed: true })}
+                      className="shrink-0 text-muted-foreground/40 hover:text-accent-500 transition-colors"
+                    >
+                      <Circle className="h-4 w-4" />
+                    </button>
+                    <div
+                      className={cn(
+                        'h-1.5 w-1.5 rounded-full shrink-0',
+                        PRIORITY_DOT[task.priority ?? 'medium'],
+                      )}
+                    />
+                    <p className="text-sm text-foreground flex-1 min-w-0 truncate">{task.title}</p>
+                  </div>
+                ))}
+                {todayPending.length > 5 && (
+                  <button
+                    onClick={() => navigate('/tasks')}
+                    className="w-full px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground border-t border-border text-left transition-colors"
+                  >
+                    +{todayPending.length - 5} more — view all
+                  </button>
+                )}
+                {todayDone.length > 0 && (
+                  <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-accent-500" />
+                    <span className="text-xs text-muted-foreground">
+                      {todayDone.length} completed today
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* ─── Active challenges ────────────────────────────────────────────────── */}

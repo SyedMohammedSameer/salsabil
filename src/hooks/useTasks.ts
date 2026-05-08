@@ -24,6 +24,10 @@ export const taskKeys = {
   stats: (userId: string, date: string) => ['tasks-stats', userId, date] as const,
 }
 
+function invalidateDashboard(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+}
+
 export function useAllTasks() {
   const { user } = useAuth()
   return useQuery({
@@ -77,7 +81,6 @@ export function useCreateTask() {
       tags?: string[]
     }) => createTask(user!.id, input),
     onSuccess: (newTask) => {
-      // Optimistically prepend to all-tasks cache
       qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) =>
         old ? [newTask, ...old] : [newTask],
       )
@@ -85,6 +88,7 @@ export function useCreateTask() {
         qc.invalidateQueries({ queryKey: taskKeys.byDate(user!.id, newTask.due_date) })
         qc.invalidateQueries({ queryKey: taskKeys.stats(user!.id, newTask.due_date) })
       }
+      invalidateDashboard(qc)
     },
   })
 }
@@ -102,6 +106,7 @@ export function useUpdateTask() {
       if (updated.due_date) {
         qc.invalidateQueries({ queryKey: taskKeys.byDate(user!.id, updated.due_date) })
       }
+      invalidateDashboard(qc)
     },
   })
 }
@@ -112,7 +117,6 @@ export function useCompleteTask() {
   return useMutation({
     mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
       completeTask(id, completed),
-    // Optimistic update — instant UI feedback
     onMutate: async ({ id, completed }) => {
       await qc.cancelQueries({ queryKey: taskKeys.all(user!.id) })
       const prev = qc.getQueryData<Task[]>(taskKeys.all(user!.id))
@@ -132,7 +136,7 @@ export function useCompleteTask() {
       if (updated.due_date) {
         qc.invalidateQueries({ queryKey: taskKeys.stats(user!.id, updated.due_date) })
       }
-      // Award coins only when marking as done (not un-completing)
+      invalidateDashboard(qc)
       if (completed && user) {
         Promise.allSettled([
           awardCoins(user.id, 'task_complete', 3, `Task: ${updated.title}`).then(() =>
@@ -164,6 +168,9 @@ export function useDeleteTask() {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(taskKeys.all(user!.id), ctx.prev)
+    },
+    onSuccess: () => {
+      invalidateDashboard(qc)
     },
   })
 }
