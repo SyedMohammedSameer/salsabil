@@ -10,7 +10,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm hover:text-foreground hover:bg-muted transition-colors"
+      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
       aria-label="Toggle theme"
     >
       {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -32,21 +32,16 @@ export function RootLayout() {
       {/* Desktop sidebar + Mobile bottom bar */}
       <Navigation />
 
-      {/* Theme toggle + Notification bell — top-right corner */}
-      <div className="fixed top-3 right-3 z-40 flex items-center gap-1.5">
+      {/* Top bar — spans the main content area, holds global controls */}
+      <div className="fixed top-0 right-0 z-40 h-12 flex items-center gap-1 px-3 lg:left-16">
+        {/* Spacer pushes controls to the right */}
+        <div className="flex-1" />
         <ThemeToggle />
         <NotificationBell />
       </div>
 
-      {/* Main content area */}
-      <main
-        id="main-content"
-        className="
-          flex-1 overflow-y-auto
-          pb-20 lg:pb-0
-          lg:ml-16
-        "
-      >
+      {/* Main content area — pt-12 clears the top bar */}
+      <main id="main-content" className="flex-1 overflow-y-auto pt-12 pb-20 lg:pb-0 lg:ml-16">
         <Outlet />
       </main>
 
