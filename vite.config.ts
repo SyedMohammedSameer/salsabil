@@ -12,6 +12,14 @@ export default defineConfig({
       port: 5173,
       clientPort: 5173,
     },
+    proxy: {
+      // Forward Netlify function calls to the netlify dev server (port 8888)
+      // so both http://localhost:5173 and http://localhost:8888 work during dev
+      '/.netlify/functions': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+      },
+    },
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
