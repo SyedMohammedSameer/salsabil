@@ -6,6 +6,7 @@ import { PageSkeleton } from '@/components/shared/SkeletonLoader'
 
 // Lazy-load every view — each becomes its own JS chunk
 const AuthPage = lazy(() => import('@/views/auth/AuthPage'))
+const ResetPasswordView = lazy(() => import('@/views/auth/ResetPasswordView'))
 const Dashboard = lazy(() => import('@/views/dashboard/DashboardView'))
 const PrayerView = lazy(() => import('@/views/prayer/PrayerView'))
 const QuranView = lazy(() => import('@/views/quran/QuranView'))
@@ -31,6 +32,14 @@ export const router = createBrowserRouter([
     element: (
       <Suspense fallback={<Fallback />}>
         <AuthPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/auth/reset',
+    element: (
+      <Suspense fallback={<Fallback />}>
+        <ResetPasswordView />
       </Suspense>
     ),
   },
