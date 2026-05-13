@@ -10,8 +10,11 @@ import {
   getTodayTaskStats,
 } from '@/lib/api/tasks'
 import { awardCoins } from '@/lib/api/coins'
+import { waterNewestActiveTree } from '@/lib/api/garden'
 import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
+import { gardenKeys } from './useGarden'
+import { REWARDS } from '@/lib/rewards'
 import { notificationKeys } from './useNotifications'
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { useAuth } from './useAuth'
@@ -139,8 +142,14 @@ export function useCompleteTask() {
       invalidateDashboard(qc)
       if (completed && user) {
         Promise.allSettled([
-          awardCoins(user.id, 'task_complete', 3, `Task: ${updated.title}`).then(() =>
-            qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) }),
+          awardCoins(
+            user.id,
+            'task_complete',
+            REWARDS.task_complete.coins,
+            `Task: ${updated.title}`,
+          ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
+          waterNewestActiveTree(user.id, REWARDS.task_complete.xp).then(() =>
+            qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
           ),
           createNotification({
             user_id: user.id,
