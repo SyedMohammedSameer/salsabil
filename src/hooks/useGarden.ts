@@ -4,6 +4,7 @@ import { useAuth } from './useAuth'
 import { profileKeys } from './useProfile'
 import { fetchGardenTrees, plantTree, addXPToTree, waterNewestActiveTree } from '@/lib/api/garden'
 import { spendCoins } from '@/lib/api/coins'
+import { WATER_COST_COINS, WATER_XP_GAIN } from '@/lib/rewards'
 import type { TreeSpecies, GardenTree } from '@/lib/database.types'
 import { SPECIES_INFO } from '@/lib/api/garden'
 
@@ -65,13 +66,26 @@ export function useWaterTree() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: (treeId: string) => addXPToTree(treeId, 5),
-    onSuccess: (updated) => {
+    mutationFn: async (treeId: string) => {
+      // Atomic coin deduction — throws 'Not enough coins' if balance too low.
+      await spendCoins(user!.id, 'tree_purchase', WATER_COST_COINS, 'Watered a tree')
+      return addXPToTree(treeId, WATER_XP_GAIN)
+    },
+    onSuccess: (updated, _treeId, _ctx) => {
       qc.setQueryData<GardenTree[]>(gardenKeys.trees(user!.id), (old) =>
         old?.map((t) => (t.id === updated.id ? updated : t)),
       )
-      const stagedUp = updated.stage !== 'seed'
-      if (stagedUp) toast.success(`Tree grew to ${updated.stage}! MashaAllah 🌳`)
+      qc.invalidateQueries({ queryKey: profileKeys.byId(user!.id) })
+      toast.success(`+${WATER_XP_GAIN} XP — tree is now ${updated.stage}`)
+    },
+    onError: (err: Error) => {
+      if (err.message === 'Not enough coins') {
+        toast.error(
+          `Watering costs ${WATER_COST_COINS} coins — earn more from focus, tasks, workouts.`,
+        )
+      } else {
+        toast.error('Could not water tree.')
+      }
     },
   })
 }

@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useAuth } from './useAuth'
 import { getWorkouts, createWorkout, deleteWorkout } from '@/lib/api/workouts'
+import { awardCoins } from '@/lib/api/coins'
+import { waterNewestActiveTree } from '@/lib/api/garden'
+import { profileKeys } from './useProfile'
+import { gardenKeys } from './useGarden'
+import { REWARDS } from '@/lib/rewards'
 import type { WorkoutType } from '@/lib/database.types'
 
 export const workoutKeys = {
@@ -28,8 +34,24 @@ export function useCreateWorkout() {
       notes?: string
       date: string
     }) => createWorkout(user!.id, input),
-    onSuccess: () => {
+    onSuccess: (workout) => {
       qc.invalidateQueries({ queryKey: workoutKeys.all })
+      if (!user) return
+      Promise.allSettled([
+        awardCoins(
+          user.id,
+          'workout_logged',
+          REWARDS.workout_logged.coins,
+          `Workout: ${workout.title}`,
+        ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
+        waterNewestActiveTree(user.id, REWARDS.workout_logged.xp).then(() =>
+          qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
+        ),
+      ]).then(() => {
+        toast.success(
+          `+${REWARDS.workout_logged.coins} coins, +${REWARDS.workout_logged.xp} tree XP`,
+        )
+      })
     },
   })
 }

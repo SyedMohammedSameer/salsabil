@@ -12,6 +12,7 @@ import { useGardenTrees, usePlantTree, useWaterTree } from '@/hooks/useGarden'
 import { SPECIES_INFO } from '@/lib/api/garden'
 import type { GardenTree, TreeSpecies, TreeStage } from '@/lib/database.types'
 import { XP_THRESHOLDS } from '@/lib/api/garden'
+import { WATER_COST_COINS, WATER_XP_GAIN } from '@/lib/rewards'
 
 // ─── Stage progress bar ───────────────────────────────────────────────────────
 
@@ -48,16 +49,20 @@ function StageBar({ tree }: { tree: GardenTree }) {
 
 function SelectedTreePanel({
   tree,
+  coins,
   onClose,
   onWater,
   watering,
 }: {
   tree: GardenTree
+  coins: number
   onClose: () => void
   onWater: (id: string) => void
   watering: boolean
 }) {
   const info = SPECIES_INFO[tree.species]
+  const canAfford = coins >= WATER_COST_COINS
+  const isAncient = tree.stage === 'ancient'
 
   return (
     <motion.div
@@ -89,11 +94,18 @@ function SelectedTreePanel({
               variant="outline"
               className="w-full gap-1.5"
               onClick={() => onWater(tree.id)}
-              disabled={watering}
+              disabled={watering || !canAfford || isAncient}
             >
               <Droplets className="h-3.5 w-3.5 text-blue-400" />
-              Water (+5 XP)
+              {isAncient
+                ? 'Fully grown'
+                : `Water (−${WATER_COST_COINS} coins → +${WATER_XP_GAIN} XP)`}
             </Button>
+            {!isAncient && !canAfford && (
+              <p className="text-[10px] text-muted-foreground text-center">
+                Earn coins from focus sessions, tasks, workouts, and challenges.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -256,6 +268,7 @@ export default function GardenView() {
             <SelectedTreePanel
               key={selectedTree.id}
               tree={selectedTree}
+              coins={coins}
               onClose={() => setSelectedTree(null)}
               onWater={waterTree.mutate}
               watering={waterTree.isPending}
@@ -292,8 +305,9 @@ export default function GardenView() {
             <div>
               <p className="text-xs font-medium text-foreground">How trees grow</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Complete focus sessions to earn coins and water your garden. Each session
-                automatically adds XP to your newest tree. Tap a tree to water it manually.
+                Real effort grows the garden. Focus sessions, study rooms, completed tasks,
+                workouts, and challenges all add XP to your newest tree and earn coins. Spend{' '}
+                {WATER_COST_COINS} coins to water any tree for +{WATER_XP_GAIN} XP.
               </p>
             </div>
           </CardContent>

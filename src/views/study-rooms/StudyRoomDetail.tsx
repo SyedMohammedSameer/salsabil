@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
@@ -26,6 +27,11 @@ import {
   useSendMessage,
   computeTimerRemaining,
 } from '@/hooks/useStudyRooms'
+import { profileKeys } from '@/hooks/useProfile'
+import { gardenKeys } from '@/hooks/useGarden'
+import { awardCoins } from '@/lib/api/coins'
+import { waterNewestActiveTree } from '@/lib/api/garden'
+import { REWARDS } from '@/lib/rewards'
 import type { RoomMessage, RoomParticipant } from '@/lib/database.types'
 
 // ─── Timer ring ───────────────────────────────────────────────────────────────
@@ -83,7 +89,22 @@ function formatTime(secs: number) {
 function TimerSection({ roomId, isHost }: { roomId: string; isHost: boolean }) {
   const { data: room } = useRoom(roomId)
   const updateTimer = useUpdateTimer()
+  const { user } = useAuth()
+  const qc = useQueryClient()
   const [remaining, setRemaining] = useState(0)
+  // Tracks the `timer_started_at` value of the session we've already rewarded,
+  // so reloads / realtime echoes don't double-award.
+  const rewardedStartedAtRef = useRef<string | null>(null)
+  // Pre-mark any session already in 'done' state on first load — the user
+  // wasn't present for it, so they shouldn't be rewarded retroactively.
+  const initialDoneCheckedRef = useRef(false)
+  useEffect(() => {
+    if (initialDoneCheckedRef.current || !room) return
+    initialDoneCheckedRef.current = true
+    if (room.timer_state === 'done' && room.timer_started_at) {
+      rewardedStartedAtRef.current = room.timer_started_at
+    }
+  }, [room])
 
   useEffect(() => {
     if (!room) return
@@ -104,10 +125,37 @@ function TimerSection({ roomId, isHost }: { roomId: string; isHost: boolean }) {
     if (!room || !isHost) return
     if (room.timer_state === 'running' && remaining <= 0) {
       updateTimer.mutate({ roomId, state: 'done' })
-      toast.success('Session complete! MashaAllah 🎉')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, room?.timer_state, isHost])
+
+  // Reward the local participant once per completed session.
+  useEffect(() => {
+    if (!room || !user) return
+    if (room.timer_state !== 'done') return
+    const sessionKey = room.timer_started_at
+    if (!sessionKey) return
+    if (rewardedStartedAtRef.current === sessionKey) return
+    rewardedStartedAtRef.current = sessionKey
+
+    const blocks = Math.max(1, Math.floor(room.timer_duration / 5))
+    const coins = blocks * REWARDS.study_room_per_5min.coins
+    const xp = blocks * REWARDS.study_room_per_5min.xp
+
+    Promise.allSettled([
+      awardCoins(
+        user.id,
+        'focus_complete',
+        coins,
+        `Study room: ${room.name} (${room.timer_duration}m)`,
+      ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
+      waterNewestActiveTree(user.id, xp).then(() =>
+        qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
+      ),
+    ]).then(() => {
+      toast.success(`Session complete! +${coins} coins, +${xp} tree XP 🎉`)
+    })
+  }, [room, user, qc])
 
   if (!room) return null
 
