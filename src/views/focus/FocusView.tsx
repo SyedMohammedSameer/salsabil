@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Pause, RotateCcw, SkipForward, Timer, Coffee, Zap } from 'lucide-react'
+import { Play, Pause, RotateCcw, SkipForward, Timer, Coffee, Zap, Sliders } from 'lucide-react'
 import { PageShell } from '@/components/shared/PageShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -54,6 +54,17 @@ const PRESETS: Preset[] = [
     ringColor: 'stroke-destructive',
   },
 ]
+
+const CUSTOM_PRESET_BASE: Omit<Preset, 'minutes'> = {
+  type: 'pomodoro',
+  label: 'Custom',
+  icon: Sliders,
+  color: 'text-noor-500',
+  ringColor: 'stroke-noor-500',
+}
+
+const MIN_CUSTOM_MINUTES = 1
+const MAX_CUSTOM_MINUTES = 240
 
 // ─── Circular progress ring ───────────────────────────────────────────────────
 
@@ -138,6 +149,8 @@ type TimerState = 'idle' | 'running' | 'paused' | 'done'
 
 export default function FocusView() {
   const [preset, setPreset] = useState<Preset>(PRESETS[0])
+  const [isCustom, setIsCustom] = useState(false)
+  const [customMinutes, setCustomMinutes] = useState(30)
   const [remaining, setRemaining] = useState(preset.minutes * 60)
   const [timerState, setTimerState] = useState<TimerState>('idle')
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -213,11 +226,36 @@ export default function FocusView() {
   }, [sessionId, completeSession, preset.minutes])
 
   const handlePresetChange = useCallback((p: Preset) => {
+    setIsCustom(false)
     setPreset(p)
     setRemaining(p.minutes * 60)
     setTimerState('idle')
     setSessionId(null)
   }, [])
+
+  const handleCustomSelect = useCallback(() => {
+    const mins = Math.min(
+      MAX_CUSTOM_MINUTES,
+      Math.max(MIN_CUSTOM_MINUTES, Math.round(customMinutes || 1)),
+    )
+    setIsCustom(true)
+    setPreset({ ...CUSTOM_PRESET_BASE, minutes: mins })
+    setRemaining(mins * 60)
+    setTimerState('idle')
+    setSessionId(null)
+  }, [customMinutes])
+
+  const handleCustomMinutesChange = useCallback(
+    (value: number) => {
+      const clamped = Math.min(MAX_CUSTOM_MINUTES, Math.max(MIN_CUSTOM_MINUTES, value))
+      setCustomMinutes(clamped)
+      if (isCustom && timerState === 'idle') {
+        setPreset({ ...CUSTOM_PRESET_BASE, minutes: clamped })
+        setRemaining(clamped * 60)
+      }
+    },
+    [isCustom, timerState],
+  )
 
   const todaySessions =
     sessions?.filter((s) => {
@@ -248,9 +286,10 @@ export default function FocusView() {
           {/* Left: preset selector + timer */}
           <div className="space-y-4">
             {/* Preset selector */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {PRESETS.map((p) => {
                 const Icon = p.icon
+                const selected = !isCustom && preset.type === p.type
                 return (
                   <button
                     key={p.type}
@@ -258,7 +297,7 @@ export default function FocusView() {
                     disabled={timerState === 'running'}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border text-xs font-medium transition-all',
-                      preset.type === p.type
+                      selected
                         ? 'border-noor-500 bg-noor-500/10 text-noor-600 dark:text-noor-400'
                         : 'border-border text-muted-foreground hover:border-muted-foreground/40',
                       timerState === 'running' && 'opacity-50 cursor-not-allowed',
@@ -270,7 +309,78 @@ export default function FocusView() {
                   </button>
                 )
               })}
+              <button
+                onClick={handleCustomSelect}
+                disabled={timerState === 'running'}
+                className={cn(
+                  'flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 border text-xs font-medium transition-all',
+                  isCustom
+                    ? 'border-noor-500 bg-noor-500/10 text-noor-600 dark:text-noor-400'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                  timerState === 'running' && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <Sliders className="h-4 w-4" />
+                <span className="hidden sm:block">Custom</span>
+                <span className="text-[10px]">{isCustom ? `${preset.minutes}m` : '—'}</span>
+              </button>
             </div>
+
+            {/* Custom duration controls */}
+            <AnimatePresence>
+              {isCustom && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+                    <label
+                      htmlFor="custom-minutes"
+                      className="text-xs font-medium text-muted-foreground shrink-0"
+                    >
+                      Minutes
+                    </label>
+                    <input
+                      id="custom-minutes"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_CUSTOM_MINUTES}
+                      max={MAX_CUSTOM_MINUTES}
+                      value={customMinutes}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10)
+                        if (Number.isNaN(v)) {
+                          setCustomMinutes(MIN_CUSTOM_MINUTES)
+                          return
+                        }
+                        handleCustomMinutesChange(v)
+                      }}
+                      disabled={timerState === 'running'}
+                      className={cn(
+                        'w-20 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-sm text-foreground',
+                        'outline-none focus:border-noor-500/50 tabular-nums',
+                        timerState === 'running' && 'opacity-50 cursor-not-allowed',
+                      )}
+                    />
+                    <input
+                      type="range"
+                      min={MIN_CUSTOM_MINUTES}
+                      max={MAX_CUSTOM_MINUTES}
+                      value={customMinutes}
+                      onChange={(e) => handleCustomMinutesChange(parseInt(e.target.value, 10))}
+                      disabled={timerState === 'running'}
+                      className="flex-1 accent-noor-500"
+                    />
+                    <span className="text-xs text-muted-foreground shrink-0 tabular-nums w-12 text-right">
+                      {customMinutes}m
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Timer ring */}
             <Card>

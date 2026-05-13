@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import 'pixi.js/unsafe-eval'
 import { Application, Graphics, Container, Text } from 'pixi.js'
 import type { GardenTree, TreeSpecies, TreeStage } from '@/lib/database.types'
 

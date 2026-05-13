@@ -155,7 +155,9 @@ function CreateRoomDialog({ open, onClose }: { open: boolean; onClose: () => voi
                         <button
                           key={p.value}
                           type="button"
-                          onClick={() => setValue('timer_duration', p.value)}
+                          onClick={() =>
+                            setValue('timer_duration', p.value, { shouldValidate: true })
+                          }
                           className={cn(
                             'flex-1 rounded-xl py-2 text-xs font-semibold transition-colors',
                             duration === p.value
@@ -167,6 +169,32 @@ function CreateRoomDialog({ open, onClose }: { open: boolean; onClose: () => voi
                         </button>
                       ))}
                     </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground shrink-0">Custom</span>
+                      <input
+                        type="number"
+                        min={5}
+                        max={120}
+                        inputMode="numeric"
+                        value={duration ?? ''}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10)
+                          if (Number.isNaN(v)) return
+                          setValue('timer_duration', Math.min(120, Math.max(5, v)), {
+                            shouldValidate: true,
+                          })
+                        }}
+                        className={cn(
+                          'w-20 rounded-lg border bg-muted px-2.5 py-1.5 text-xs text-foreground',
+                          'outline-none focus:border-noor-500/50 tabular-nums',
+                          errors.timer_duration ? 'border-destructive' : 'border-border',
+                        )}
+                      />
+                      <span className="text-[11px] text-muted-foreground">minutes (5–120)</span>
+                    </div>
+                    {errors.timer_duration && (
+                      <p className="text-xs text-destructive">{errors.timer_duration.message}</p>
+                    )}
                   </div>
 
                   {/* Visibility + max */}
