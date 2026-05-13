@@ -159,7 +159,7 @@ function ShopPanel({
           {coins} coins
         </Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {ALL_SPECIES.map((species) => {
           const info = SPECIES_INFO[species]
           const canAfford = coins >= info.cost
@@ -171,20 +171,42 @@ function ShopPanel({
               onClick={() => !planting && canAfford && onPlant(species)}
               whileTap={canAfford ? { scale: 0.97 } : undefined}
               className={cn(
-                'flex flex-col items-center gap-1 rounded-2xl border p-3 text-left transition-colors',
+                'flex flex-col items-center gap-1.5 rounded-2xl border p-2.5 text-left transition-colors overflow-hidden',
                 canAfford
                   ? 'border-border hover:border-emerald-500/40 hover:bg-emerald-500/5 cursor-pointer'
                   : 'border-border/50 opacity-50 cursor-not-allowed',
               )}
             >
-              {/* Mature preview so users see what they're buying */}
-              <SvgTree
-                species={species}
-                stage="mature"
-                seed={`shop-${species}`}
-                size={72}
-                ariaLabel={`${info.name} preview`}
-              />
+              {/* Mini sky + ground backdrop so dark trunks stay visible on dark mode */}
+              <div
+                className="relative w-full rounded-xl overflow-hidden flex items-end justify-center"
+                style={{
+                  height: 108,
+                  background: 'linear-gradient(to bottom, #d6e9f3 0%, #e6efd6 60%, #b8cf90 100%)',
+                }}
+              >
+                {/* Grass strip */}
+                <svg
+                  className="absolute inset-x-0 bottom-0 w-full pointer-events-none"
+                  height={18}
+                  viewBox="0 0 100 18"
+                  preserveAspectRatio="none"
+                >
+                  <path d="M 0 6 Q 25 4 50 5 T 100 5 L 100 18 L 0 18 Z" fill="#9bbd6f" />
+                  <path
+                    d="M 0 8 Q 25 6 50 7 T 100 7 L 100 18 L 0 18 Z"
+                    fill="#b3cf85"
+                    opacity={0.6}
+                  />
+                </svg>
+                <SvgTree
+                  species={species}
+                  stage="ancient"
+                  seed={`shop-${species}`}
+                  size={96}
+                  ariaLabel={`${info.name} preview`}
+                />
+              </div>
               <p className="text-xs font-semibold text-foreground text-center leading-tight">
                 {info.name}
               </p>
