@@ -21,36 +21,31 @@ function seededRandom(seed: string) {
 }
 
 // ─── Stage scaling ───────────────────────────────────────────────────────────
-// Multiplies the visual size of the tree relative to "ancient" full-size.
-// A seed is barely a sprout; ancient fills the canvas.
 
 const STAGE_SCALE: Record<TreeStage, number> = {
-  seed: 0.18,
-  sprout: 0.32,
-  sapling: 0.5,
-  young: 0.68,
-  mature: 0.86,
+  seed: 0.2,
+  sprout: 0.36,
+  sapling: 0.56,
+  young: 0.74,
+  mature: 0.9,
   ancient: 1.0,
 }
 
-const STAGE_FOLIAGE_DENSITY: Record<TreeStage, number> = {
+const STAGE_DENSITY: Record<TreeStage, number> = {
   seed: 0,
   sprout: 1,
-  sapling: 2,
-  young: 3,
-  mature: 4,
-  ancient: 5,
+  sapling: 4,
+  young: 7,
+  mature: 11,
+  ancient: 15,
 }
 
 // ─── Geometry ────────────────────────────────────────────────────────────────
-// All trees render into a fixed 100×120 viewBox. Ground line is y=110.
+// All trees render into a 100×120 viewBox. Ground line at y=112.
 
 const VB_W = 100
 const VB_H = 120
-const GROUND_Y = 110
-
-// ─── Family renderers ────────────────────────────────────────────────────────
-// Each returns the JSX <g> for a tree, scaled by stage.
+const GROUND_Y = 112
 
 interface RenderArgs {
   spec: TreeSpec
@@ -59,122 +54,231 @@ interface RenderArgs {
   uid: string
 }
 
-// Soft elliptical shadow on the ground beneath every tree.
+// ─── Shared bits ─────────────────────────────────────────────────────────────
+
 function GroundShadow({ widthScale }: { widthScale: number }) {
   return (
     <ellipse
       cx={VB_W / 2}
-      cy={GROUND_Y + 2}
-      rx={18 * widthScale}
-      ry={2.4}
-      fill="rgba(0,0,0,0.18)"
+      cy={GROUND_Y + 1.5}
+      rx={26 * widthScale}
+      ry={3.5}
+      fill="rgba(0,0,0,0.22)"
     />
+  )
+}
+
+// A leafy cluster: shadow blob + base blob + 2-3 small leaf bumps + highlight.
+function LeafyCluster({
+  cx,
+  cy,
+  r,
+  spec,
+  rand,
+  seedKey,
+}: {
+  cx: number
+  cy: number
+  r: number
+  spec: TreeSpec
+  rand: () => number
+  seedKey: string
+}) {
+  // Small leaf "puffs" around the cluster perimeter so it reads as leaves
+  // instead of a flat blob.
+  const puffs: Array<{ x: number; y: number; r: number }> = []
+  const puffCount = 5 + Math.floor(rand() * 3)
+  for (let i = 0; i < puffCount; i++) {
+    const a = (i / puffCount) * Math.PI * 2 + rand() * 0.4
+    const dist = r * (0.7 + rand() * 0.25)
+    puffs.push({
+      x: cx + Math.cos(a) * dist,
+      y: cy + Math.sin(a) * dist * 0.85,
+      r: r * (0.32 + rand() * 0.18),
+    })
+  }
+
+  return (
+    <g key={seedKey}>
+      {/* Shadow halo */}
+      <ellipse cx={cx + 1.2} cy={cy + 1.2} rx={r * 1.05} ry={r * 0.95} fill={spec.foliageShadow} />
+      {puffs.map((p, i) => (
+        <circle key={`ps${i}`} cx={p.x + 0.7} cy={p.y + 0.7} r={p.r} fill={spec.foliageShadow} />
+      ))}
+      {/* Base */}
+      <ellipse cx={cx} cy={cy} rx={r} ry={r * 0.9} fill={spec.foliage} />
+      {puffs.map((p, i) => (
+        <circle key={`pb${i}`} cx={p.x} cy={p.y} r={p.r} fill={spec.foliage} />
+      ))}
+      {/* Highlight (upper-left) */}
+      <ellipse
+        cx={cx - r * 0.35}
+        cy={cy - r * 0.35}
+        rx={r * 0.55}
+        ry={r * 0.5}
+        fill={spec.foliageHighlight}
+        opacity={0.8}
+      />
+      {puffs.slice(0, Math.ceil(puffs.length / 2)).map((p, i) => (
+        <circle
+          key={`ph${i}`}
+          cx={p.x - p.r * 0.3}
+          cy={p.y - p.r * 0.3}
+          r={p.r * 0.55}
+          fill={spec.foliageHighlight}
+          opacity={0.65}
+        />
+      ))}
+    </g>
   )
 }
 
 // ─── Seed / sprout — universal tiny stage ────────────────────────────────────
 
 function renderSeedling({ spec, stage }: RenderArgs) {
-  // Tiny green sprout poking out of brown earth
   const isSeed = stage === 'seed'
+  const cx = VB_W / 2
   return (
     <g>
-      <ellipse cx={VB_W / 2} cy={GROUND_Y} rx={6} ry={1.5} fill={spec.trunkShadow} opacity={0.4} />
+      {/* Dirt mound */}
+      <ellipse cx={cx} cy={GROUND_Y - 1} rx={9} ry={2.5} fill="#7a5a3a" />
+      <ellipse cx={cx} cy={GROUND_Y - 2} rx={7} ry={1.8} fill="#9a7a52" />
       {isSeed ? (
         <>
-          {/* Just two tiny cotyledon leaves */}
+          {/* Two tiny cotyledon leaves */}
           <ellipse
-            cx={VB_W / 2 - 1.4}
-            cy={GROUND_Y - 2}
-            rx={1.6}
-            ry={1.1}
+            cx={cx - 2}
+            cy={GROUND_Y - 4}
+            rx={2.5}
+            ry={1.6}
             fill={spec.foliage}
-            transform={`rotate(-20 ${VB_W / 2 - 1.4} ${GROUND_Y - 2})`}
+            transform={`rotate(-25 ${cx - 2} ${GROUND_Y - 4})`}
           />
           <ellipse
-            cx={VB_W / 2 + 1.4}
-            cy={GROUND_Y - 2}
-            rx={1.6}
-            ry={1.1}
+            cx={cx + 2}
+            cy={GROUND_Y - 4}
+            rx={2.5}
+            ry={1.6}
             fill={spec.foliage}
-            transform={`rotate(20 ${VB_W / 2 + 1.4} ${GROUND_Y - 2})`}
+            transform={`rotate(25 ${cx + 2} ${GROUND_Y - 4})`}
           />
+          <ellipse cx={cx} cy={GROUND_Y - 5} rx={1.5} ry={1} fill={spec.foliageHighlight} />
         </>
       ) : (
         <>
-          {/* Small sprout — thin stem with a leaf cluster */}
+          {/* Sprout — small stem + 3 leaves */}
           <path
-            d={`M ${VB_W / 2} ${GROUND_Y} Q ${VB_W / 2 + 0.5} ${GROUND_Y - 5} ${VB_W / 2} ${GROUND_Y - 10}`}
+            d={`M ${cx} ${GROUND_Y - 2} L ${cx} ${GROUND_Y - 12}`}
             stroke={spec.trunkBase}
-            strokeWidth={1.2}
+            strokeWidth={1.6}
             strokeLinecap="round"
-            fill="none"
           />
-          <ellipse cx={VB_W / 2 - 2.5} cy={GROUND_Y - 10} rx={3} ry={2} fill={spec.foliageShadow} />
-          <ellipse cx={VB_W / 2 + 2.5} cy={GROUND_Y - 10} rx={3} ry={2} fill={spec.foliage} />
-          <ellipse cx={VB_W / 2} cy={GROUND_Y - 13} rx={3} ry={2.2} fill={spec.foliageHighlight} />
+          <ellipse
+            cx={cx - 4}
+            cy={GROUND_Y - 9}
+            rx={3.5}
+            ry={2.2}
+            fill={spec.foliage}
+            transform={`rotate(-30 ${cx - 4} ${GROUND_Y - 9})`}
+          />
+          <ellipse
+            cx={cx + 4}
+            cy={GROUND_Y - 9}
+            rx={3.5}
+            ry={2.2}
+            fill={spec.foliage}
+            transform={`rotate(30 ${cx + 4} ${GROUND_Y - 9})`}
+          />
+          <ellipse cx={cx} cy={GROUND_Y - 14} rx={3.8} ry={2.6} fill={spec.foliage} />
+          <ellipse
+            cx={cx - 0.8}
+            cy={GROUND_Y - 15}
+            rx={2.2}
+            ry={1.4}
+            fill={spec.foliageHighlight}
+          />
         </>
       )}
     </g>
   )
 }
 
-// ─── Broadleaf — trunk + overlapping foliage blobs ───────────────────────────
+// ─── Broadleaf — trunk + branches + leafy clusters ───────────────────────────
 
 function renderBroadleaf({ spec, stage, rand, uid }: RenderArgs) {
   const scale = STAGE_SCALE[stage]
-  const trunkH = 40 * scale
-  const trunkW = Math.max(1.5, 4.5 * scale)
-  const lean = (rand() - 0.5) * 4 // -2..2 horizontal sway
+  const trunkH = 52 * scale
+  const trunkBaseW = Math.max(2.5, 7 * scale)
+  const trunkTopW = Math.max(1.8, 4.5 * scale)
+  const lean = (rand() - 0.5) * 4
   const cx = VB_W / 2
-  const trunkTop = GROUND_Y - trunkH
+  const trunkTopY = GROUND_Y - trunkH
+  const trunkTopX = cx + lean * 0.6
 
+  // Trunk path — tapered with slight curve
   const trunkPath = `
-    M ${cx - trunkW / 2} ${GROUND_Y}
-    Q ${cx - trunkW / 2 + lean * 0.4} ${GROUND_Y - trunkH * 0.5}
-      ${cx - trunkW / 2 + lean * 0.7} ${trunkTop}
-    L ${cx + trunkW / 2 + lean * 0.7} ${trunkTop}
-    Q ${cx + trunkW / 2 + lean * 0.4} ${GROUND_Y - trunkH * 0.5}
-      ${cx + trunkW / 2} ${GROUND_Y}
+    M ${cx - trunkBaseW / 2} ${GROUND_Y}
+    Q ${cx - trunkBaseW * 0.35 + lean * 0.3} ${GROUND_Y - trunkH * 0.5}
+      ${trunkTopX - trunkTopW / 2} ${trunkTopY}
+    L ${trunkTopX + trunkTopW / 2} ${trunkTopY}
+    Q ${cx + trunkBaseW * 0.35 + lean * 0.3} ${GROUND_Y - trunkH * 0.5}
+      ${cx + trunkBaseW / 2} ${GROUND_Y}
     Z
   `
 
-  const trunkTopX = cx + lean * 0.7
+  // Main branches forking into the canopy (visible on sapling+)
+  type Branch = { x1: number; y1: number; x2: number; y2: number; w: number }
+  const branches: Branch[] = []
+  if (stage !== 'seed' && stage !== 'sprout') {
+    const branchCount = stage === 'sapling' ? 2 : stage === 'young' ? 3 : 4
+    for (let i = 0; i < branchCount; i++) {
+      const t = (i + 0.5) / branchCount
+      const angle = -Math.PI / 2 + (t - 0.5) * 1.4 + (rand() - 0.5) * 0.3
+      const len = trunkTopW * 2.4 * (0.8 + rand() * 0.4)
+      branches.push({
+        x1: trunkTopX,
+        y1: trunkTopY,
+        x2: trunkTopX + Math.cos(angle) * len,
+        y2: trunkTopY + Math.sin(angle) * len,
+        w: trunkTopW * 0.5,
+      })
+    }
+  }
 
-  // Foliage clusters — varying count by stage
-  const density = STAGE_FOLIAGE_DENSITY[stage]
-  const clusters: Array<{ cx: number; cy: number; rx: number; ry: number }> = []
-  const crownCx = trunkTopX
-  const crownCy = trunkTop - 6 * scale
-  const crownR = 22 * scale
+  // Canopy — multiple overlapping leafy clusters
+  const crownR = 34 * scale
+  const crownCy = trunkTopY - crownR * 0.55
+  const density = STAGE_DENSITY[stage]
+  type Cluster = { cx: number; cy: number; r: number }
+  const clusters: Cluster[] = []
 
-  // Center crown
-  clusters.push({ cx: crownCx, cy: crownCy, rx: crownR, ry: crownR * 0.85 })
+  // Center anchor cluster (biggest)
+  clusters.push({ cx: trunkTopX, cy: crownCy, r: crownR * 0.95 })
 
-  // Additional offset clusters
-  for (let i = 0; i < density - 1; i++) {
+  // Surrounding satellite clusters
+  for (let i = 0; i < density; i++) {
     const angle = rand() * Math.PI * 2
-    const dist = crownR * (0.4 + rand() * 0.5)
+    // Squash distribution vertically — crowns are wider than tall
+    const dist = crownR * (0.5 + rand() * 0.55)
     clusters.push({
-      cx: crownCx + Math.cos(angle) * dist,
+      cx: trunkTopX + Math.cos(angle) * dist,
       cy: crownCy + Math.sin(angle) * dist * 0.7,
-      rx: crownR * (0.55 + rand() * 0.3),
-      ry: crownR * (0.5 + rand() * 0.3),
+      r: crownR * (0.4 + rand() * 0.3),
     })
   }
 
-  // Accents — only mature+
+  // Accents (fruits, blossoms, berries)
   const showAccents = (stage === 'mature' || stage === 'ancient') && spec.accent
   const accents: Array<{ x: number; y: number; r: number }> = []
   if (showAccents) {
-    const accentCount = stage === 'ancient' ? 7 : 5
-    for (let i = 0; i < accentCount; i++) {
+    const count = stage === 'ancient' ? 14 : 9
+    for (let i = 0; i < count; i++) {
       const angle = rand() * Math.PI * 2
-      const dist = crownR * (0.3 + rand() * 0.6)
+      const dist = crownR * (0.3 + rand() * 0.7)
       accents.push({
-        x: crownCx + Math.cos(angle) * dist,
+        x: trunkTopX + Math.cos(angle) * dist,
         y: crownCy + Math.sin(angle) * dist * 0.7,
-        r: spec.accent === 'blossom' ? 1.2 : 1.5,
+        r: spec.accent === 'blossom' ? 1.6 : spec.accent === 'berries' ? 1.1 : 1.8,
       })
     }
   }
@@ -187,113 +291,154 @@ function renderBroadleaf({ spec, stage, rand, uid }: RenderArgs) {
       {hasGlow && spec.glow && (
         <defs>
           <radialGradient id={glowId}>
-            <stop offset="0%" stopColor={spec.glow} />
+            <stop offset="0%" stopColor={spec.glow} stopOpacity={0.8} />
             <stop offset="100%" stopColor="rgba(255,233,122,0)" />
           </radialGradient>
         </defs>
       )}
-      {hasGlow && <circle cx={crownCx} cy={crownCy} r={crownR * 1.8} fill={`url(#${glowId})`} />}
+      {hasGlow && <circle cx={trunkTopX} cy={crownCy} r={crownR * 2} fill={`url(#${glowId})`} />}
 
       {/* Trunk */}
       <path d={trunkPath} fill={spec.trunkBase} />
-      {/* Trunk shadow stripe (right side) */}
+      {/* Trunk shadow stripe */}
       <path
-        d={`M ${cx} ${GROUND_Y} L ${cx + trunkW / 2} ${GROUND_Y} L ${cx + trunkW / 2 + lean * 0.7} ${trunkTop} L ${trunkTopX} ${trunkTop} Z`}
+        d={`
+          M ${cx} ${GROUND_Y}
+          L ${cx + trunkBaseW / 2} ${GROUND_Y}
+          Q ${cx + trunkBaseW * 0.35 + lean * 0.3} ${GROUND_Y - trunkH * 0.5}
+            ${trunkTopX + trunkTopW / 2} ${trunkTopY}
+          L ${trunkTopX} ${trunkTopY}
+          Z
+        `}
         fill={spec.trunkShadow}
-        opacity={0.55}
+        opacity={0.6}
       />
+      {/* Bark texture: subtle vertical strokes */}
+      {stage !== 'sapling' &&
+        stage !== 'seed' &&
+        stage !== 'sprout' &&
+        Array.from({ length: 3 }).map((_, i) => (
+          <path
+            key={`bark${i}`}
+            d={`M ${cx + (i - 1) * trunkBaseW * 0.25} ${GROUND_Y - 2}
+                L ${trunkTopX + (i - 1) * trunkTopW * 0.25} ${trunkTopY + 4}`}
+            stroke={spec.trunkShadow}
+            strokeWidth={0.4}
+            opacity={0.55}
+            fill="none"
+          />
+        ))}
 
-      {/* Foliage: shadow layer (offset down-right), base layer, highlight layer (offset up-left) */}
-      {clusters.map((c, i) => (
-        <ellipse
-          key={`s${i}`}
-          cx={c.cx + 1.5}
-          cy={c.cy + 1.5}
-          rx={c.rx}
-          ry={c.ry}
-          fill={spec.foliageShadow}
+      {/* Branches */}
+      {branches.map((b, i) => (
+        <line
+          key={`br${i}`}
+          x1={b.x1}
+          y1={b.y1}
+          x2={b.x2}
+          y2={b.y2}
+          stroke={spec.trunkBase}
+          strokeWidth={b.w}
+          strokeLinecap="round"
         />
       ))}
+
+      {/* Foliage clusters */}
       {clusters.map((c, i) => (
-        <ellipse key={`b${i}`} cx={c.cx} cy={c.cy} rx={c.rx} ry={c.ry} fill={spec.foliage} />
-      ))}
-      {clusters.map((c, i) => (
-        <ellipse
-          key={`h${i}`}
-          cx={c.cx - c.rx * 0.3}
-          cy={c.cy - c.ry * 0.3}
-          rx={c.rx * 0.55}
-          ry={c.ry * 0.5}
-          fill={spec.foliageHighlight}
-          opacity={0.7}
+        <LeafyCluster
+          key={`cl${i}`}
+          cx={c.cx}
+          cy={c.cy}
+          r={c.r}
+          spec={spec}
+          rand={rand}
+          seedKey={`${uid}-c${i}`}
         />
       ))}
 
-      {/* Accents (fruits, blossoms, berries) */}
+      {/* Accents */}
       {accents.map((a, i) => (
-        <circle key={`a${i}`} cx={a.x} cy={a.y} r={a.r} fill={spec.accentColor ?? '#fff'} />
+        <g key={`a${i}`}>
+          {spec.accent === 'blossom' && (
+            <circle cx={a.x} cy={a.y} r={a.r * 1.4} fill="rgba(255,255,255,0.4)" />
+          )}
+          <circle cx={a.x} cy={a.y} r={a.r} fill={spec.accentColor ?? '#fff'} />
+          <circle
+            cx={a.x - a.r * 0.3}
+            cy={a.y - a.r * 0.3}
+            r={a.r * 0.35}
+            fill="rgba(255,255,255,0.6)"
+          />
+        </g>
       ))}
     </g>
   )
 }
 
-// ─── Conifer — trunk + stacked triangles ─────────────────────────────────────
+// ─── Conifer — trunk + stacked triangular layers ─────────────────────────────
 
 function renderConifer({ spec, stage, rand }: RenderArgs) {
   const scale = STAGE_SCALE[stage]
-  const trunkH = 22 * scale
-  const trunkW = Math.max(1.5, 3.5 * scale)
-  const totalH = 60 * scale
+  const trunkH = 18 * scale
+  const trunkBaseW = Math.max(2, 5 * scale)
+  const trunkTopW = Math.max(1.5, 3.5 * scale)
+  const totalH = 80 * scale
   const cx = VB_W / 2
-  const trunkTop = GROUND_Y - trunkH
+  const trunkTopY = GROUND_Y - trunkH
 
-  const layers = Math.max(2, STAGE_FOLIAGE_DENSITY[stage])
+  const layers = Math.max(3, Math.floor(STAGE_DENSITY[stage] / 2) + 1)
   const layerH = (totalH - trunkH) / layers
-  const tips: Array<{ x: number; y: number; w: number }> = []
-
-  for (let i = 0; i < layers; i++) {
-    const yBottom = trunkTop - layerH * i + 3
-    const yTop = trunkTop - layerH * (i + 1) + 3
-    const w = (30 - i * 5) * scale * (0.9 + rand() * 0.2)
-    tips.push({ x: cx, y: yTop, w })
-    void yBottom
-  }
+  const baseW = 42 * scale
 
   return (
     <g>
       {/* Trunk */}
-      <rect x={cx - trunkW / 2} y={trunkTop} width={trunkW} height={trunkH} fill={spec.trunkBase} />
-      <rect
-        x={cx}
-        y={trunkTop}
-        width={trunkW / 2}
-        height={trunkH}
+      <path
+        d={`
+          M ${cx - trunkBaseW / 2} ${GROUND_Y}
+          L ${cx - trunkTopW / 2} ${trunkTopY}
+          L ${cx + trunkTopW / 2} ${trunkTopY}
+          L ${cx + trunkBaseW / 2} ${GROUND_Y}
+          Z
+        `}
+        fill={spec.trunkBase}
+      />
+      <path
+        d={`M ${cx} ${GROUND_Y} L ${cx + trunkBaseW / 2} ${GROUND_Y}
+            L ${cx + trunkTopW / 2} ${trunkTopY} L ${cx} ${trunkTopY} Z`}
         fill={spec.trunkShadow}
-        opacity={0.6}
+        opacity={0.5}
       />
 
-      {/* Stacked triangles, bottom up */}
-      {tips.map((t, i) => {
-        const yBottom = trunkTop - layerH * i + 3
-        const yTop = trunkTop - layerH * (i + 1) + 3
-        const w = t.w
+      {/* Layers bottom-up — each is a "skirt" with jagged bottom */}
+      {Array.from({ length: layers }).map((_, i) => {
+        const t = i / Math.max(1, layers - 1)
+        const yBottom = trunkTopY - layerH * i + 4
+        const yTop = trunkTopY - layerH * (i + 1) + 4
+        const w = baseW * (1 - t * 0.55) * (0.92 + rand() * 0.16)
+        // Build a jagged bottom edge for foliage texture
+        const steps = 8
+        const jagPath: string[] = [`M ${cx - w / 2} ${yBottom}`]
+        for (let s = 1; s <= steps; s++) {
+          const sx = cx - w / 2 + (w * s) / steps
+          const sy = yBottom + (s % 2 === 0 ? -1.2 : 0.8)
+          jagPath.push(`L ${sx} ${sy}`)
+        }
+        jagPath.push(`L ${cx + w / 2} ${yBottom}`)
+        jagPath.push(`L ${cx} ${yTop}`)
+        jagPath.push('Z')
+
         return (
           <g key={i}>
-            {/* shadow */}
-            <path
-              d={`M ${cx - w / 2 + 1} ${yBottom + 1.5} L ${cx + w / 2 + 1} ${yBottom + 1.5} L ${cx + 1} ${yTop + 1.5} Z`}
-              fill={spec.foliageShadow}
-            />
-            {/* base */}
-            <path
-              d={`M ${cx - w / 2} ${yBottom} L ${cx + w / 2} ${yBottom} L ${cx} ${yTop} Z`}
-              fill={spec.foliage}
-            />
-            {/* highlight on left side */}
+            <g transform="translate(1.2 1.4)">
+              <path d={jagPath.join(' ')} fill={spec.foliageShadow} />
+            </g>
+            <path d={jagPath.join(' ')} fill={spec.foliage} />
+            {/* Highlight on left half */}
             <path
               d={`M ${cx - w / 2} ${yBottom} L ${cx} ${yBottom} L ${cx} ${yTop} Z`}
               fill={spec.foliageHighlight}
-              opacity={0.45}
+              opacity={0.4}
             />
           </g>
         )
@@ -302,98 +447,141 @@ function renderConifer({ spec, stage, rand }: RenderArgs) {
   )
 }
 
-// ─── Palm — curved trunk + radiating fronds ──────────────────────────────────
+// ─── Palm — curved trunk with banded bark + arched fronds with leaflets ──────
 
 function renderPalm({ spec, stage, rand }: RenderArgs) {
   const scale = STAGE_SCALE[stage]
-  const trunkH = 50 * scale
-  const trunkW = Math.max(1.5, 3.5 * scale)
+  const trunkH = 62 * scale
+  const trunkBaseW = Math.max(2.5, 5 * scale)
+  const trunkTopW = Math.max(2, 4 * scale)
   const cx = VB_W / 2
-  const sway = (rand() - 0.5) * 8
+  const sway = (rand() - 0.5) * 6
   const trunkTopX = cx + sway
   const trunkTopY = GROUND_Y - trunkH
 
-  // Trunk: curved path with bands
   const trunkPath = `
-    M ${cx - trunkW / 2} ${GROUND_Y}
-    Q ${cx + sway * 0.3 - trunkW / 2} ${GROUND_Y - trunkH * 0.5}
-      ${trunkTopX - trunkW / 2} ${trunkTopY}
-    L ${trunkTopX + trunkW / 2} ${trunkTopY}
-    Q ${cx + sway * 0.3 + trunkW / 2} ${GROUND_Y - trunkH * 0.5}
-      ${cx + trunkW / 2} ${GROUND_Y}
+    M ${cx - trunkBaseW / 2} ${GROUND_Y}
+    Q ${cx + sway * 0.3 - trunkBaseW * 0.4} ${GROUND_Y - trunkH * 0.5}
+      ${trunkTopX - trunkTopW / 2} ${trunkTopY}
+    L ${trunkTopX + trunkTopW / 2} ${trunkTopY}
+    Q ${cx + sway * 0.3 + trunkBaseW * 0.4} ${GROUND_Y - trunkH * 0.5}
+      ${cx + trunkBaseW / 2} ${GROUND_Y}
     Z
   `
 
-  const frondCount = Math.max(3, STAGE_FOLIAGE_DENSITY[stage] + 2)
-  const frondLen = 22 * scale
+  const frondCount = stage === 'sapling' ? 5 : stage === 'young' ? 7 : stage === 'mature' ? 9 : 11
+  const frondLen = 30 * scale
   const fronds: Array<{ angle: number; len: number }> = []
   for (let i = 0; i < frondCount; i++) {
-    const angle = -Math.PI + (Math.PI * i) / (frondCount - 1)
-    fronds.push({ angle, len: frondLen * (0.8 + rand() * 0.3) })
+    const angle = -Math.PI + (Math.PI * i) / Math.max(1, frondCount - 1)
+    fronds.push({ angle, len: frondLen * (0.85 + rand() * 0.3) })
   }
 
-  // Date clusters under crown (mature+)
   const showDates = spec.accent === 'dates' && (stage === 'mature' || stage === 'ancient')
 
   return (
     <g>
       <path d={trunkPath} fill={spec.trunkBase} />
-      {/* Bark bands */}
-      {Array.from({ length: Math.floor(trunkH / 5) }).map((_, i) => (
-        <line
-          key={i}
-          x1={cx - trunkW / 2 + sway * 0.3 * (1 - i / 10)}
-          y1={GROUND_Y - i * 5}
-          x2={cx + trunkW / 2 + sway * 0.3 * (1 - i / 10)}
-          y2={GROUND_Y - i * 5}
-          stroke={spec.trunkShadow}
-          strokeWidth={0.5}
-          opacity={0.5}
-        />
-      ))}
+      {/* Trunk shadow */}
+      <path
+        d={`M ${cx} ${GROUND_Y} L ${cx + trunkBaseW / 2} ${GROUND_Y}
+            Q ${cx + sway * 0.3 + trunkBaseW * 0.4} ${GROUND_Y - trunkH * 0.5}
+              ${trunkTopX + trunkTopW / 2} ${trunkTopY}
+            L ${trunkTopX} ${trunkTopY} Z`}
+        fill={spec.trunkShadow}
+        opacity={0.55}
+      />
+      {/* Banded bark */}
+      {Array.from({ length: Math.floor(trunkH / 5) }).map((_, i) => {
+        const yLine = GROUND_Y - i * 5 - 3
+        const t = i / Math.max(1, trunkH / 5)
+        const offset = sway * 0.3 * (1 - t)
+        return (
+          <path
+            key={i}
+            d={`M ${cx - trunkBaseW / 2 + offset + 0.5} ${yLine}
+                Q ${cx + offset} ${yLine - 0.6}
+                  ${cx + trunkBaseW / 2 + offset - 0.5} ${yLine}`}
+            stroke={spec.trunkShadow}
+            strokeWidth={0.6}
+            opacity={0.7}
+            fill="none"
+          />
+        )
+      })}
 
-      {/* Fronds — each is a long curved leaf */}
+      {/* Fronds — each is a curved spine with little leaflets */}
       {fronds.map((f, i) => {
         const tipX = trunkTopX + Math.cos(f.angle) * f.len
-        const tipY = trunkTopY + Math.sin(f.angle) * f.len * 0.6 - 2
-        const midX = trunkTopX + Math.cos(f.angle) * f.len * 0.5
-        const midY = trunkTopY + Math.sin(f.angle) * f.len * 0.3 - 4
+        const tipY = trunkTopY + Math.sin(f.angle) * f.len * 0.5 - 4
+        const midX = trunkTopX + Math.cos(f.angle) * f.len * 0.55
+        const midY = trunkTopY + Math.sin(f.angle) * f.len * 0.25 - 6
+        // Leaflets perpendicular to the spine
+        const leaflets: Array<{ x1: number; y1: number; x2: number; y2: number }> = []
+        const leafletCount = 6
+        for (let j = 1; j <= leafletCount; j++) {
+          const t = j / (leafletCount + 1)
+          // Position along the quadratic curve
+          const px = (1 - t) * (1 - t) * trunkTopX + 2 * (1 - t) * t * midX + t * t * tipX
+          const py = (1 - t) * (1 - t) * trunkTopY + 2 * (1 - t) * t * midY + t * t * tipY
+          // Tangent perpendicular
+          const tangentAngle = f.angle + Math.PI / 2
+          const llen = 3 * scale * (1 - t * 0.4)
+          leaflets.push({
+            x1: px - Math.cos(tangentAngle) * llen * 0.4,
+            y1: py - Math.sin(tangentAngle) * llen * 0.4 - 0.5,
+            x2: px + Math.cos(tangentAngle) * llen * 0.4,
+            y2: py + Math.sin(tangentAngle) * llen * 0.4 - 0.5,
+          })
+        }
         return (
           <g key={i}>
+            {/* Leaflets shadow */}
+            {leaflets.map((l, k) => (
+              <line
+                key={`ls${k}`}
+                x1={l.x1 + 0.5}
+                y1={l.y1 + 0.5}
+                x2={l.x2 + 0.5}
+                y2={l.y2 + 0.5}
+                stroke={spec.foliageShadow}
+                strokeWidth={2 * scale}
+                strokeLinecap="round"
+              />
+            ))}
+            {/* Leaflets */}
+            {leaflets.map((l, k) => (
+              <line
+                key={`l${k}`}
+                x1={l.x1}
+                y1={l.y1}
+                x2={l.x2}
+                y2={l.y2}
+                stroke={spec.foliage}
+                strokeWidth={1.6 * scale}
+                strokeLinecap="round"
+              />
+            ))}
+            {/* Spine */}
             <path
               d={`M ${trunkTopX} ${trunkTopY} Q ${midX} ${midY} ${tipX} ${tipY}`}
-              stroke={spec.foliageShadow}
-              strokeWidth={3.5 * scale}
-              strokeLinecap="round"
-              fill="none"
-              opacity={0.7}
-            />
-            <path
-              d={`M ${trunkTopX} ${trunkTopY} Q ${midX} ${midY} ${tipX} ${tipY}`}
-              stroke={spec.foliage}
-              strokeWidth={2.5 * scale}
-              strokeLinecap="round"
-              fill="none"
-            />
-            <path
-              d={`M ${trunkTopX} ${trunkTopY} Q ${midX - 0.5} ${midY - 0.5} ${tipX - 0.5} ${tipY - 0.5}`}
               stroke={spec.foliageHighlight}
-              strokeWidth={0.9 * scale}
+              strokeWidth={1 * scale}
               strokeLinecap="round"
               fill="none"
-              opacity={0.8}
             />
           </g>
         )
       })}
 
+      {/* Date clusters */}
       {showDates &&
-        Array.from({ length: 6 }).map((_, i) => (
+        Array.from({ length: 8 }).map((_, i) => (
           <circle
             key={i}
-            cx={trunkTopX + (i - 2.5) * 1.4}
-            cy={trunkTopY + 2 + Math.abs(i - 2.5) * 0.3}
-            r={0.9}
+            cx={trunkTopX + (i - 3.5) * 1.6}
+            cy={trunkTopY + 3 + Math.abs(i - 3.5) * 0.4}
+            r={1.2}
             fill={spec.accentColor ?? '#f1c14a'}
           />
         ))}
@@ -401,155 +589,180 @@ function renderPalm({ spec, stage, rand }: RenderArgs) {
   )
 }
 
-// ─── Umbrella (acacia) — thin trunk + flat wide crown ────────────────────────
+// ─── Umbrella (acacia) — thin tall trunk + flat wide crown ───────────────────
 
 function renderUmbrella({ spec, stage, rand }: RenderArgs) {
   const scale = STAGE_SCALE[stage]
-  const trunkH = 45 * scale
-  const trunkW = Math.max(1, 3 * scale)
+  const trunkH = 58 * scale
+  const trunkW = Math.max(1.5, 4 * scale)
   const cx = VB_W / 2
   const trunkTop = GROUND_Y - trunkH
-  const lean = (rand() - 0.5) * 3
+  const lean = (rand() - 0.5) * 4
 
-  const crownW = 38 * scale
-  const crownH = 12 * scale
-  const crownCy = trunkTop - crownH * 0.3
+  const crownW = 52 * scale
+  const crownH = 18 * scale
+  const crownCy = trunkTop - crownH * 0.4
   const crownCx = cx + lean
 
   return (
     <g>
-      {/* Trunk — thin and slightly curved */}
+      {/* Trunk */}
       <path
         d={`
           M ${cx - trunkW / 2} ${GROUND_Y}
-          Q ${cx + lean * 0.4 - trunkW / 2} ${GROUND_Y - trunkH * 0.5}
+          Q ${cx + lean * 0.3 - trunkW / 2} ${GROUND_Y - trunkH * 0.5}
             ${crownCx - trunkW / 2} ${trunkTop}
           L ${crownCx + trunkW / 2} ${trunkTop}
-          Q ${cx + lean * 0.4 + trunkW / 2} ${GROUND_Y - trunkH * 0.5}
+          Q ${cx + lean * 0.3 + trunkW / 2} ${GROUND_Y - trunkH * 0.5}
             ${cx + trunkW / 2} ${GROUND_Y}
           Z
         `}
         fill={spec.trunkBase}
       />
-      {/* Branch splits near the top */}
+      {/* Trunk shadow */}
+      <path
+        d={`M ${cx} ${GROUND_Y} L ${cx + trunkW / 2} ${GROUND_Y}
+            Q ${cx + lean * 0.3 + trunkW / 2} ${GROUND_Y - trunkH * 0.5}
+              ${crownCx + trunkW / 2} ${trunkTop}
+            L ${crownCx} ${trunkTop} Z`}
+        fill={spec.trunkShadow}
+        opacity={0.5}
+      />
+      {/* Branch splits below crown */}
       <line
-        x1={crownCx - trunkW * 1.5}
+        x1={crownCx - crownW * 0.25}
         y1={trunkTop + 4}
         x2={crownCx}
         y2={trunkTop}
         stroke={spec.trunkBase}
-        strokeWidth={1.2 * scale}
+        strokeWidth={1.5 * scale}
+        strokeLinecap="round"
       />
       <line
-        x1={crownCx + trunkW * 1.5}
+        x1={crownCx + crownW * 0.25}
         y1={trunkTop + 4}
         x2={crownCx}
         y2={trunkTop}
         stroke={spec.trunkBase}
-        strokeWidth={1.2 * scale}
+        strokeWidth={1.5 * scale}
+        strokeLinecap="round"
       />
 
-      {/* Flat umbrella canopy — shadow, base, highlight */}
+      {/* Crown made of overlapping bump clusters along a flat plane */}
       <ellipse
         cx={crownCx + 1}
-        cy={crownCy + 1}
+        cy={crownCy + 1.5}
         rx={crownW / 2}
         ry={crownH / 2}
         fill={spec.foliageShadow}
       />
       <ellipse cx={crownCx} cy={crownCy} rx={crownW / 2} ry={crownH / 2} fill={spec.foliage} />
-      <ellipse
-        cx={crownCx - crownW * 0.15}
-        cy={crownCy - crownH * 0.2}
-        rx={crownW * 0.3}
-        ry={crownH * 0.35}
-        fill={spec.foliageHighlight}
-        opacity={0.7}
-      />
-      {/* Texture bumps */}
-      {Array.from({ length: 4 }).map((_, i) => {
-        const t = (i + 1) / 5
+      {Array.from({ length: 6 }).map((_, i) => {
+        const t = i / 5
+        const x = crownCx - crownW / 2 + crownW * t
+        const y = crownCy - crownH * 0.5 - rand() * 1.5
+        const r = crownW * 0.13 + rand() * 1.5
         return (
-          <ellipse
-            key={i}
-            cx={crownCx - crownW / 2 + crownW * t}
-            cy={crownCy - crownH * 0.4 - rand() * 1}
-            rx={crownW * 0.12}
-            ry={crownH * 0.3}
-            fill={spec.foliage}
-          />
+          <g key={i}>
+            <circle cx={x + 0.5} cy={y + 0.6} r={r} fill={spec.foliageShadow} />
+            <circle cx={x} cy={y} r={r} fill={spec.foliage} />
+            <circle
+              cx={x - r * 0.3}
+              cy={y - r * 0.3}
+              r={r * 0.5}
+              fill={spec.foliageHighlight}
+              opacity={0.75}
+            />
+          </g>
         )
       })}
     </g>
   )
 }
 
-// ─── Baobab — thick tapered trunk + small crown ──────────────────────────────
+// ─── Baobab — massive bulbous trunk + sparse branches with tufts ─────────────
 
 function renderBaobab({ spec, stage, rand }: RenderArgs) {
   const scale = STAGE_SCALE[stage]
-  const trunkH = 42 * scale
-  const trunkBaseW = 22 * scale
-  const trunkTopW = 8 * scale
+  const trunkH = 54 * scale
+  const trunkBaseW = 32 * scale
+  const trunkMidW = 36 * scale
+  const trunkTopW = 12 * scale
   const cx = VB_W / 2
   const trunkTop = GROUND_Y - trunkH
 
+  // Bulging trunk: wide at base AND middle, narrowing at top
   const trunkPath = `
     M ${cx - trunkBaseW / 2} ${GROUND_Y}
-    Q ${cx - trunkBaseW * 0.6} ${GROUND_Y - trunkH * 0.4}
+    Q ${cx - trunkMidW / 2} ${GROUND_Y - trunkH * 0.35}
+      ${cx - trunkMidW / 2 + 1} ${GROUND_Y - trunkH * 0.55}
+    Q ${cx - trunkTopW * 0.8} ${trunkTop + trunkH * 0.2}
       ${cx - trunkTopW / 2} ${trunkTop}
     L ${cx + trunkTopW / 2} ${trunkTop}
-    Q ${cx + trunkBaseW * 0.6} ${GROUND_Y - trunkH * 0.4}
+    Q ${cx + trunkTopW * 0.8} ${trunkTop + trunkH * 0.2}
+      ${cx + trunkMidW / 2 - 1} ${GROUND_Y - trunkH * 0.55}
+    Q ${cx + trunkMidW / 2} ${GROUND_Y - trunkH * 0.35}
       ${cx + trunkBaseW / 2} ${GROUND_Y}
     Z
   `
 
-  // Sparse, angular branches with small foliage tufts
-  const branchCount = STAGE_FOLIAGE_DENSITY[stage] + 1
+  const branchCount = stage === 'sapling' ? 2 : stage === 'young' ? 3 : 5
   const branches: Array<{ x: number; y: number; angle: number; len: number }> = []
   for (let i = 0; i < branchCount; i++) {
-    const angle = -Math.PI * 0.6 - rand() * Math.PI * 0.4 + (i / branchCount) * Math.PI
+    const angle = -Math.PI * 0.85 + (i / Math.max(1, branchCount - 1)) * Math.PI * 0.7
     branches.push({
       x: cx + (rand() - 0.5) * trunkTopW,
       y: trunkTop + 1,
       angle,
-      len: 14 * scale * (0.7 + rand() * 0.5),
+      len: 18 * scale * (0.7 + rand() * 0.5),
     })
   }
 
   return (
     <g>
       <path d={trunkPath} fill={spec.trunkBase} />
-      {/* Trunk shadow on right */}
-      <path
-        d={`
-          M ${cx} ${GROUND_Y}
-          L ${cx + trunkBaseW / 2} ${GROUND_Y}
-          Q ${cx + trunkBaseW * 0.6} ${GROUND_Y - trunkH * 0.4}
-            ${cx + trunkTopW / 2} ${trunkTop}
-          L ${cx} ${trunkTop} Z
-        `}
-        fill={spec.trunkShadow}
-        opacity={0.45}
+      {/* Bulge highlight (left) */}
+      <ellipse
+        cx={cx - trunkMidW * 0.2}
+        cy={GROUND_Y - trunkH * 0.5}
+        rx={trunkMidW * 0.18}
+        ry={trunkH * 0.3}
+        fill="rgba(255,255,255,0.18)"
       />
-      {/* Vertical bark lines */}
-      {Array.from({ length: 4 }).map((_, i) => (
-        <line
-          key={i}
-          x1={cx - trunkBaseW / 2 + (trunkBaseW / 5) * (i + 1)}
-          y1={GROUND_Y}
-          x2={cx - trunkTopW / 2 + (trunkTopW / 5) * (i + 1)}
-          y2={trunkTop}
-          stroke={spec.trunkShadow}
-          strokeWidth={0.5}
-          opacity={0.4}
-        />
-      ))}
+      {/* Trunk shadow (right) */}
+      <path
+        d={`M ${cx} ${GROUND_Y} L ${cx + trunkBaseW / 2} ${GROUND_Y}
+            Q ${cx + trunkMidW / 2} ${GROUND_Y - trunkH * 0.35}
+              ${cx + trunkMidW / 2 - 1} ${GROUND_Y - trunkH * 0.55}
+            Q ${cx + trunkTopW * 0.8} ${trunkTop + trunkH * 0.2}
+              ${cx + trunkTopW / 2} ${trunkTop}
+            L ${cx} ${trunkTop} Z`}
+        fill={spec.trunkShadow}
+        opacity={0.4}
+      />
+      {/* Vertical bark furrows */}
+      {Array.from({ length: 5 }).map((_, i) => {
+        const t = (i + 1) / 6
+        const xB = cx - trunkBaseW / 2 + trunkBaseW * t
+        const xM = cx - trunkMidW / 2 + trunkMidW * t
+        const xT = cx - trunkTopW / 2 + trunkTopW * t
+        return (
+          <path
+            key={i}
+            d={`M ${xB} ${GROUND_Y} Q ${xM} ${GROUND_Y - trunkH * 0.5} ${xT} ${trunkTop}`}
+            stroke={spec.trunkShadow}
+            strokeWidth={0.6}
+            opacity={0.5}
+            fill="none"
+          />
+        )
+      })}
 
       {/* Branches with foliage tufts */}
       {branches.map((b, i) => {
         const tipX = b.x + Math.cos(b.angle) * b.len
         const tipY = b.y + Math.sin(b.angle) * b.len
+        const tuftR = 7 * scale * (0.8 + rand() * 0.3)
         return (
           <g key={i}>
             <line
@@ -558,24 +771,18 @@ function renderBaobab({ spec, stage, rand }: RenderArgs) {
               x2={tipX}
               y2={tipY}
               stroke={spec.trunkBase}
-              strokeWidth={1.2 * scale}
+              strokeWidth={1.6 * scale}
               strokeLinecap="round"
             />
-            <ellipse
-              cx={tipX + 0.8}
-              cy={tipY + 0.8}
-              rx={5 * scale}
-              ry={3.5 * scale}
-              fill={spec.foliageShadow}
-            />
-            <ellipse cx={tipX} cy={tipY} rx={5 * scale} ry={3.5 * scale} fill={spec.foliage} />
-            <ellipse
-              cx={tipX - 1.5}
-              cy={tipY - 1}
-              rx={2.2 * scale}
-              ry={1.5 * scale}
+            {/* Tuft: 3 small leaf bumps */}
+            <circle cx={tipX + 0.8} cy={tipY + 0.8} r={tuftR} fill={spec.foliageShadow} />
+            <circle cx={tipX} cy={tipY} r={tuftR} fill={spec.foliage} />
+            <circle
+              cx={tipX - tuftR * 0.4}
+              cy={tipY - tuftR * 0.4}
+              r={tuftR * 0.5}
               fill={spec.foliageHighlight}
-              opacity={0.7}
+              opacity={0.8}
             />
           </g>
         )
@@ -592,19 +799,10 @@ export interface SvgTreeProps {
   /** Unique id (e.g. tree.id) for deterministic randomness */
   seed: string
   size?: number
-  /** Visual scale multiplier on top of stage scale — for thumbnails etc. */
-  scaleMul?: number
   ariaLabel?: string
 }
 
-export function SvgTree({
-  species,
-  stage,
-  seed,
-  size = 120,
-  scaleMul = 1,
-  ariaLabel,
-}: SvgTreeProps) {
+export function SvgTree({ species, stage, seed, size = 120, ariaLabel }: SvgTreeProps) {
   const spec = TREE_SPECS[species]
 
   const body = useMemo(() => {
@@ -612,7 +810,6 @@ export function SvgTree({
     const uid = `${species}-${seed}`.replace(/[^a-z0-9]/gi, '')
     const args: RenderArgs = { spec, stage, rand, uid }
 
-    // Tiny stages render the same regardless of family
     if (stage === 'seed' || stage === 'sprout') return renderSeedling(args)
 
     switch (spec.family) {
@@ -641,16 +838,8 @@ export function SvgTree({
       aria-label={ariaLabel ?? `${species} ${stage}`}
       style={{ overflow: 'visible' }}
     >
-      <g
-        transform={
-          scaleMul !== 1
-            ? `translate(${VB_W / 2} ${GROUND_Y}) scale(${scaleMul}) translate(${-VB_W / 2} ${-GROUND_Y})`
-            : undefined
-        }
-      >
-        <GroundShadow widthScale={widthScale} />
-        {body}
-      </g>
+      <GroundShadow widthScale={widthScale} />
+      {body}
     </svg>
   )
 }
