@@ -401,6 +401,26 @@ export interface Database {
         Update: never
         Relationships: []
       }
+      user_memories: {
+        Row: {
+          id: string
+          user_id: string
+          content: string
+          kind: 'fact' | 'preference' | 'goal' | 'context'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          content: string
+          kind?: 'fact' | 'preference' | 'goal' | 'context'
+        }
+        Update: {
+          content?: string
+          kind?: 'fact' | 'preference' | 'goal' | 'context'
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           id: string
