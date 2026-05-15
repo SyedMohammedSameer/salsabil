@@ -1,162 +1,160 @@
-// Browser-native voice helpers: SpeechRecognition + SpeechSynthesis.
-// No dependencies, no API keys, no cost. Works in Chrome/Edge/Safari.
+// Voice helpers.
+//
+// STT: browser records audio via MediaRecorder, the bytes go to our /ai-chat
+// endpoint as base64 — the OpenRouter Nemotron Omni model both transcribes
+// and responds. No separate Whisper step.
+//
+// TTS: the /tts Netlify function calls Hugging Face's MMS-TTS model and
+// streams audio back, which we play via a single shared <audio> element.
 
-// ─── TypeScript shims for the Web Speech API (not in lib.dom yet) ────────────
-
-interface SRAlternative {
-  transcript: string
-  confidence: number
-}
-interface SRResult {
-  isFinal: boolean
-  0: SRAlternative
-  length: number
-}
-interface SREvent {
-  results: { [k: number]: SRResult; length: number }
-  resultIndex: number
-}
-interface SRErrorEvent {
-  error: string
-  message?: string
-}
-interface SpeechRecognitionInstance {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  onresult: ((e: SREvent) => void) | null
-  onerror: ((e: SRErrorEvent) => void) | null
-  onend: (() => void) | null
-  onstart: (() => void) | null
-  start: () => void
-  stop: () => void
-  abort: () => void
+export interface AudioCapture {
+  data: string // base64 (no data: prefix)
+  format: 'webm' | 'wav' | 'mp3' | 'ogg'
 }
 
-interface SRConstructor {
-  new (): SpeechRecognitionInstance
+export function isAudioRecordingSupported(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!(navigator.mediaDevices && typeof MediaRecorder !== 'undefined')
 }
 
-function getSRClass(): SRConstructor | null {
-  if (typeof window === 'undefined') return null
-  const w = window as unknown as {
-    SpeechRecognition?: SRConstructor
-    webkitSpeechRecognition?: SRConstructor
+// Pick a MediaRecorder mime type the browser actually supports, preferring
+// the formats the OpenRouter audio input field accepts.
+function pickMimeType(): { mime: string; format: AudioCapture['format'] } {
+  const candidates: Array<{ mime: string; format: AudioCapture['format'] }> = [
+    { mime: 'audio/webm;codecs=opus', format: 'webm' },
+    { mime: 'audio/webm', format: 'webm' },
+    { mime: 'audio/ogg;codecs=opus', format: 'ogg' },
+    { mime: 'audio/mp4', format: 'mp3' },
+    { mime: 'audio/wav', format: 'wav' },
+  ]
+  for (const c of candidates) {
+    if (MediaRecorder.isTypeSupported(c.mime)) return c
   }
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
+  // Fallback — most browsers default to webm
+  return { mime: '', format: 'webm' }
 }
 
-export function isSpeechRecognitionSupported(): boolean {
-  return getSRClass() !== null
+export interface RecordingHandle {
+  stop: () => Promise<AudioCapture | null>
+  cancel: () => void
 }
 
-export interface VoiceListenerHandlers {
-  onPartial?: (text: string) => void
-  onFinal: (text: string) => void
-  onError?: (err: string) => void
-  onEnd?: () => void
-  lang?: string
-}
-
-export interface VoiceListener {
-  start: () => void
-  stop: () => void
-  abort: () => void
-}
-
-export function createVoiceListener(handlers: VoiceListenerHandlers): VoiceListener | null {
-  const SR = getSRClass()
-  if (!SR) return null
-  const rec = new SR()
-  rec.continuous = false
-  rec.interimResults = true
-  rec.lang = handlers.lang ?? 'en-US'
-
-  let finalText = ''
-  rec.onresult = (e) => {
-    let interim = ''
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i]
-      const t = r[0].transcript
-      if (r.isFinal) finalText += t
-      else interim += t
-    }
-    handlers.onPartial?.((finalText + interim).trim())
+export async function startRecording(): Promise<RecordingHandle> {
+  if (!isAudioRecordingSupported()) {
+    throw new Error('Audio recording not supported in this browser.')
   }
-  rec.onerror = (e) => {
-    handlers.onError?.(e.error)
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  const { mime, format } = pickMimeType()
+  const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+  const chunks: Blob[] = []
+  let resolved = false
+
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) chunks.push(e.data)
   }
-  rec.onend = () => {
-    const out = finalText.trim()
-    if (out) handlers.onFinal(out)
-    handlers.onEnd?.()
-  }
+
+  recorder.start()
+
+  const finish = (): Promise<AudioCapture | null> =>
+    new Promise((resolve, reject) => {
+      recorder.onstop = async () => {
+        if (resolved) return
+        resolved = true
+        stream.getTracks().forEach((t) => t.stop())
+        if (chunks.length === 0) {
+          resolve(null)
+          return
+        }
+        try {
+          const blob = new Blob(chunks, { type: mime || 'audio/webm' })
+          const buf = await blob.arrayBuffer()
+          const data = bufferToBase64(buf)
+          resolve({ data, format })
+        } catch (e) {
+          reject(e)
+        }
+      }
+    })
 
   return {
-    start: () => {
-      finalText = ''
-      try {
-        rec.start()
-      } catch {
-        // Already started — ignore
-      }
+    stop: async () => {
+      if (recorder.state === 'inactive') return null
+      const promise = finish()
+      recorder.stop()
+      return promise
     },
-    stop: () => rec.stop(),
-    abort: () => rec.abort(),
+    cancel: () => {
+      if (recorder.state !== 'inactive') {
+        try {
+          recorder.stop()
+        } catch {
+          // ignore
+        }
+      }
+      stream.getTracks().forEach((t) => t.stop())
+      resolved = true
+    },
   }
 }
 
-// ─── Text-to-speech ──────────────────────────────────────────────────────────
-
-export function isSpeechSynthesisSupported(): boolean {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window
-}
-
-// Best-effort: pick a natural-sounding English voice if available.
-function pickVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | undefined {
-  const voices = synth.getVoices()
-  if (voices.length === 0) return undefined
-  // Prefer Google/Apple natural voices, English, female-first
-  const prefs = [
-    /Samantha/i,
-    /Google US English/i,
-    /Google UK English Female/i,
-    /Microsoft Aria/i,
-    /Microsoft Jenny/i,
-    /Karen/i,
-    /Moira/i,
-  ]
-  for (const re of prefs) {
-    const v = voices.find((vo) => re.test(vo.name))
-    if (v) return v
+function bufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  // Chunk to avoid `apply` argument-count limits on large blobs
+  const chunkSize = 0x8000
+  const parts: string[] = []
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    parts.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize))))
   }
-  return voices.find((v) => v.lang.startsWith('en')) ?? voices[0]
+  return btoa(parts.join(''))
 }
 
-export function speak(text: string, opts?: { rate?: number; pitch?: number }): void {
-  if (!isSpeechSynthesisSupported()) return
-  const synth = window.speechSynthesis
-  synth.cancel() // stop anything in progress
-  const utter = new SpeechSynthesisUtterance(text)
-  const v = pickVoice(synth)
-  if (v) utter.voice = v
-  utter.rate = opts?.rate ?? 1.05
-  utter.pitch = opts?.pitch ?? 1.0
-  synth.speak(utter)
+// ─── TTS — fetch audio from /tts and play it ────────────────────────────────
+
+let currentAudio: HTMLAudioElement | null = null
+let currentObjectUrl: string | null = null
+
+export async function speak(text: string, signal?: AbortSignal): Promise<void> {
+  stopSpeaking()
+  if (!text.trim()) return
+  const res = await fetch('/.netlify/functions/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error ?? 'TTS unavailable.')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  currentObjectUrl = url
+  const audio = new Audio(url)
+  currentAudio = audio
+  audio.onended = () => {
+    if (currentObjectUrl === url) {
+      URL.revokeObjectURL(url)
+      currentObjectUrl = null
+    }
+    if (currentAudio === audio) currentAudio = null
+  }
+  await audio.play().catch((e) => {
+    // Autoplay can be blocked until user interaction; surface but don't crash
+    console.warn('[voice] audio.play() rejected', e)
+  })
 }
 
 export function stopSpeaking(): void {
-  if (!isSpeechSynthesisSupported()) return
-  window.speechSynthesis.cancel()
-}
-
-// Some browsers populate voices async. Call once on app boot to warm them up.
-export function primeVoices(): void {
-  if (!isSpeechSynthesisSupported()) return
-  const synth = window.speechSynthesis
-  synth.getVoices()
-  // Some browsers fire `voiceschanged` after init
-  synth.onvoiceschanged = () => {
-    synth.getVoices()
+  if (currentAudio) {
+    try {
+      currentAudio.pause()
+    } catch {
+      // ignore
+    }
+    currentAudio = null
+  }
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl)
+    currentObjectUrl = null
   }
 }
