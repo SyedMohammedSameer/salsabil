@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './useAuth'
 import { getChatHistory, saveChatMessage, clearChatHistory, streamNoor } from '@/lib/api/chat'
-import type { AiMessage } from '@/lib/api/chat'
+import type { AiMessage, AudioCapture } from '@/lib/api/chat'
 import type { ChatMessage } from '@/lib/database.types'
 
 export const noorKeys = {
@@ -29,18 +29,20 @@ export function useStreamMessage(context?: string, memories?: string) {
   const abortRef = useRef<AbortController | null>(null)
 
   const send = useCallback(
-    async (message: string, history: AiMessage[]) => {
+    async (message: string, history: AiMessage[], audio?: AudioCapture) => {
       if (!user || isStreaming) return
       setIsStreaming(true)
       setStreamingText('')
 
-      // Optimistically append user message
+      // The text we persist for a voice-only message
+      const displayedUserText = message || (audio ? '🎤 (voice message)' : '')
+
       const tempId = `temp-${Date.now()}`
       const tempUserMsg: ChatMessage = {
         id: tempId,
         user_id: user.id,
         role: 'user',
-        content: message,
+        content: displayedUserText,
         model: null,
         tokens: null,
         created_at: new Date().toISOString(),
@@ -54,13 +56,14 @@ export function useStreamMessage(context?: string, memories?: string) {
       let reply = ''
 
       try {
-        const saveUserPromise = saveChatMessage(user.id, 'user', message)
+        const saveUserPromise = saveChatMessage(user.id, 'user', displayedUserText)
 
         await streamNoor(
           message,
           history,
           context,
           memories,
+          audio,
           (token) => {
             reply += token
             setStreamingText(reply)

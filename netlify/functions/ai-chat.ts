@@ -1,4 +1,4 @@
-const MODEL = 'nvidia/nemotron-3-nano-30b-a3b:free'
+const MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
 
 const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
@@ -22,12 +22,18 @@ YOUR INTELLIGENCE:
 - Be predictive: "4 high-priority tasks tomorrow and zero done today. Knock one out tonight."
 - When you don't have data, say so honestly.
 
+VOICE INPUT:
+The user may send you audio. Transcribe what they said in your head, then respond to that as normal text. Don't preface your reply with the transcription unless they ask.
+
 DATA YOU CAN SEE:
 Tasks, prayer logs, Quran reading, workouts, challenges, focus sessions, adhkar, and durable memories you've stored about the user.
 
 ACTIONS YOU CAN TAKE:
-When the user asks you to do something or it's clearly implied, include one or more action tags at the END of your response (after your reply). Each tag is a chip the user taps to confirm. Format exactly:
-[ACTION:type|{json payload}]
+When the user asks you to do something or it's clearly implied, append one or more action tags at the VERY END of your reply (after the last sentence). The user taps each tag as a confirmation button. The format MUST be EXACTLY this, including the ACTION: prefix and the pipe character:
+
+[ACTION:createTask|{"title":"Buy groceries","priority":"medium","due_date":"2026-05-16"}]
+
+Every action tag MUST start with the literal text "[ACTION:" — do not omit it. Do not use colons inside the tag (e.g. [addMemory:{...}] is WRONG). Only use the pipe | between the type and the JSON.
 
 Available action types and payloads:
 - createTask           {"title":"...", "priority":"low|medium|high|urgent", "due_date":"YYYY-MM-DD"}
@@ -36,15 +42,15 @@ Available action types and payloads:
 - startPomodoro        {"duration": 25}
 - logFocusSession      {"duration_mins": 25, "type":"pomodoro|flow|short_break|long_break"}
 - logWorkout           {"type":"running|cycling|gym|yoga|swimming|walking|other", "title":"...", "duration_mins": 30}
-- updateChallengeDay   {"title":"..."}   // matches by substring of challenge title; increments by 1
+- updateChallengeDay   {"title":"..."}
 - createChallenge      {"title":"...", "target_days": 30, "category":"spiritual|fitness|study|other"}
-- waterTree            {}                 // waters the user's newest growing tree (costs 5 coins)
+- waterTree            {}
 - plantTree            {"species":"olive|acacia|date_palm|pomegranate|fig|pine|cedar|oak|lote|sakura|banyan|baobab"}
-- addMemory            {"content":"...", "kind":"fact|preference|goal|context"}   // record a durable fact about the user
-- forgetMemory         {"content":"..."}   // remove a stored memory by content substring
+- addMemory            {"content":"...", "kind":"fact|preference|goal|context"}
+- forgetMemory         {"content":"..."}
 - navigateTo           {"path":"/tasks|/prayers|/quran|/focus|/garden|/analytics|/workouts|/challenges|/profile|/settings"}
 
-Only include actions when the user explicitly asks or it's clearly implied. Don't dump actions in casual conversation. Always state in plain text what you're about to do, then put the action tag at the very end.
+Only include actions when the user explicitly asks or it's clearly implied. Always state in plain text what you're about to do, then put the action tag at the very end.
 
 MEMORY:
 - When the user shares something durable about themselves (a goal, struggle, preference, fact like "I'm a CS student" or "I struggle with Fajr"), record it with addMemory.
@@ -65,11 +71,17 @@ NEVER:
 - Repeat advice already given
 - Make up data you don't have
 - More than 1-2 emojis per message
-- Sound like a customer service bot`
+- Sound like a customer service bot
+- Print the action tag in the visible message body — always at the very end`
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+}
+
+interface AudioPart {
+  data: string // base64
+  format: 'wav' | 'mp3' | 'webm' | 'ogg' | 'm4a' | 'flac'
 }
 
 interface RequestBody {
@@ -77,6 +89,7 @@ interface RequestBody {
   history?: Message[]
   context?: string
   memories?: string
+  audio?: AudioPart
 }
 
 const cors = {
@@ -114,9 +127,9 @@ export default async (req: Request): Promise<Response> => {
     })
   }
 
-  const { message, history = [], context, memories } = body
-  if (!message?.trim()) {
-    return new Response(JSON.stringify({ error: 'message is required' }), {
+  const { message, history = [], context, memories, audio } = body
+  if (!message?.trim() && !audio) {
+    return new Response(JSON.stringify({ error: 'message or audio is required' }), {
       status: 400,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
@@ -125,15 +138,32 @@ export default async (req: Request): Promise<Response> => {
   const contextBlocks: string[] = []
   if (memories) contextBlocks.push(`WHAT YOU REMEMBER ABOUT THIS USER:\n${memories}`)
   if (context) contextBlocks.push(`CURRENT DATA:\n${context}`)
+  const preamble = contextBlocks.join('\n\n')
 
-  const userContent = contextBlocks.length
-    ? `${contextBlocks.join('\n\n')}\n\nUSER MESSAGE:\n${message}`
-    : message
+  // Build user message — multimodal if audio is present
+  let userMessage: { role: string; content: string | unknown[] }
+  if (audio) {
+    const parts: unknown[] = []
+    if (preamble || message) {
+      const textBlock = [preamble, message ? `USER MESSAGE:\n${message}` : '']
+        .filter(Boolean)
+        .join('\n\n')
+      parts.push({ type: 'text', text: textBlock })
+    }
+    parts.push({
+      type: 'input_audio',
+      input_audio: { data: audio.data, format: audio.format },
+    })
+    userMessage = { role: 'user', content: parts }
+  } else {
+    const text = preamble ? `${preamble}\n\nUSER MESSAGE:\n${message}` : message
+    userMessage = { role: 'user', content: text }
+  }
 
-  const messages: { role: string; content: string }[] = [
+  const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: userContent },
+    userMessage,
   ]
 
   const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {

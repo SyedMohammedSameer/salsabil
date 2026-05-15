@@ -23,6 +23,7 @@ import {
   Sprout,
   Droplets,
   Compass,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/shared/SkeletonLoader'
@@ -37,19 +38,18 @@ import { useChallenges, useCreateChallenge, useIncrementChallenge } from '@/hook
 import { usePlantTree, useWaterTree } from '@/hooks/useGarden'
 import { useMemories, useAddMemory, useForgetMemory, useDeleteMemory } from '@/hooks/useMemories'
 import type { ChatMessage } from '@/lib/database.types'
-import type { AiMessage } from '@/lib/api/chat'
+import type { AiMessage, AudioCapture } from '@/lib/api/chat'
 import type { PrayerName, PrayerStatus, WorkoutType, TreeSpecies } from '@/lib/database.types'
 import {
-  createVoiceListener,
-  isSpeechRecognitionSupported,
-  isSpeechSynthesisSupported,
-  primeVoices,
+  isAudioRecordingSupported,
+  startRecording,
   speak,
   stopSpeaking,
+  type RecordingHandle,
 } from '@/lib/voice'
 import { cn } from '@/lib/cn'
 
-// ─── Build rich context string ────────────────────────────────────────────────
+// ─── Dashboard context ───────────────────────────────────────────────────────
 
 function useDashboardContext() {
   const today = new Date().toISOString().split('T')[0]
@@ -110,7 +110,9 @@ function useDashboardContext() {
   return lines
 }
 
-// ─── Action types ───────────────────────────────────────────────────────────
+// ─── Action parsing ─────────────────────────────────────────────────────────
+// The Nemotron model doesn't always follow the [ACTION:type|{json}] format —
+// sometimes it emits [type:{json}] or [type|{json}]. Accept all variants.
 
 type NoorAction =
   | { type: 'createTask'; title: string; priority?: string; due_date?: string }
@@ -143,7 +145,6 @@ const KNOWN_ACTIONS = new Set([
   'navigateTo',
 ])
 
-// Some keys arrive from JSON under different names — normalize them.
 function normalizePayload(type: string, raw: Record<string, unknown>): Record<string, unknown> {
   if (type === 'logWorkout' && 'type' in raw && !('workout_type' in raw)) {
     return { ...raw, workout_type: raw.type }
@@ -154,25 +155,42 @@ function normalizePayload(type: string, raw: Record<string, unknown>): Record<st
   return raw
 }
 
+// Match all of:
+//   [ACTION:type|{json}]   (canonical)
+//   [ACTION:type:{json}]   (variant)
+//   [type|{json}]          (model omitted ACTION:)
+//   [type:{json}]          (Nemotron's most common output)
+const ACTION_RE = /\[(?:ACTION[:|])?(\w+)[:|]\s*({[\s\S]*?})\s*\]/g
+
 function parseActions(text: string): { cleanText: string; actions: NoorAction[] } {
-  const actionRegex = /\[ACTION:(\w+)\\?\|({.*?})\]/g
   const actions: NoorAction[] = []
-  let match
-  while ((match = actionRegex.exec(text)) !== null) {
-    if (!KNOWN_ACTIONS.has(match[1])) continue
+  const matches: Array<{ start: number; end: number }> = []
+  ACTION_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = ACTION_RE.exec(text)) !== null) {
+    const name = m[1]
+    if (!KNOWN_ACTIONS.has(name)) continue
     try {
-      const payload = JSON.parse(match[2]) as Record<string, unknown>
-      const normalized = normalizePayload(match[1], payload)
-      actions.push({ type: match[1] as NoorAction['type'], ...normalized } as NoorAction)
+      const payload = JSON.parse(m[2]) as Record<string, unknown>
+      const normalized = normalizePayload(name, payload)
+      actions.push({ type: name as NoorAction['type'], ...normalized } as NoorAction)
+      matches.push({ start: m.index, end: m.index + m[0].length })
     } catch {
-      // skip malformed
+      // skip malformed json
     }
   }
-  const cleanText = text.replace(/\[ACTION:\w+\\?\|{.*?}\]/g, '').trim()
-  return { cleanText, actions }
+  // Strip the matched action ranges out of the visible text
+  let cleanText = ''
+  let cursor = 0
+  for (const r of matches) {
+    cleanText += text.slice(cursor, r.start)
+    cursor = r.end
+  }
+  cleanText += text.slice(cursor)
+  return { cleanText: cleanText.trim(), actions }
 }
 
-// ─── Action chips ───────────────────────────────────────────────────────────
+// ─── Action chip ────────────────────────────────────────────────────────────
 
 function actionLabel(a: NoorAction): string {
   switch (a.type) {
@@ -261,7 +279,7 @@ function ActionChip({
   )
 }
 
-// ─── Action executor — wires every action type to its mutation ───────────────
+// ─── Action executor ────────────────────────────────────────────────────────
 
 function useActionExecutor() {
   const navigate = useNavigate()
@@ -351,7 +369,6 @@ function useActionExecutor() {
           await plantTree.mutateAsync({ species: action.species as TreeSpecies })
           return
         case 'waterTree': {
-          // Water "newest" tree — fetch from cache via a one-shot query
           const { data } = await import('@/lib/supabase').then(async (m) => {
             const u = (await m.supabase.auth.getUser()).data.user
             if (!u) return { data: null }
@@ -400,7 +417,7 @@ function useActionExecutor() {
   )
 }
 
-// ─── Message bubble ───────────────────────────────────────────────────────────
+// ─── Bubbles ────────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
@@ -469,8 +486,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   )
 }
 
-// ─── Streaming bubble ─────────────────────────────────────────────────────────
-
 function StreamingBubble({ text }: { text: string }) {
   const { cleanText } = parseActions(text)
 
@@ -527,7 +542,7 @@ function MemoryPanel({ onClose }: { onClose: () => void }) {
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
         {list.length === 0 ? (
           <p className="text-xs text-muted-foreground py-8 text-center">
             Noor hasn&apos;t stored any memories yet. Share something about yourself in chat and ask
@@ -558,7 +573,7 @@ function MemoryPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Starter prompts ──────────────────────────────────────────────────────────
+// ─── Starters ────────────────────────────────────────────────────────────────
 
 const STARTERS = [
   'How did I do this week?',
@@ -574,13 +589,13 @@ export default function NoorView() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [ttsEnabled, setTtsEnabled] = useState(false)
-  const [listening, setListening] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
-  const [partialTranscript, setPartialTranscript] = useState('')
   const [showMemory, setShowMemory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const listenerRef = useRef<ReturnType<typeof createVoiceListener>>(null)
+  const recorderRef = useRef<RecordingHandle | null>(null)
   const lastSpokenIdRef = useRef<string | null>(null)
 
   const { data: messages, isLoading } = useChatHistory()
@@ -596,14 +611,7 @@ export default function NoorView() {
   const { send, streamingText, isStreaming, abort } = useStreamMessage(context, memoryString)
   const clearChat = useClearChat()
 
-  // Voice support flags
-  const voiceInSupported = isSpeechRecognitionSupported()
-  const voiceOutSupported = isSpeechSynthesisSupported()
-
-  // Warm up TTS voice list once
-  useEffect(() => {
-    primeVoices()
-  }, [])
+  const voiceInSupported = isAudioRecordingSupported()
 
   const scrollToBottom = useCallback((smooth = true) => {
     const el = scrollRef.current
@@ -634,14 +642,15 @@ export default function NoorView() {
     .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, audio?: AudioCapture) => {
       const msg = text.trim()
-      if (!msg || isStreaming) return
+      if (!msg && !audio) return
+      if (isStreaming) return
       setInput('')
       setSendError(null)
       stopSpeaking()
       try {
-        await send(msg, history)
+        await send(msg, history, audio)
         setTimeout(() => scrollToBottom(), 50)
       } catch (err) {
         setSendError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -657,40 +666,55 @@ export default function NoorView() {
     if (last.role !== 'assistant' || last.id === lastSpokenIdRef.current) return
     lastSpokenIdRef.current = last.id
     const { cleanText } = parseActions(last.content)
-    if (cleanText) speak(cleanText)
+    if (cleanText) {
+      speak(cleanText).catch((e) => {
+        console.warn('[noor] tts failed', e)
+      })
+    }
   }, [messages, ttsEnabled, isStreaming])
 
-  // Cleanup TTS on unmount
   useEffect(() => () => stopSpeaking(), [])
 
-  const startListening = useCallback(() => {
-    if (!voiceInSupported || listening || isStreaming) return
+  const handleStartRecording = useCallback(async () => {
+    if (!voiceInSupported || recording || isStreaming || transcribing) return
     setVoiceError(null)
-    setPartialTranscript('')
     stopSpeaking()
-    const listener = createVoiceListener({
-      onPartial: setPartialTranscript,
-      onFinal: (text) => {
-        setPartialTranscript('')
-        if (text) handleSend(text)
-      },
-      onError: (e) => {
-        setVoiceError(e === 'not-allowed' ? 'Microphone access denied.' : `Mic error: ${e}`)
-      },
-      onEnd: () => setListening(false),
-    })
-    if (!listener) {
-      setVoiceError('Voice input not supported in this browser.')
-      return
+    try {
+      const rec = await startRecording()
+      recorderRef.current = rec
+      setRecording(true)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not start recording.'
+      setVoiceError(/Permission|denied/i.test(msg) ? 'Microphone access denied.' : msg)
     }
-    listenerRef.current = listener
-    listener.start()
-    setListening(true)
-  }, [voiceInSupported, listening, isStreaming, handleSend])
+  }, [voiceInSupported, recording, isStreaming, transcribing])
 
-  const stopListening = useCallback(() => {
-    listenerRef.current?.stop()
-    setListening(false)
+  const handleStopRecording = useCallback(async () => {
+    if (!recorderRef.current) return
+    const rec = recorderRef.current
+    recorderRef.current = null
+    setRecording(false)
+    setTranscribing(true)
+    try {
+      const audio = await rec.stop()
+      if (!audio) {
+        setTranscribing(false)
+        return
+      }
+      // The Omni model handles transcription. We send empty text so the model
+      // takes the audio as the user message and responds to it.
+      await handleSend('', audio)
+    } catch (e) {
+      setVoiceError(e instanceof Error ? e.message : 'Recording failed.')
+    } finally {
+      setTranscribing(false)
+    }
+  }, [handleSend])
+
+  const handleCancelRecording = useCallback(() => {
+    recorderRef.current?.cancel()
+    recorderRef.current = null
+    setRecording(false)
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -700,8 +724,10 @@ export default function NoorView() {
     }
   }
 
-  const handleClear = () => {
-    if (window.confirm('Clear your chat history with Noor? This cannot be undone.')) {
+  const handleNewChat = () => {
+    if (!messages || messages.length === 0) return
+    if (window.confirm('Start a new chat? Your previous conversation will be cleared.')) {
+      stopSpeaking()
       clearChat.mutate()
       lastSpokenIdRef.current = null
     }
@@ -717,36 +743,54 @@ export default function NoorView() {
   const isEmpty = !messages || messages.length === 0
 
   return (
-    <div className="relative flex flex-col h-[calc(100dvh-5rem)] lg:h-dvh">
+    // h-full + min-h-0 so we fill the parent <main> exactly without overflowing
+    // it. flex column locks the header to top, input to bottom, and only the
+    // messages list scrolls — the global app header (theme/bell) stays put.
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-noor-400 to-noor-600 shadow-md">
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-noor-400 to-noor-600 shadow-md shrink-0">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-base font-bold text-foreground">Noor</h1>
-            <p className="text-[11px] text-muted-foreground">
-              {listening ? 'Listening…' : isStreaming ? 'Thinking…' : 'Your AI companion'}
+            <p className="text-[11px] text-muted-foreground truncate">
+              {recording
+                ? 'Listening…'
+                : transcribing
+                  ? 'Transcribing…'
+                  : isStreaming
+                    ? 'Thinking…'
+                    : 'Your AI companion'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          {voiceOutSupported && (
+        <div className="flex items-center gap-1 shrink-0">
+          {!isEmpty && (
             <button
-              onClick={toggleTts}
-              className={cn(
-                'rounded-lg p-2 transition-colors',
-                ttsEnabled
-                  ? 'text-noor-500 bg-noor-500/10 hover:bg-noor-500/20'
-                  : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted',
-              )}
-              aria-label={ttsEnabled ? 'Mute Noor' : 'Read aloud'}
-              title={ttsEnabled ? 'Voice reply: on' : 'Voice reply: off'}
+              onClick={handleNewChat}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="New chat"
+              title="New chat"
             >
-              {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New</span>
             </button>
           )}
+          <button
+            onClick={toggleTts}
+            className={cn(
+              'rounded-lg p-2 transition-colors',
+              ttsEnabled
+                ? 'text-noor-500 bg-noor-500/10 hover:bg-noor-500/20'
+                : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted',
+            )}
+            aria-label={ttsEnabled ? 'Mute Noor' : 'Read aloud'}
+            title={ttsEnabled ? 'Voice reply: on' : 'Voice reply: off'}
+          >
+            {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
           <button
             onClick={() => setShowMemory((v) => !v)}
             className={cn(
@@ -760,25 +804,15 @@ export default function NoorView() {
           >
             <Brain className="h-4 w-4" />
           </button>
-          {!isEmpty && (
-            <button
-              onClick={handleClear}
-              className="rounded-lg p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
-              aria-label="Clear chat"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Memory panel */}
       <AnimatePresence>
         {showMemory && <MemoryPanel onClose={() => setShowMemory(false)} />}
       </AnimatePresence>
 
-      {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* Scrolling message area — the ONLY scroll in this view */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {isLoading ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -863,36 +897,50 @@ export default function NoorView() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => scrollToBottom()}
-            className="absolute bottom-24 right-4 lg:bottom-20 rounded-full bg-background border border-border p-2 shadow-lg text-muted-foreground hover:text-foreground transition-colors z-10"
+            className="absolute bottom-24 right-4 rounded-full bg-background border border-border p-2 shadow-lg text-muted-foreground hover:text-foreground transition-colors z-10"
           >
             <ChevronDown className="h-4 w-4" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Input area */}
-      <div className="shrink-0 border-t border-border px-4 py-3">
-        {/* Live partial transcript while listening */}
-        {listening && partialTranscript && (
-          <div className="mb-2 rounded-xl bg-noor-500/10 border border-noor-500/30 px-3 py-2 text-xs text-noor-700 dark:text-noor-300 flex items-start gap-2">
-            <Mic className="h-3.5 w-3.5 mt-0.5 shrink-0 text-noor-500 animate-pulse" />
-            <span className="flex-1">{partialTranscript}</span>
+      {/* Footer (sticky bottom) */}
+      <div className="shrink-0 border-t border-border px-4 py-3 bg-background">
+        {recording && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-noor-500/10 border border-noor-500/30 px-3 py-2 text-xs text-noor-700 dark:text-noor-300">
+            <div className="flex items-center gap-2">
+              <Mic className="h-3.5 w-3.5 text-noor-500 animate-pulse" />
+              <span>Recording… tap stop when done</span>
+            </div>
+            <button
+              onClick={handleCancelRecording}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Cancel recording"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {transcribing && (
+          <div className="mb-2 flex items-center gap-2 rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span>Sending voice to Noor…</span>
           </div>
         )}
         <div className="flex items-end gap-2">
           {voiceInSupported && (
             <Button
               size="sm"
-              variant={listening ? 'default' : 'outline'}
+              variant={recording ? 'default' : 'outline'}
               className={cn(
                 'h-10 w-10 shrink-0 rounded-xl p-0',
-                listening && 'animate-pulse bg-destructive hover:bg-destructive/90',
+                recording && 'animate-pulse bg-destructive hover:bg-destructive/90',
               )}
-              onClick={listening ? stopListening : startListening}
-              disabled={isStreaming}
-              aria-label={listening ? 'Stop listening' : 'Start voice input'}
+              onClick={recording ? handleStopRecording : handleStartRecording}
+              disabled={isStreaming || transcribing}
+              aria-label={recording ? 'Stop and send' : 'Start voice input'}
             >
-              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {recording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
           )}
           <textarea
@@ -900,9 +948,9 @@ export default function NoorView() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={listening ? 'Listening…' : 'Message Noor…'}
+            placeholder={recording ? 'Listening…' : 'Message Noor…'}
             rows={1}
-            disabled={isStreaming || listening}
+            disabled={isStreaming || recording || transcribing}
             className={cn(
               'flex-1 resize-none rounded-xl border border-border bg-muted px-3.5 py-2.5',
               'text-sm text-foreground placeholder:text-muted-foreground',
@@ -930,7 +978,7 @@ export default function NoorView() {
               size="sm"
               className="h-10 w-10 shrink-0 rounded-xl p-0"
               onClick={() => handleSend(input)}
-              disabled={!input.trim() || listening}
+              disabled={!input.trim() || recording || transcribing}
             >
               <Send className="h-4 w-4" />
             </Button>
