@@ -41,13 +41,14 @@ export async function streamNoor(
   message: string,
   history: AiMessage[],
   context: string | undefined,
+  memories: string | undefined,
   onToken: (token: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch('/.netlify/functions/ai-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history, context }),
+    body: JSON.stringify({ message, history, context, memories }),
     signal,
   })
 

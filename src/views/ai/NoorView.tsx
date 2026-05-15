@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send,
@@ -11,19 +12,41 @@ import {
   BookOpen,
   Timer,
   AlertCircle,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Brain,
+  X,
+  Dumbbell,
+  Trophy,
+  Sprout,
+  Droplets,
+  Compass,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/shared/SkeletonLoader'
 import { useChatHistory, useStreamMessage, useClearChat } from '@/hooks/useNoor'
 import { useProfile } from '@/hooks/useProfile'
-import { usePrayersForDate } from '@/hooks/usePrayers'
-import { useTodayQuranPages } from '@/hooks/useQuranLogs'
-import { useTodayFocusMinutes } from '@/hooks/useFocus'
+import { usePrayersForDate, useUpsertPrayer } from '@/hooks/usePrayers'
+import { useTodayQuranPages, useCreateQuranLog } from '@/hooks/useQuranLogs'
+import { useTodayFocusMinutes, useCreateFocusSession } from '@/hooks/useFocus'
 import { useAllTasks, useCreateTask } from '@/hooks/useTasks'
-import { useWorkouts } from '@/hooks/useWorkouts'
-import { useChallenges } from '@/hooks/useChallenges'
+import { useWorkouts, useCreateWorkout } from '@/hooks/useWorkouts'
+import { useChallenges, useCreateChallenge, useIncrementChallenge } from '@/hooks/useChallenges'
+import { usePlantTree, useWaterTree } from '@/hooks/useGarden'
+import { useMemories, useAddMemory, useForgetMemory, useDeleteMemory } from '@/hooks/useMemories'
 import type { ChatMessage } from '@/lib/database.types'
 import type { AiMessage } from '@/lib/api/chat'
+import type { PrayerName, PrayerStatus, WorkoutType, TreeSpecies } from '@/lib/database.types'
+import {
+  createVoiceListener,
+  isSpeechRecognitionSupported,
+  isSpeechSynthesisSupported,
+  primeVoices,
+  speak,
+  stopSpeaking,
+} from '@/lib/voice'
 import { cn } from '@/lib/cn'
 
 // ─── Build rich context string ────────────────────────────────────────────────
@@ -87,15 +110,49 @@ function useDashboardContext() {
   return lines
 }
 
-// ─── Action parsing ───────────────────────────────────────────────────────────
+// ─── Action types ───────────────────────────────────────────────────────────
 
 type NoorAction =
   | { type: 'createTask'; title: string; priority?: string; due_date?: string }
   | { type: 'logQuranPages'; pages: number }
   | { type: 'startPomodoro'; duration: number }
   | { type: 'logPrayer'; prayer: string; status: string }
+  | { type: 'logFocusSession'; duration_mins: number; session_type?: string }
+  | { type: 'logWorkout'; workout_type: string; title: string; duration_mins: number }
+  | { type: 'updateChallengeDay'; title: string }
+  | { type: 'createChallenge'; title: string; target_days: number; category?: string }
+  | { type: 'waterTree' }
+  | { type: 'plantTree'; species: string }
+  | { type: 'addMemory'; content: string; kind?: string }
+  | { type: 'forgetMemory'; content: string }
+  | { type: 'navigateTo'; path: string }
 
-const KNOWN_ACTIONS = new Set(['createTask', 'logPrayer', 'logQuranPages', 'startPomodoro'])
+const KNOWN_ACTIONS = new Set([
+  'createTask',
+  'logPrayer',
+  'logQuranPages',
+  'startPomodoro',
+  'logFocusSession',
+  'logWorkout',
+  'updateChallengeDay',
+  'createChallenge',
+  'waterTree',
+  'plantTree',
+  'addMemory',
+  'forgetMemory',
+  'navigateTo',
+])
+
+// Some keys arrive from JSON under different names — normalize them.
+function normalizePayload(type: string, raw: Record<string, unknown>): Record<string, unknown> {
+  if (type === 'logWorkout' && 'type' in raw && !('workout_type' in raw)) {
+    return { ...raw, workout_type: raw.type }
+  }
+  if (type === 'logFocusSession' && 'type' in raw && !('session_type' in raw)) {
+    return { ...raw, session_type: raw.type }
+  }
+  return raw
+}
 
 function parseActions(text: string): { cleanText: string; actions: NoorAction[] } {
   const actionRegex = /\[ACTION:(\w+)\\?\|({.*?})\]/g
@@ -104,14 +161,77 @@ function parseActions(text: string): { cleanText: string; actions: NoorAction[] 
   while ((match = actionRegex.exec(text)) !== null) {
     if (!KNOWN_ACTIONS.has(match[1])) continue
     try {
-      const payload = JSON.parse(match[2])
-      actions.push({ type: match[1] as NoorAction['type'], ...payload })
+      const payload = JSON.parse(match[2]) as Record<string, unknown>
+      const normalized = normalizePayload(match[1], payload)
+      actions.push({ type: match[1] as NoorAction['type'], ...normalized } as NoorAction)
     } catch {
-      // malformed JSON — skip
+      // skip malformed
     }
   }
   const cleanText = text.replace(/\[ACTION:\w+\\?\|{.*?}\]/g, '').trim()
   return { cleanText, actions }
+}
+
+// ─── Action chips ───────────────────────────────────────────────────────────
+
+function actionLabel(a: NoorAction): string {
+  switch (a.type) {
+    case 'createTask':
+      return `Add task: "${a.title}"`
+    case 'logQuranPages':
+      return `Log ${a.pages} Quran pages`
+    case 'startPomodoro':
+      return `Start ${a.duration}m pomodoro`
+    case 'logPrayer':
+      return `Log ${a.prayer} as ${a.status}`
+    case 'logFocusSession':
+      return `Log ${a.duration_mins}m focus`
+    case 'logWorkout':
+      return `Log ${a.workout_type}: "${a.title}" (${a.duration_mins}m)`
+    case 'updateChallengeDay':
+      return `+1 day: "${a.title}"`
+    case 'createChallenge':
+      return `Start challenge: "${a.title}" (${a.target_days}d)`
+    case 'waterTree':
+      return 'Water newest tree (−5 coins)'
+    case 'plantTree':
+      return `Plant a ${a.species.replace('_', ' ')}`
+    case 'addMemory':
+      return `Remember: "${a.content}"`
+    case 'forgetMemory':
+      return `Forget: "${a.content}"`
+    case 'navigateTo':
+      return `Open ${a.path}`
+  }
+}
+
+function ActionIcon({ type }: { type: NoorAction['type'] }) {
+  const cls = 'h-3 w-3'
+  switch (type) {
+    case 'createTask':
+      return <Plus className={cls} />
+    case 'logQuranPages':
+      return <BookOpen className={cls} />
+    case 'startPomodoro':
+    case 'logFocusSession':
+      return <Timer className={cls} />
+    case 'logPrayer':
+      return <CheckCircle2 className={cls} />
+    case 'logWorkout':
+      return <Dumbbell className={cls} />
+    case 'updateChallengeDay':
+    case 'createChallenge':
+      return <Trophy className={cls} />
+    case 'waterTree':
+      return <Droplets className={cls} />
+    case 'plantTree':
+      return <Sprout className={cls} />
+    case 'addMemory':
+    case 'forgetMemory':
+      return <Brain className={cls} />
+    case 'navigateTo':
+      return <Compass className={cls} />
+  }
 }
 
 function ActionChip({
@@ -120,42 +240,14 @@ function ActionChip({
   executed,
 }: {
   action: NoorAction
-  onExecute: (a: NoorAction) => void
+  onExecute: () => void
   executed: boolean
 }) {
-  const label = () => {
-    switch (action.type) {
-      case 'createTask':
-        return `Add task: "${action.title}"`
-      case 'logQuranPages':
-        return `Log ${action.pages} Quran pages`
-      case 'startPomodoro':
-        return `Start ${action.duration}m pomodoro`
-      case 'logPrayer':
-        return `Log ${action.prayer} as ${action.status}`
-      default:
-        return 'Run action'
-    }
-  }
-
-  const Icon = () => {
-    switch (action.type) {
-      case 'createTask':
-        return <Plus className="h-3 w-3" />
-      case 'logQuranPages':
-        return <BookOpen className="h-3 w-3" />
-      case 'startPomodoro':
-        return <Timer className="h-3 w-3" />
-      default:
-        return <CheckCircle2 className="h-3 w-3" />
-    }
-  }
-
   return (
     <motion.button
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      onClick={() => !executed && onExecute(action)}
+      onClick={() => !executed && onExecute()}
       className={cn(
         'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium border transition-all',
         executed
@@ -163,9 +255,148 @@ function ActionChip({
           : 'border-noor-500/30 bg-noor-500/5 text-noor-600 dark:text-noor-400 hover:bg-noor-500/15',
       )}
     >
-      {executed ? <CheckCircle2 className="h-3 w-3" /> : <Icon />}
-      {executed ? 'Done' : label()}
+      {executed ? <CheckCircle2 className="h-3 w-3" /> : <ActionIcon type={action.type} />}
+      {executed ? 'Done' : actionLabel(action)}
     </motion.button>
+  )
+}
+
+// ─── Action executor — wires every action type to its mutation ───────────────
+
+function useActionExecutor() {
+  const navigate = useNavigate()
+  const createTask = useCreateTask()
+  const upsertPrayer = useUpsertPrayer()
+  const createQuranLog = useCreateQuranLog()
+  const createFocus = useCreateFocusSession()
+  const createWorkout = useCreateWorkout()
+  const incChallenge = useIncrementChallenge()
+  const createChallenge = useCreateChallenge()
+  const plantTree = usePlantTree()
+  const waterTree = useWaterTree()
+  const addMemory = useAddMemory()
+  const forgetMemory = useForgetMemory()
+  const { data: challenges } = useChallenges()
+
+  return useCallback(
+    async (action: NoorAction): Promise<void> => {
+      const today = new Date().toISOString().split('T')[0]
+      switch (action.type) {
+        case 'createTask':
+          await createTask.mutateAsync({
+            title: action.title,
+            priority: (action.priority as 'low' | 'medium' | 'high' | 'urgent') ?? 'medium',
+            due_date: action.due_date,
+          })
+          return
+        case 'logPrayer':
+          await upsertPrayer.mutateAsync({
+            date: today,
+            prayer: action.prayer as PrayerName,
+            status: action.status as PrayerStatus,
+          })
+          return
+        case 'logQuranPages':
+          await createQuranLog.mutateAsync({
+            date: today,
+            surah_from: 1,
+            ayah_from: 1,
+            surah_to: 1,
+            ayah_to: 1,
+            pages_read: action.pages,
+          })
+          return
+        case 'startPomodoro':
+          await createFocus.mutateAsync({ type: 'pomodoro', duration_mins: action.duration })
+          navigate('/focus')
+          return
+        case 'logFocusSession': {
+          const t = (action.session_type ?? 'pomodoro') as
+            | 'pomodoro'
+            | 'flow'
+            | 'short_break'
+            | 'long_break'
+          await createFocus.mutateAsync({ type: t, duration_mins: action.duration_mins })
+          return
+        }
+        case 'logWorkout':
+          await createWorkout.mutateAsync({
+            type: action.workout_type as WorkoutType,
+            title: action.title,
+            duration_mins: action.duration_mins,
+            date: today,
+          })
+          return
+        case 'updateChallengeDay': {
+          const target = (challenges ?? []).find((c) =>
+            c.title.toLowerCase().includes(action.title.toLowerCase()),
+          )
+          if (!target) throw new Error(`No challenge matching "${action.title}"`)
+          await incChallenge.mutateAsync({
+            id: target.id,
+            currentDays: target.current_days,
+            targetDays: target.target_days,
+          })
+          return
+        }
+        case 'createChallenge':
+          await createChallenge.mutateAsync({
+            title: action.title,
+            target_days: action.target_days,
+            category: action.category,
+            start_date: today,
+          })
+          return
+        case 'plantTree':
+          await plantTree.mutateAsync({ species: action.species as TreeSpecies })
+          return
+        case 'waterTree': {
+          // Water "newest" tree — fetch from cache via a one-shot query
+          const { data } = await import('@/lib/supabase').then(async (m) => {
+            const u = (await m.supabase.auth.getUser()).data.user
+            if (!u) return { data: null }
+            return await m.supabase
+              .from('garden_trees')
+              .select('id')
+              .eq('user_id', u.id)
+              .neq('stage', 'ancient')
+              .order('planted_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          })
+          if (!data?.id) throw new Error('No trees to water — plant one first.')
+          await waterTree.mutateAsync(data.id)
+          return
+        }
+        case 'addMemory':
+          await addMemory.mutateAsync({
+            content: action.content,
+            kind: (action.kind as 'fact' | 'preference' | 'goal' | 'context') ?? 'fact',
+          })
+          return
+        case 'forgetMemory':
+          await forgetMemory.mutateAsync(action.content)
+          return
+        case 'navigateTo':
+          navigate(action.path)
+          return
+      }
+    },
+    [
+      navigate,
+      createTask,
+      upsertPrayer,
+      createQuranLog,
+      createFocus,
+      createWorkout,
+      incChallenge,
+      createChallenge,
+      plantTree,
+      waterTree,
+      addMemory,
+      forgetMemory,
+      challenges,
+    ],
   )
 }
 
@@ -173,24 +404,20 @@ function ActionChip({
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
-  const createTask = useCreateTask()
+  const execute = useActionExecutor()
   const [executedActions, setExecutedActions] = useState<Set<number>>(new Set())
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { cleanText, actions } = parseActions(msg.content)
 
   const handleAction = useCallback(
     async (action: NoorAction, idx: number) => {
       setExecutedActions((prev) => new Set([...prev, idx]))
+      setActionError(null)
       try {
-        if (action.type === 'createTask') {
-          await createTask.mutateAsync({
-            title: action.title,
-            priority: (action.priority as 'low' | 'medium' | 'high' | 'urgent') ?? 'medium',
-            due_date: action.due_date,
-          })
-        }
-        // logPrayer, logQuranPages, startPomodoro can be added when hooks are available
-      } catch {
+        await execute(action)
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : 'Could not run action')
         setExecutedActions((prev) => {
           const next = new Set(prev)
           next.delete(idx)
@@ -198,7 +425,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         })
       }
     },
-    [createTask],
+    [execute],
   )
 
   return (
@@ -231,12 +458,13 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             <ActionChip
               key={i}
               action={a}
-              onExecute={(act) => handleAction(act, i)}
+              onExecute={() => handleAction(a, i)}
               executed={executedActions.has(i)}
             />
           ))}
         </div>
       )}
+      {actionError && <p className="ml-9 mt-1 text-[10px] text-destructive">{actionError}</p>}
     </motion.div>
   )
 }
@@ -245,7 +473,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
 function StreamingBubble({ text }: { text: string }) {
   const { cleanText } = parseActions(text)
-  const showCursor = true
 
   return (
     <div className="flex justify-start">
@@ -265,7 +492,7 @@ function StreamingBubble({ text }: { text: string }) {
             ))}
           </div>
         )}
-        {cleanText && showCursor && (
+        {cleanText && (
           <motion.span
             animate={{ opacity: [1, 0] }}
             transition={{ duration: 0.5, repeat: Infinity, repeatType: 'reverse' }}
@@ -274,6 +501,60 @@ function StreamingBubble({ text }: { text: string }) {
         )}
       </div>
     </div>
+  )
+}
+
+// ─── Memory panel ────────────────────────────────────────────────────────────
+
+function MemoryPanel({ onClose }: { onClose: () => void }) {
+  const { data: memories } = useMemories()
+  const deleteMem = useDeleteMemory()
+  const list = memories ?? []
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      className="absolute right-0 top-0 h-full w-72 bg-card border-l border-border shadow-xl flex flex-col z-20"
+    >
+      <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <Brain className="h-4 w-4 text-noor-500" />
+          <h3 className="text-sm font-semibold">What Noor remembers</h3>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {list.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-8 text-center">
+            Noor hasn&apos;t stored any memories yet. Share something about yourself in chat and ask
+            Noor to remember it.
+          </p>
+        ) : (
+          list.map((m) => (
+            <div
+              key={m.id}
+              className="group rounded-xl border border-border bg-muted/40 p-2.5 text-xs"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-foreground flex-1">{m.content}</p>
+                <button
+                  onClick={() => deleteMem.mutate(m.id)}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
+                  aria-label="Forget"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground/70 mt-1 capitalize">{m.kind}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </motion.div>
   )
 }
 
@@ -292,13 +573,37 @@ export default function NoorView() {
   const [input, setInput] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const [ttsEnabled, setTtsEnabled] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [partialTranscript, setPartialTranscript] = useState('')
+  const [showMemory, setShowMemory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const listenerRef = useRef<ReturnType<typeof createVoiceListener>>(null)
+  const lastSpokenIdRef = useRef<string | null>(null)
 
   const { data: messages, isLoading } = useChatHistory()
+  const { data: memories } = useMemories()
   const context = useDashboardContext()
-  const { send, streamingText, isStreaming, abort } = useStreamMessage(context)
+  const memoryString = useMemo(() => {
+    if (!memories || memories.length === 0) return undefined
+    return memories
+      .slice(0, 30)
+      .map((m) => `- ${m.content}${m.kind !== 'fact' ? ` (${m.kind})` : ''}`)
+      .join('\n')
+  }, [memories])
+  const { send, streamingText, isStreaming, abort } = useStreamMessage(context, memoryString)
   const clearChat = useClearChat()
+
+  // Voice support flags
+  const voiceInSupported = isSpeechRecognitionSupported()
+  const voiceOutSupported = isSpeechSynthesisSupported()
+
+  // Warm up TTS voice list once
+  useEffect(() => {
+    primeVoices()
+  }, [])
 
   const scrollToBottom = useCallback((smooth = true) => {
     const el = scrollRef.current
@@ -310,7 +615,6 @@ export default function NoorView() {
     if (messages && messages.length > 0) scrollToBottom(false)
   }, [messages, scrollToBottom])
 
-  // Auto-scroll while streaming
   useEffect(() => {
     if (isStreaming) scrollToBottom()
   }, [streamingText, isStreaming, scrollToBottom])
@@ -335,6 +639,7 @@ export default function NoorView() {
       if (!msg || isStreaming) return
       setInput('')
       setSendError(null)
+      stopSpeaking()
       try {
         await send(msg, history)
         setTimeout(() => scrollToBottom(), 50)
@@ -344,6 +649,49 @@ export default function NoorView() {
     },
     [send, history, isStreaming, scrollToBottom],
   )
+
+  // Auto-speak the latest assistant message when ttsEnabled
+  useEffect(() => {
+    if (!ttsEnabled || !messages || messages.length === 0 || isStreaming) return
+    const last = messages[messages.length - 1]
+    if (last.role !== 'assistant' || last.id === lastSpokenIdRef.current) return
+    lastSpokenIdRef.current = last.id
+    const { cleanText } = parseActions(last.content)
+    if (cleanText) speak(cleanText)
+  }, [messages, ttsEnabled, isStreaming])
+
+  // Cleanup TTS on unmount
+  useEffect(() => () => stopSpeaking(), [])
+
+  const startListening = useCallback(() => {
+    if (!voiceInSupported || listening || isStreaming) return
+    setVoiceError(null)
+    setPartialTranscript('')
+    stopSpeaking()
+    const listener = createVoiceListener({
+      onPartial: setPartialTranscript,
+      onFinal: (text) => {
+        setPartialTranscript('')
+        if (text) handleSend(text)
+      },
+      onError: (e) => {
+        setVoiceError(e === 'not-allowed' ? 'Microphone access denied.' : `Mic error: ${e}`)
+      },
+      onEnd: () => setListening(false),
+    })
+    if (!listener) {
+      setVoiceError('Voice input not supported in this browser.')
+      return
+    }
+    listenerRef.current = listener
+    listener.start()
+    setListening(true)
+  }, [voiceInSupported, listening, isStreaming, handleSend])
+
+  const stopListening = useCallback(() => {
+    listenerRef.current?.stop()
+    setListening(false)
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -355,13 +703,21 @@ export default function NoorView() {
   const handleClear = () => {
     if (window.confirm('Clear your chat history with Noor? This cannot be undone.')) {
       clearChat.mutate()
+      lastSpokenIdRef.current = null
     }
+  }
+
+  const toggleTts = () => {
+    setTtsEnabled((on) => {
+      if (on) stopSpeaking()
+      return !on
+    })
   }
 
   const isEmpty = !messages || messages.length === 0
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-5rem)] lg:h-dvh">
+    <div className="relative flex flex-col h-[calc(100dvh-5rem)] lg:h-dvh">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <div className="flex items-center gap-3">
@@ -371,19 +727,55 @@ export default function NoorView() {
           <div>
             <h1 className="text-base font-bold text-foreground">Noor</h1>
             <p className="text-[11px] text-muted-foreground">
-              {isStreaming ? 'Thinking…' : 'Your AI companion'}
+              {listening ? 'Listening…' : isStreaming ? 'Thinking…' : 'Your AI companion'}
             </p>
           </div>
         </div>
-        {!isEmpty && (
+        <div className="flex items-center gap-1">
+          {voiceOutSupported && (
+            <button
+              onClick={toggleTts}
+              className={cn(
+                'rounded-lg p-2 transition-colors',
+                ttsEnabled
+                  ? 'text-noor-500 bg-noor-500/10 hover:bg-noor-500/20'
+                  : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted',
+              )}
+              aria-label={ttsEnabled ? 'Mute Noor' : 'Read aloud'}
+              title={ttsEnabled ? 'Voice reply: on' : 'Voice reply: off'}
+            >
+              {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </button>
+          )}
           <button
-            onClick={handleClear}
-            className="rounded-lg p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+            onClick={() => setShowMemory((v) => !v)}
+            className={cn(
+              'rounded-lg p-2 transition-colors',
+              showMemory
+                ? 'text-noor-500 bg-noor-500/10'
+                : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted',
+            )}
+            aria-label="What Noor remembers"
+            title={`Memories${memories ? ` (${memories.length})` : ''}`}
           >
-            <Trash2 className="h-4 w-4" />
+            <Brain className="h-4 w-4" />
           </button>
-        )}
+          {!isEmpty && (
+            <button
+              onClick={handleClear}
+              className="rounded-lg p-2 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label="Clear chat"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Memory panel */}
+      <AnimatePresence>
+        {showMemory && <MemoryPanel onClose={() => setShowMemory(false)} />}
+      </AnimatePresence>
 
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -404,7 +796,8 @@ export default function NoorView() {
             <div>
               <p className="text-base font-semibold text-foreground">Assalamu Alaikum</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                I&apos;m Noor — I can see all your data and help you reflect, plan, and grow.
+                I&apos;m Noor — I can see all your data, remember what matters, and act on your
+                behalf. Type or tap the mic to talk.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full max-w-xs mt-2">
@@ -437,7 +830,6 @@ export default function NoorView() {
           </AnimatePresence>
         )}
 
-        {/* Error banner */}
         <AnimatePresence>
           {sendError && (
             <motion.div
@@ -450,10 +842,20 @@ export default function NoorView() {
               {sendError}
             </motion.div>
           )}
+          {voiceError && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {voiceError}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
-      {/* Scroll to bottom button */}
       <AnimatePresence>
         {showScrollBtn && (
           <motion.button
@@ -461,7 +863,7 @@ export default function NoorView() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => scrollToBottom()}
-            className="absolute bottom-24 right-4 lg:bottom-20 rounded-full bg-background border border-border p-2 shadow-lg text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute bottom-24 right-4 lg:bottom-20 rounded-full bg-background border border-border p-2 shadow-lg text-muted-foreground hover:text-foreground transition-colors z-10"
           >
             <ChevronDown className="h-4 w-4" />
           </motion.button>
@@ -470,15 +872,37 @@ export default function NoorView() {
 
       {/* Input area */}
       <div className="shrink-0 border-t border-border px-4 py-3">
+        {/* Live partial transcript while listening */}
+        {listening && partialTranscript && (
+          <div className="mb-2 rounded-xl bg-noor-500/10 border border-noor-500/30 px-3 py-2 text-xs text-noor-700 dark:text-noor-300 flex items-start gap-2">
+            <Mic className="h-3.5 w-3.5 mt-0.5 shrink-0 text-noor-500 animate-pulse" />
+            <span className="flex-1">{partialTranscript}</span>
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          {voiceInSupported && (
+            <Button
+              size="sm"
+              variant={listening ? 'default' : 'outline'}
+              className={cn(
+                'h-10 w-10 shrink-0 rounded-xl p-0',
+                listening && 'animate-pulse bg-destructive hover:bg-destructive/90',
+              )}
+              onClick={listening ? stopListening : startListening}
+              disabled={isStreaming}
+              aria-label={listening ? 'Stop listening' : 'Start voice input'}
+            >
+              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          )}
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Noor…"
+            placeholder={listening ? 'Listening…' : 'Message Noor…'}
             rows={1}
-            disabled={isStreaming}
+            disabled={isStreaming || listening}
             className={cn(
               'flex-1 resize-none rounded-xl border border-border bg-muted px-3.5 py-2.5',
               'text-sm text-foreground placeholder:text-muted-foreground',
@@ -506,14 +930,16 @@ export default function NoorView() {
               size="sm"
               className="h-10 w-10 shrink-0 rounded-xl p-0"
               onClick={() => handleSend(input)}
-              disabled={!input.trim()}
+              disabled={!input.trim() || listening}
             >
               <Send className="h-4 w-4" />
             </Button>
           )}
         </div>
         <p className="text-[10px] text-muted-foreground/50 text-center mt-1.5">
-          Enter to send · Shift+Enter for new line
+          {voiceInSupported
+            ? 'Enter to send · Shift+Enter for new line · 🎤 to speak'
+            : 'Enter to send · Shift+Enter for new line'}
         </p>
       </div>
     </div>

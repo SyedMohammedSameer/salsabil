@@ -209,6 +209,14 @@ service cloud.firestore {
 - [ ] **Offline Mode**: Full offline functionality with sync
 - [ ] **Team Workspaces**: Organizational productivity tools
 
+### 🤖 **Noor AI — Planned Upgrades**
+- [ ] **Quran / Hadith retrieval as a first-class tool** — Noor can fetch and cite real ayat (al-Quran API) and hadith (sunnah.com) with grading instead of paraphrasing
+- [ ] **Reflection journal** — guided end-of-day flow that asks 3 questions, saves answers, and surfaces patterns over time
+- [ ] **Smart time-aware adhkar suggestions** — proactive morning / evening / sleep adhkar based on prayer times and mood
+- [ ] **Multiple named conversation threads** — sidebar of conversations ("Morning routine", "Quran study", "Fitness coach")
+- [ ] **Proactive daily check-in card** — dashboard summary generated each morning ("Yesterday: 25 min focus, 4/5 prayers, missed Asr…")
+- [ ] **Persona modes** — spiritual companion / productivity coach / study buddy toggle
+
 ## 🏆 **Why Salsabil?**
 
 ### 💝 **For Individuals**

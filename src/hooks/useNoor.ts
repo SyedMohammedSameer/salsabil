@@ -21,7 +21,7 @@ export function useChatHistory() {
 
 // ─── Streaming send ───────────────────────────────────────────────────────────
 
-export function useStreamMessage(context?: string) {
+export function useStreamMessage(context?: string, memories?: string) {
   const { user } = useAuth()
   const qc = useQueryClient()
   const [streamingText, setStreamingText] = useState('')
@@ -60,6 +60,7 @@ export function useStreamMessage(context?: string) {
           message,
           history,
           context,
+          memories,
           (token) => {
             reply += token
             setStreamingText(reply)
@@ -83,7 +84,7 @@ export function useStreamMessage(context?: string) {
         abortRef.current = null
       }
     },
-    [user, isStreaming, context, qc],
+    [user, isStreaming, context, memories, qc],
   )
 
   const abort = useCallback(() => {
