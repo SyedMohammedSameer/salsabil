@@ -29,6 +29,7 @@ import { useWorkouts, useCreateWorkout, useDeleteWorkout } from '@/hooks/useWork
 import type { Workout, WorkoutType } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 const WORKOUT_TYPES: Record<WorkoutType, { label: string; emoji: string }> = {
   strength: { label: 'Strength', emoji: '💪' },
   cardio: { label: 'Cardio', emoji: '🏃' },
@@ -51,7 +52,7 @@ const addSchema = z.object({
 type AddForm = z.infer<typeof addSchema>
 
 function today() {
-  return new Date().toISOString().split('T')[0]
+  return localDateString()
 }
 
 function AddWorkoutDialog({ onAdded }: { onAdded: () => void }) {
@@ -224,7 +225,7 @@ export default function WorkoutsView() {
     const now = new Date()
     const start = new Date(now)
     start.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))
-    return (workouts ?? []).filter((w) => w.date >= start.toISOString().split('T')[0])
+    return (workouts ?? []).filter((w) => w.date >= localDateString(start))
   })()
 
   const totalWeekMins = thisWeek.reduce((s, w) => s + w.duration_mins, 0)

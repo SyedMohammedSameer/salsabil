@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { localDateString } from '@/lib/dates'
 import type { FocusSession, SessionType } from '@/lib/database.types'
 
 export async function getFocusSessions(userId: string, limit = 50): Promise<FocusSession[]> {
@@ -52,7 +53,7 @@ export async function completeFocusSession(
 }
 
 export async function getTodayFocusMinutes(userId: string): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]
+  const today = localDateString()
   const { data, error } = await supabase
     .from('focus_sessions')
     .select('duration_mins, completed')

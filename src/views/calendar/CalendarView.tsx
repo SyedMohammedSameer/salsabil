@@ -27,6 +27,7 @@ import {
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ViewMode = 'month' | 'week' | 'day'
@@ -48,7 +49,7 @@ const PRIORITY_BADGE: Record<TaskPriority, 'secondary' | 'warning' | 'danger'> =
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(d: Date) {
-  return d.toISOString().split('T')[0]
+  return localDateString(d)
 }
 
 function todayStr() {

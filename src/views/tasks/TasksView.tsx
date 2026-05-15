@@ -38,14 +38,15 @@ import {
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0]
+  return localDateString()
 }
 
 function toKey(d: Date) {
-  return d.toISOString().split('T')[0]
+  return localDateString(d)
 }
 
 function getWeekStart(d: Date): Date {

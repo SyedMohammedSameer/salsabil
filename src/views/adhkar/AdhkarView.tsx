@@ -11,8 +11,9 @@ import { ADHKAR_SETS, ADHKAR_SET_LABELS, type AdhkarItem, type AdhkarSet } from 
 import type { AdhkarTime } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 function today() {
-  return new Date().toISOString().split('T')[0]
+  return localDateString()
 }
 
 const SET_TO_TIME: Record<AdhkarSet, AdhkarTime> = {
