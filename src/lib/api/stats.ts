@@ -20,7 +20,7 @@ export async function getDashboardStats(profile: Profile, today: string): Promis
     getPrayerCountForDate(profile.id, today),
     getTodayTaskStats(profile.id, today),
     getTodayQuranPages(profile.id, today),
-    getTodayFocusMinutes(profile.id),
+    getTodayFocusMinutes(profile.id, today),
   ])
 
   return {

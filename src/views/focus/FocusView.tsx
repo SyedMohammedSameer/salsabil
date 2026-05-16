@@ -189,16 +189,38 @@ export default function FocusView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-complete when timer hits zero
+  const [completionError, setCompletionError] = useState<string | null>(null)
+
+  // Auto-complete when timer hits zero. Surface failures so we don't silently
+  // lose the session.
   useEffect(() => {
-    if (timerState === 'done' && sessionId) {
-      completeSession.mutate({
+    if (timerState !== 'done') return
+    if (!sessionId) {
+      // No backing server session — likely createFocusSession failed on Start.
+      // Reset locally so user can try again.
+      timer.reset(toPresetInfo(preset))
+      return
+    }
+    completeSession.mutate(
+      {
         id: sessionId,
         coinsEarned: Math.floor(preset.minutes / 5),
         durationMins: preset.minutes,
-      })
-      timer.reset(toPresetInfo(preset))
-    }
+      },
+      {
+        onSuccess: () => {
+          setCompletionError(null)
+          timer.reset(toPresetInfo(preset))
+        },
+        onError: (err) => {
+          setCompletionError(
+            err instanceof Error ? err.message : 'Could not save session — try again.',
+          )
+          // Don't reset — leave the "done" state so the user sees the error
+          // and we can retry on their action.
+        },
+      },
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerState, sessionId])
 
@@ -207,11 +229,18 @@ export default function FocusView() {
       timer.resume()
       return
     }
-    const session = await createSession.mutateAsync({
-      type: preset.type,
-      duration_mins: preset.minutes,
-    })
-    timer.start(session.id, toPresetInfo(preset))
+    setCompletionError(null)
+    try {
+      const session = await createSession.mutateAsync({
+        type: preset.type,
+        duration_mins: preset.minutes,
+      })
+      timer.start(session.id, toPresetInfo(preset))
+    } catch (e) {
+      setCompletionError(e instanceof Error ? e.message : 'Could not start session.')
+      // Don't kick the timer into running with no backing session
+      return
+    }
   }, [timerState, createSession, preset, timer])
 
   const handlePause = useCallback(() => timer.pause(), [timer])
@@ -406,7 +435,7 @@ export default function FocusView() {
 
                 {/* Done state message */}
                 <AnimatePresence>
-                  {timerState === 'done' && (
+                  {timerState === 'done' && !completionError && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -419,6 +448,19 @@ export default function FocusView() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Take a breath. You earned it.
                       </p>
+                    </motion.div>
+                  )}
+                  {completionError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-center"
+                    >
+                      <p className="text-sm font-semibold text-destructive">
+                        Couldn&apos;t save your session
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{completionError}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
