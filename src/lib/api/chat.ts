@@ -42,13 +42,20 @@ export interface AudioCapture {
   format: 'webm' | 'wav' | 'mp3' | 'ogg'
 }
 
+export interface StreamHandlers {
+  /** Called as the assistant's reply (with <think> and <heard> stripped) streams in. */
+  onToken: (token: string) => void
+  /** Called once with the transcribed user audio when the model finishes the <heard> block. */
+  onHeard?: (text: string) => void
+}
+
 export async function streamNoor(
   message: string,
   history: AiMessage[],
   context: string | undefined,
   memories: string | undefined,
   audio: AudioCapture | undefined,
-  onToken: (token: string) => void,
+  handlers: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch('/.netlify/functions/ai-chat', {
@@ -68,38 +75,100 @@ export async function streamNoor(
 
   const decoder = new TextDecoder()
   let buffer = ''
-  // State for stripping <think>...</think> reasoning blocks
+
+  // State for the two tag-stripping passes: <think>...</think> (reasoning,
+  // dropped silently) and <heard>...</heard> (transcription of user audio,
+  // surfaced via onHeard instead of in the assistant bubble).
   let inThink = false
-  let thinkBuf = ''
+  let inHeard = false
+  let heardSoFar = ''
+  let heardFired = false
+  // Pending buffer that may contain a partial opening tag (e.g. just "<he")
+  let pending = ''
 
-  function emitContent(raw: string) {
-    let text = inThink ? thinkBuf + raw : raw
-    thinkBuf = ''
+  // Tags we recognise — order matters for prefix matching
+  const OPEN_TAGS = ['<think>', '<heard>'] as const
+  const CLOSE_TAGS: Record<string, string> = {
+    '<think>': '</think>',
+    '<heard>': '</heard>',
+  }
 
-    let out = ''
-    let i = 0
-    while (i < text.length) {
-      if (!inThink) {
-        const open = text.indexOf('<think>', i)
-        if (open === -1) {
-          out += text.slice(i)
+  // Returns the longest prefix of `s` that could be the start of any tag in `tags`.
+  // We hold this back so we don't emit "<" before knowing if it's "<think>".
+  function maxTagPrefix(s: string, tags: readonly string[]): number {
+    let max = 0
+    for (let len = 1; len <= s.length; len++) {
+      const tail = s.slice(s.length - len)
+      for (const t of tags) {
+        if (t.startsWith(tail)) {
+          if (len > max) max = len
           break
         }
-        out += text.slice(i, open)
-        inThink = true
-        i = open + 7
-      } else {
+      }
+    }
+    return max
+  }
+
+  function processChunk(raw: string) {
+    let text = pending + raw
+    pending = ''
+    let out = ''
+    let i = 0
+
+    while (i < text.length) {
+      if (inThink) {
         const close = text.indexOf('</think>', i)
         if (close === -1) {
-          // incomplete block — buffer the rest
-          thinkBuf = text.slice(i)
+          // Hold the tail in case it contains a partial closing tag
+          pending = text.slice(i)
+          i = text.length
           break
         }
         inThink = false
-        i = close + 8
+        i = close + '</think>'.length
+        continue
       }
+      if (inHeard) {
+        const close = text.indexOf('</heard>', i)
+        if (close === -1) {
+          heardSoFar += text.slice(i)
+          pending = '' // we're not holding tag fragments inside <heard>
+          i = text.length
+          break
+        }
+        heardSoFar += text.slice(i, close)
+        inHeard = false
+        i = close + '</heard>'.length
+        if (!heardFired) {
+          handlers.onHeard?.(heardSoFar.trim())
+          heardFired = true
+        }
+        continue
+      }
+      // Outside any tag — look for the next opener
+      const openIdx = OPEN_TAGS.map((t) => {
+        const idx = text.indexOf(t, i)
+        return idx === -1 ? Infinity : idx
+      })
+      const minIdx = Math.min(...openIdx)
+      if (minIdx === Infinity) {
+        // No more openers in this buffer — emit, but hold back any trailing
+        // partial-tag prefix so we don't leak "<th" or "<he" into the bubble.
+        const remaining = text.slice(i)
+        const hold = maxTagPrefix(remaining, OPEN_TAGS)
+        out += remaining.slice(0, remaining.length - hold)
+        pending = remaining.slice(remaining.length - hold)
+        break
+      }
+      const whichTag = OPEN_TAGS[openIdx.indexOf(minIdx)]
+      out += text.slice(i, minIdx)
+      i = minIdx + whichTag.length
+      if (whichTag === '<think>') inThink = true
+      else if (whichTag === '<heard>') inHeard = true
+      void CLOSE_TAGS
     }
-    if (out) onToken(out)
+
+    if (out) handlers.onToken(out)
   }
 
   while (true) {
@@ -127,7 +196,7 @@ export async function streamNoor(
           throw new Error(msg)
         }
         const content = parsed.choices?.[0]?.delta?.content
-        if (content) emitContent(content)
+        if (content) processChunk(content)
       } catch (e) {
         if (e instanceof SyntaxError) continue
         throw e

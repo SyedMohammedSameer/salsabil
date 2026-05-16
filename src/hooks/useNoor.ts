@@ -34,8 +34,9 @@ export function useStreamMessage(context?: string, memories?: string) {
       setIsStreaming(true)
       setStreamingText('')
 
-      // The text we persist for a voice-only message
-      const displayedUserText = message || (audio ? '🎤 (voice message)' : '')
+      // For voice messages we don't know the transcription yet — show a
+      // placeholder, then swap in the heard text once Noor emits it.
+      let displayedUserText = message || (audio ? '🎤 …' : '')
 
       const tempId = `temp-${Date.now()}`
       const tempUserMsg: ChatMessage = {
@@ -51,27 +52,40 @@ export function useStreamMessage(context?: string, memories?: string) {
         old ? [...old, tempUserMsg] : [tempUserMsg],
       )
 
+      const updateUserBubble = (text: string) => {
+        qc.setQueryData<ChatMessage[]>(noorKeys.history(user.id), (old) =>
+          old?.map((m) => (m.id === tempId ? { ...m, content: text } : m)),
+        )
+      }
+
       const abortCtrl = new AbortController()
       abortRef.current = abortCtrl
       let reply = ''
 
       try {
-        const saveUserPromise = saveChatMessage(user.id, 'user', displayedUserText)
-
         await streamNoor(
           message,
           history,
           context,
           memories,
           audio,
-          (token) => {
-            reply += token
-            setStreamingText(reply)
+          {
+            onToken: (token) => {
+              reply += token
+              setStreamingText(reply)
+            },
+            onHeard: (heardText) => {
+              if (heardText) {
+                displayedUserText = heardText
+                updateUserBubble(heardText)
+              }
+            },
           },
           abortCtrl.signal,
         )
 
-        await saveUserPromise
+        // Persist after the stream so we save the right user text for voice
+        await saveChatMessage(user.id, 'user', displayedUserText)
         await saveChatMessage(user.id, 'assistant', reply)
 
         qc.invalidateQueries({ queryKey: noorKeys.history(user.id) })
