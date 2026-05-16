@@ -12,6 +12,7 @@ import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { notificationKeys } from './useNotifications'
+import { localDateString } from '@/lib/dates'
 import type { SessionType } from '@/lib/database.types'
 
 export const focusKeys = {
@@ -31,10 +32,12 @@ export function useFocusSessions() {
 
 export function useTodayFocusMinutes() {
   const { user } = useAuth()
+  const today = localDateString()
   return useQuery({
-    queryKey: focusKeys.todayMins(user?.id ?? ''),
-    queryFn: () => getTodayFocusMinutes(user!.id),
+    queryKey: [...focusKeys.todayMins(user?.id ?? ''), today],
+    queryFn: () => getTodayFocusMinutes(user!.id, today),
     enabled: !!user,
+    staleTime: 10_000,
   })
 }
 
@@ -63,7 +66,16 @@ export function useCompleteFocusSession() {
       coinsEarned: number
       durationMins: number
     }) => {
+      // Skip empty IDs — happens if the optimistic timer started but the
+      // server-side createFocusSession failed silently.
+      if (!id) {
+        throw new Error('No session to complete')
+      }
       const session = await completeFocusSession(id, coinsEarned)
+      // `null` means the session was already completed — don't award again
+      if (!session) {
+        return null
+      }
       if (user) {
         const sideEffects: Promise<unknown>[] = [
           waterNewestActiveTree(user.id, Math.ceil(durationMins / 5)),
@@ -86,6 +98,8 @@ export function useCompleteFocusSession() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: focusKeys.all })
+      // Dashboard stats card pulls focusMinutes — keep it in sync.
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
       if (user) {
         qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
         qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionType } from '@/lib/database.types'
 
 // ─── Persisted timer state ──────────────────────────────────────────────────
@@ -87,10 +87,13 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
       state: 'idle',
     }
   })
-  const [, force] = useState(0)
+  // Bumped every 250ms while the timer is running so the component re-renders
+  // and reads a fresh wall-clock value. Don't memoise `remaining` — the whole
+  // point is that it depends on Date.now() which is not part of React state.
+  const [, bumpTick] = useState(0)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Persist whenever stored state changes (except 'done' clears).
+  // Persist whenever stored state changes (except idle/done which clear it).
   useEffect(() => {
     if (stored.state === 'idle' || stored.state === 'done') {
       saveStored(null)
@@ -99,35 +102,45 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
     }
   }, [stored])
 
-  // Tick once per second when running so the UI re-renders. The actual
-  // remaining value is always computed from the wall clock.
+  // Drive UI ticks while running. Re-running this effect only when state
+  // transitions (start/pause/resume/finish) so we don't churn the interval
+  // every render. We use 250ms to keep the visible countdown smooth.
   useEffect(() => {
     if (stored.state !== 'running') {
-      if (tickRef.current) clearInterval(tickRef.current)
+      if (tickRef.current) {
+        clearInterval(tickRef.current)
+        tickRef.current = null
+      }
       return
     }
     tickRef.current = setInterval(() => {
-      // Check completion against the wall clock
-      const remaining = computeRemaining(stored)
-      if (remaining <= 0) {
-        setStored((s) => ({ ...s, state: 'done' }))
-        return
+      // Force a re-render so the consumer re-reads the live wall-clock
+      // value. We also check completion here.
+      bumpTick((n) => (n + 1) % 1_000_000)
+      const total = stored.preset.minutes * 60
+      const elapsed = Math.floor((Date.now() - stored.startedAt) / 1000)
+      if (total - elapsed <= 0) {
+        setStored((s) => (s.state === 'running' ? { ...s, state: 'done' } : s))
       }
-      force((n) => n + 1)
-    }, 1000)
+    }, 250)
     return () => {
-      if (tickRef.current) clearInterval(tickRef.current)
+      if (tickRef.current) {
+        clearInterval(tickRef.current)
+        tickRef.current = null
+      }
     }
-  }, [stored])
+  }, [stored.state, stored.startedAt, stored.preset.minutes])
 
   // When the page becomes visible again, re-check completion in case we
-  // crossed the finish line in the background.
+  // crossed the finish line while the tab was backgrounded (some browsers
+  // throttle setInterval in background tabs).
   useEffect(() => {
     const onVisible = () => {
+      if (document.hidden) return
       if (stored.state === 'running' && computeRemaining(stored) <= 0) {
         setStored((s) => ({ ...s, state: 'done' }))
       } else {
-        force((n) => n + 1)
+        bumpTick((n) => (n + 1) % 1_000_000)
       }
     }
     document.addEventListener('visibilitychange', onVisible)
@@ -158,19 +171,13 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
   const resume = useCallback(() => {
     setStored((s) => {
       if (s.state !== 'paused' || s.pausedRemaining == null) return s
-      // Pretend we just started a session of length `pausedRemaining`
-      const fakeTotalSecs = s.pausedRemaining
-      const fakePreset: FocusPresetInfo = {
-        ...s.preset,
-        minutes: Math.max(1, Math.ceil(fakeTotalSecs / 60)),
-      }
-      // To keep computeRemaining honest we set startedAt so that
-      // (now - startedAt) / 1000 = total - pausedRemaining = 0 initially.
-      // We achieve that by treating preset.minutes as fakePreset.minutes (=remaining).
+      // Preserve the original preset and shift `startedAt` so the wall-clock
+      // math (total - elapsed) yields the remaining seconds we paused at.
+      const total = s.preset.minutes * 60
+      const elapsedSoFar = total - s.pausedRemaining
       return {
         ...s,
-        preset: fakePreset,
-        startedAt: Date.now(),
+        startedAt: Date.now() - elapsedSoFar * 1000,
         pausedRemaining: null,
         state: 'running',
       }
@@ -201,7 +208,10 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
     })
   }, [])
 
-  const remaining = useMemo(() => computeRemaining(stored), [stored])
+  // Computed on every render — `bumpTick` triggers a re-render every 250ms
+  // while the timer is running, so this picks up the live wall-clock value.
+  // Do NOT memoise: there's no dep that captures "wall clock changed".
+  const remaining = computeRemaining(stored)
 
   return {
     preset: stored.preset,
