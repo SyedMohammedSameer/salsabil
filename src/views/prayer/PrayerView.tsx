@@ -12,10 +12,11 @@ import { PRAYER_META, type PrayerName } from '@/types'
 import type { PrayerStatus } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 const PRAYER_ORDER: PrayerName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
 
 function formatDate(d: Date) {
-  return d.toISOString().split('T')[0]
+  return localDateString(d)
 }
 
 function addDays(d: Date, n: number) {

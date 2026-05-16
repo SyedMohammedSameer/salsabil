@@ -35,6 +35,7 @@ import { Progress } from '@/components/ui/progress'
 import { getDailyQuote } from '@/data/quotes'
 import { cn } from '@/lib/cn'
 
+import { localDateString, daysAgo } from '@/lib/dates'
 const PRIORITY_DOT: Record<string, string> = {
   urgent: 'bg-destructive',
   high: 'bg-warn-500',
@@ -88,9 +89,9 @@ export default function DashboardView() {
   const navigate = useNavigate()
   const hour = new Date().getHours()
   const greeting = useMemo(() => getGreeting(hour), [hour])
-  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
+  const today = useMemo(() => localDateString(), [])
   const quote = useMemo(() => getDailyQuote(), [])
-  const weekAgo = useMemo(() => new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0], [])
+  const weekAgo = useMemo(() => localDateString(daysAgo(7)), [])
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats(today)
   const { data: workouts } = useWorkouts()

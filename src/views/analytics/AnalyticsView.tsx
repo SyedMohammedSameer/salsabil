@@ -9,13 +9,14 @@ import { useQuranLogs } from '@/hooks/useQuranLogs'
 import { useProfile } from '@/hooks/useProfile'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getLast30Days() {
   return Array.from({ length: 30 }, (_, i) => {
     const d = new Date()
     d.setDate(d.getDate() - (29 - i))
-    return d.toISOString().split('T')[0]
+    return localDateString(d)
   })
 }
 
@@ -24,7 +25,7 @@ function getLast7Days() {
     const d = new Date()
     d.setDate(d.getDate() - (6 - i))
     return {
-      date: d.toISOString().split('T')[0],
+      date: localDateString(d),
       label: d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1),
     }
   })
@@ -170,7 +171,7 @@ export default function AnalyticsView() {
   const focusData = useMemo(() => {
     return days7.map(({ date, label }) => {
       const mins = (sessions ?? [])
-        .filter((s) => s.completed && new Date(s.started_at).toISOString().split('T')[0] === date)
+        .filter((s) => s.completed && localDateString(new Date(s.started_at)) === date)
         .reduce((sum, s) => sum + s.duration_mins, 0)
       return { label, value: mins }
     })

@@ -26,6 +26,7 @@ import {
 import type { QuranLog } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 const logSchema = z.object({
   pages_read: z.coerce.number().int().min(1, 'At least 1 page').max(604),
   surah_from: z.coerce.number().int().min(1).max(114).optional().or(z.literal('')),
@@ -39,7 +40,7 @@ const logSchema = z.object({
 type LogForm = z.infer<typeof logSchema>
 
 function today() {
-  return new Date().toISOString().split('T')[0]
+  return localDateString()
 }
 
 function getLast7Days() {
@@ -47,7 +48,7 @@ function getLast7Days() {
     const d = new Date()
     d.setDate(d.getDate() - (6 - i))
     return {
-      date: d.toISOString().split('T')[0],
+      date: localDateString(d),
       label: d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 1),
     }
   })
@@ -246,7 +247,7 @@ export default function QuranView() {
   const from = useMemo(() => {
     const d = new Date()
     d.setDate(d.getDate() - 6)
-    return d.toISOString().split('T')[0]
+    return localDateString(d)
   }, [])
 
   const { data: todayPages, isLoading: loadingToday } = useTodayQuranPages(todayStr)

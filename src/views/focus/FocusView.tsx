@@ -9,6 +9,7 @@ import { useCreateFocusSession, useCompleteFocusSession, useFocusSessions } from
 import type { SessionType } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 // ─── Session presets ──────────────────────────────────────────────────────────
 
 interface Preset {
@@ -259,8 +260,8 @@ export default function FocusView() {
 
   const todaySessions =
     sessions?.filter((s) => {
-      const d = new Date(s.started_at).toISOString().split('T')[0]
-      return d === new Date().toISOString().split('T')[0] && s.completed
+      const d = localDateString(new Date(s.started_at))
+      return d === localDateString() && s.completed
     }) ?? []
 
   const todayMins = todaySessions.reduce((sum, s) => sum + s.duration_mins, 0)

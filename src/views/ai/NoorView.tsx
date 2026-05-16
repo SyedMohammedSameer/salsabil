@@ -49,11 +49,12 @@ import {
 } from '@/lib/voice'
 import { cn } from '@/lib/cn'
 
+import { localDateString, daysAgo } from '@/lib/dates'
 // ─── Dashboard context ───────────────────────────────────────────────────────
 
 function useDashboardContext() {
-  const today = new Date().toISOString().split('T')[0]
-  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0]
+  const today = localDateString()
+  const weekAgo = localDateString(daysAgo(7))
 
   const { data: profile } = useProfile()
   const { data: prayers } = usePrayersForDate(today)
@@ -298,7 +299,7 @@ function useActionExecutor() {
 
   return useCallback(
     async (action: NoorAction): Promise<void> => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = localDateString()
       switch (action.type) {
         case 'createTask':
           await createTask.mutateAsync({

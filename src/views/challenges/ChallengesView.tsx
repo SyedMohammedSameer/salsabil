@@ -34,6 +34,7 @@ import {
 import type { Challenge, ChallengeStatus } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
+import { localDateString } from '@/lib/dates'
 const STATUS_CONFIG: Record<
   ChallengeStatus,
   { label: string; variant: 'default' | 'secondary' | 'warning' | 'danger' }
@@ -57,7 +58,7 @@ const addSchema = z.object({
 type AddForm = z.infer<typeof addSchema>
 
 function today() {
-  return new Date().toISOString().split('T')[0]
+  return localDateString()
 }
 
 function AddChallengeDialog({ onAdded }: { onAdded: () => void }) {

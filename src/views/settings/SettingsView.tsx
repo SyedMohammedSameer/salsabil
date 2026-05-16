@@ -10,6 +10,7 @@ import { useProfile, useUpdateProfile } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { usePushNotifications } from '@/hooks/useNotifications'
 import { cn } from '@/lib/cn'
+import { localDateString } from '@/lib/dates'
 import type { Theme } from '@/types'
 
 const THEMES: { value: Theme; label: string; icon: typeof Moon }[] = [
@@ -209,7 +210,7 @@ export default function SettingsView() {
                     const url = URL.createObjectURL(blob)
                     const a = document.createElement('a')
                     a.href = url
-                    a.download = `salsabil-export-${new Date().toISOString().split('T')[0]}.json`
+                    a.download = `salsabil-export-${localDateString()}.json`
                     a.click()
                     URL.revokeObjectURL(url)
                   }}
