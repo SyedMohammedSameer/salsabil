@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Play, Pause, RotateCcw, SkipForward, Timer, Coffee, Zap, Sliders } from 'lucide-react'
 import { PageShell } from '@/components/shared/PageShell'
@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/shared/SkeletonLoader'
 import { useCreateFocusSession, useCompleteFocusSession, useFocusSessions } from '@/hooks/useFocus'
+import { useFocusTimer, type FocusPresetInfo } from '@/hooks/useFocusTimer'
 import type { SessionType } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
 
@@ -146,43 +147,47 @@ function SessionRow({
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-type TimerState = 'idle' | 'running' | 'paused' | 'done'
+// Preset → FocusPresetInfo (drops the icon, which is not serialisable)
+function toPresetInfo(p: Preset): FocusPresetInfo {
+  return {
+    type: p.type,
+    label: p.label,
+    minutes: p.minutes,
+    color: p.color,
+    ringColor: p.ringColor,
+  }
+}
+
+// Look up the matching Preset (with icon) for a stored FocusPresetInfo
+function fromPresetInfo(info: FocusPresetInfo, isCustom: boolean): Preset {
+  if (isCustom) return { ...CUSTOM_PRESET_BASE, minutes: info.minutes }
+  return PRESETS.find((p) => p.type === info.type && p.minutes === info.minutes) ?? PRESETS[0]
+}
 
 export default function FocusView() {
-  const [preset, setPreset] = useState<Preset>(PRESETS[0])
   const [isCustom, setIsCustom] = useState(false)
   const [customMinutes, setCustomMinutes] = useState(30)
-  const [remaining, setRemaining] = useState(preset.minutes * 60)
-  const [timerState, setTimerState] = useState<TimerState>('idle')
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const createSession = useCreateFocusSession()
   const completeSession = useCompleteFocusSession()
   const { data: sessions, isLoading: loadingSessions } = useFocusSessions()
 
+  // The timer lives in localStorage so it survives navigation + reloads.
+  const timer = useFocusTimer(toPresetInfo(PRESETS[0]))
+  const preset = fromPresetInfo(timer.preset, isCustom)
+  const remaining = timer.remaining
+  const timerState = timer.state
+  const sessionId = timer.sessionId
+
   const totalSecs = preset.minutes * 60
   const progress = 1 - remaining / totalSecs
 
-  // Tick
+  // Restore "isCustom" from the stored preset shape — custom sessions use the
+  // CUSTOM_PRESET_BASE.type so they round-trip cleanly via type+label.
   useEffect(() => {
-    if (timerState === 'running') {
-      intervalRef.current = setInterval(() => {
-        setRemaining((r) => {
-          if (r <= 1) {
-            setTimerState('done')
-            return 0
-          }
-          return r - 1
-        })
-      }, 1000)
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [timerState])
+    setIsCustom(timer.preset.label === CUSTOM_PRESET_BASE.label)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-complete when timer hits zero
   useEffect(() => {
@@ -192,47 +197,43 @@ export default function FocusView() {
         coinsEarned: Math.floor(preset.minutes / 5),
         durationMins: preset.minutes,
       })
-      setSessionId(null)
+      timer.reset(toPresetInfo(preset))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerState])
+  }, [timerState, sessionId])
 
   const handleStart = useCallback(async () => {
     if (timerState === 'paused') {
-      setTimerState('running')
+      timer.resume()
       return
     }
     const session = await createSession.mutateAsync({
       type: preset.type,
       duration_mins: preset.minutes,
     })
-    setSessionId(session.id)
-    setTimerState('running')
-  }, [timerState, createSession, preset])
+    timer.start(session.id, toPresetInfo(preset))
+  }, [timerState, createSession, preset, timer])
 
-  const handlePause = useCallback(() => setTimerState('paused'), [])
+  const handlePause = useCallback(() => timer.pause(), [timer])
 
   const handleReset = useCallback(() => {
-    setTimerState('idle')
-    setRemaining(preset.minutes * 60)
-    setSessionId(null)
-  }, [preset])
+    timer.reset(toPresetInfo(preset))
+  }, [timer, preset])
 
   const handleSkip = useCallback(() => {
     if (sessionId) {
       completeSession.mutate({ id: sessionId, coinsEarned: 0, durationMins: preset.minutes })
-      setSessionId(null)
     }
-    setTimerState('done')
-  }, [sessionId, completeSession, preset.minutes])
+    timer.finish()
+  }, [sessionId, completeSession, preset.minutes, timer])
 
-  const handlePresetChange = useCallback((p: Preset) => {
-    setIsCustom(false)
-    setPreset(p)
-    setRemaining(p.minutes * 60)
-    setTimerState('idle')
-    setSessionId(null)
-  }, [])
+  const handlePresetChange = useCallback(
+    (p: Preset) => {
+      setIsCustom(false)
+      timer.setPreset(toPresetInfo(p))
+    },
+    [timer],
+  )
 
   const handleCustomSelect = useCallback(() => {
     const mins = Math.min(
@@ -240,22 +241,18 @@ export default function FocusView() {
       Math.max(MIN_CUSTOM_MINUTES, Math.round(customMinutes || 1)),
     )
     setIsCustom(true)
-    setPreset({ ...CUSTOM_PRESET_BASE, minutes: mins })
-    setRemaining(mins * 60)
-    setTimerState('idle')
-    setSessionId(null)
-  }, [customMinutes])
+    timer.setPreset(toPresetInfo({ ...CUSTOM_PRESET_BASE, minutes: mins }))
+  }, [customMinutes, timer])
 
   const handleCustomMinutesChange = useCallback(
     (value: number) => {
       const clamped = Math.min(MAX_CUSTOM_MINUTES, Math.max(MIN_CUSTOM_MINUTES, value))
       setCustomMinutes(clamped)
       if (isCustom && timerState === 'idle') {
-        setPreset({ ...CUSTOM_PRESET_BASE, minutes: clamped })
-        setRemaining(clamped * 60)
+        timer.setPreset(toPresetInfo({ ...CUSTOM_PRESET_BASE, minutes: clamped }))
       }
     },
-    [isCustom, timerState],
+    [isCustom, timerState, timer],
   )
 
   const todaySessions =

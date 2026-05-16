@@ -139,35 +139,71 @@ export default async (req: Request): Promise<Response> => {
     })
   }
 
+  // ─── Audio → text via Groq Whisper ─────────────────────────────────────
+  // Multimodal models are slow and unreliable at following the <heard> tag
+  // contract. Doing a dedicated STT pass is faster and accurate.
+  let userText = message ?? ''
+  let heardPrefix = '' // prepended to the SSE stream so the client shows it
+  if (audio) {
+    const groqKey = process.env.GROQ_API_KEY
+    if (!groqKey) {
+      return new Response(
+        JSON.stringify({ error: 'GROQ_API_KEY not set — required for voice input.' }),
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+      )
+    }
+    try {
+      const audioBuf = Uint8Array.from(atob(audio.data), (c) => c.charCodeAt(0))
+      const blob = new Blob([audioBuf], { type: `audio/${audio.format}` })
+      const fd = new FormData()
+      fd.append('file', blob, `recording.${audio.format}`)
+      fd.append('model', 'whisper-large-v3-turbo')
+      fd.append('response_format', 'json')
+      fd.append('temperature', '0')
+
+      const sttRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${groqKey}` },
+        body: fd,
+      })
+      if (!sttRes.ok) {
+        const err = await sttRes.text()
+        console.error('[ai-chat] Groq STT error', sttRes.status, err)
+        return new Response(JSON.stringify({ error: `Transcription failed: ${err}` }), {
+          status: 502,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+        })
+      }
+      const { text } = (await sttRes.json()) as { text?: string }
+      const transcript = (text ?? '').trim()
+      if (!transcript) {
+        return new Response(JSON.stringify({ error: 'Empty transcript' }), {
+          status: 400,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+        })
+      }
+      userText = userText ? `${userText}\n${transcript}` : transcript
+      heardPrefix = `<heard>${transcript.replace(/</g, '&lt;')}</heard>\n\n`
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'STT failed'
+      console.error('[ai-chat] STT exception', msg)
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 500,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   const contextBlocks: string[] = []
   if (memories) contextBlocks.push(`WHAT YOU REMEMBER ABOUT THIS USER:\n${memories}`)
   if (context) contextBlocks.push(`CURRENT DATA:\n${context}`)
   const preamble = contextBlocks.join('\n\n')
 
-  // Build user message — multimodal if audio is present
-  let userMessage: { role: string; content: string | unknown[] }
-  if (audio) {
-    const parts: unknown[] = []
-    if (preamble || message) {
-      const textBlock = [preamble, message ? `USER MESSAGE:\n${message}` : '']
-        .filter(Boolean)
-        .join('\n\n')
-      parts.push({ type: 'text', text: textBlock })
-    }
-    parts.push({
-      type: 'input_audio',
-      input_audio: { data: audio.data, format: audio.format },
-    })
-    userMessage = { role: 'user', content: parts }
-  } else {
-    const text = preamble ? `${preamble}\n\nUSER MESSAGE:\n${message}` : message
-    userMessage = { role: 'user', content: text }
-  }
-
+  const userContent = preamble ? `${preamble}\n\nUSER MESSAGE:\n${userText}` : userText
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
-    userMessage,
+    { role: 'user', content: userContent },
   ]
 
   const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -190,7 +226,43 @@ export default async (req: Request): Promise<Response> => {
     })
   }
 
-  return new Response(upstream.body, {
+  // If we have a transcription, inject it as the first SSE chunk so the
+  // client's <heard> parser picks it up before the model's reply streams in.
+  if (!heardPrefix) {
+    return new Response(upstream.body, {
+      status: 200,
+      headers: {
+        ...cors,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  }
+
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      const prefixChunk = `data: ${JSON.stringify({
+        choices: [{ delta: { content: heardPrefix } }],
+      })}\n\n`
+      controller.enqueue(encoder.encode(prefixChunk))
+      const reader = upstream.body!.getReader()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          controller.enqueue(value)
+        }
+      } catch (e) {
+        console.error('[ai-chat] upstream stream error', e)
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
     status: 200,
     headers: {
       ...cors,
