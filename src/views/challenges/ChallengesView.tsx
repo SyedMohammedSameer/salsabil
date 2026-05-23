@@ -1113,6 +1113,7 @@ function NewChallengeDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         className={cn('max-h-[90vh] overflow-y-auto', step === 'pick' ? 'max-w-md' : 'max-w-sm')}
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle className="text-base">{dialogTitle}</DialogTitle>
@@ -1525,7 +1526,13 @@ export default function ChallengesView() {
           if (!v) setShowMobileDetail(false)
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-sm lg:hidden p-0">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto max-w-sm lg:hidden p-0"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">
+            {selectedChallenge?.title ?? 'Challenge detail'}
+          </DialogTitle>
           {selectedChallenge && (
             <ChallengeDetailPanel
               challenge={selectedChallenge}
