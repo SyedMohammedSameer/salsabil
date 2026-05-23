@@ -8,14 +8,14 @@ import {
   Loader2,
   Flame,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Coins,
   Sparkles,
   X,
   Pencil,
   Save,
   Calendar,
-  Target,
-  TrendingUp,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -81,17 +81,6 @@ function getChallengeTasks(challenge: Challenge): string[] {
   }
   const { level } = parseChallengeCategory(challenge.category)
   return level?.tasks ?? []
-}
-
-function isDescriptionPlainText(description: string | null): boolean {
-  if (!description) return false
-  try {
-    const p = JSON.parse(description)
-    if (Array.isArray(p)) return false
-  } catch {
-    return true
-  }
-  return false
 }
 
 // ─── Progress ring ────────────────────────────────────────────────────────────
@@ -288,6 +277,7 @@ function ChallengeDetailPanel({
   onClose: () => void
   onIncrement: () => void
 }) {
+  const [tasksOpen, setTasksOpen] = useState(false)
   const [editingTasks, setEditingTasks] = useState(false)
   const [tasks, setTasks] = useState<string[]>([])
   const updateChallenge = useUpdateChallenge()
@@ -299,19 +289,21 @@ function ChallengeDetailPanel({
   const isActive = challenge.status === 'active'
   const isCompleted = challenge.status === 'completed'
 
-  const pct = (challenge.current_days / challenge.target_days) * 100
   const daysLeft = challenge.target_days - challenge.current_days
   const coinsEarned = challenge.current_days * coinsPerDay + (isCompleted ? completionBonus : 0)
   const coinsLeft = isActive ? daysLeft * coinsPerDay + completionBonus : 0
 
-  const startDate = new Date(challenge.start_date + 'T00:00:00')
-  const projectedEnd = new Date(startDate)
+  const projectedEnd = new Date(challenge.start_date + 'T00:00:00')
   projectedEnd.setDate(projectedEnd.getDate() + challenge.target_days)
+  const endLabel = projectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  // Reset when challenge changes
+  const taskList = getChallengeTasks(challenge)
+
+  // Reset when switching challenges
   useEffect(() => {
-    setTasks(getChallengeTasks(challenge))
+    setTasks(taskList)
     setEditingTasks(false)
+    setTasksOpen(false)
   }, [challenge.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveTasks = async () => {
@@ -320,18 +312,21 @@ function ChallengeDetailPanel({
     setEditingTasks(false)
   }
 
-  const plainDescription = isDescriptionPlainText(challenge.description)
-    ? challenge.description
-    : null
+  const handleToggleTasks = () => {
+    setTasksOpen((p) => {
+      if (p) setEditingTasks(false) // close edit mode when collapsing
+      return !p
+    })
+  }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden shadow-sm">
       <CardContent className="p-0">
-        {/* Header bar */}
+        {/* ── Coloured header ── */}
         <div
           className={cn(
             'px-4 pt-4 pb-3 flex items-start justify-between gap-2',
-            template ? cn(template.bgClass) : '',
+            template ? template.bgClass : 'bg-muted/30',
           )}
         >
           <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -371,75 +366,43 @@ function ChallengeDetailPanel({
           </button>
         </div>
 
-        <div className="px-4 pb-4 space-y-4">
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            {[
-              {
-                icon: CheckCircle2,
-                label: 'Done',
-                value: `${challenge.current_days}d`,
-                color: 'text-noor-500',
-              },
-              {
-                icon: Target,
-                label: 'Left',
-                value: `${daysLeft}d`,
-                color: 'text-muted-foreground',
-              },
-              {
-                icon: TrendingUp,
-                label: 'Progress',
-                value: `${Math.round(pct)}%`,
-                color: 'text-accent-500',
-              },
-            ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="rounded-xl bg-muted/40 p-2 text-center">
-                <Icon className={cn('h-3.5 w-3.5 mx-auto mb-1', color)} />
-                <p className="text-sm font-bold text-foreground">{value}</p>
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Progress ring + coin stats */}
+        <div className="px-4 py-4 space-y-4">
+          {/* ── Progress ring + key numbers ── */}
           <div className="flex items-center gap-4">
-            <ProgressRing value={challenge.current_days} max={challenge.target_days} size={72} />
-            <div className="flex-1 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Coins className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-foreground">
-                    🪙 {coinsEarned.toLocaleString()} earned
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {coinsPerDay}/day × {challenge.current_days} days
-                    {isCompleted ? ' + bonus' : ''}
-                  </p>
-                </div>
-              </div>
-              {isActive && coinsLeft > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-noor-500">
-                    🪙 {coinsLeft.toLocaleString()} to earn
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    incl. {completionBonus.toLocaleString()} completion bonus
-                  </p>
-                </div>
-              )}
-              <p className="text-[10px] text-muted-foreground">
-                {isCompleted
-                  ? `Finished ${projectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                  : `Ends ~${projectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+            <ProgressRing
+              value={challenge.current_days}
+              max={challenge.target_days}
+              size={64}
+              strokeWidth={6}
+            />
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Day {challenge.current_days} of {challenge.target_days}
+              </p>
+              {isCompleted ? (
+                <p className="text-xs font-bold text-accent-500">
+                  🏆 {(challenge.target_days * coinsPerDay + completionBonus).toLocaleString()}{' '}
+                  coins earned
+                </p>
+              ) : isActive ? (
+                <p className="text-xs font-semibold text-noor-500">
+                  🪙 {coinsLeft.toLocaleString()} to earn
+                </p>
+              ) : coinsEarned > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  🪙 {coinsEarned.toLocaleString()} earned
+                </p>
+              ) : null}
+              <p className="text-[11px] text-muted-foreground">
+                {isCompleted ? `Completed ${endLabel}` : `Ends ~${endLabel}`}
               </p>
             </div>
           </div>
 
-          {/* Calendar */}
+          {/* ── Calendar ── */}
           <ChallengeCalendar challenge={challenge} />
 
-          {/* Mark done button */}
+          {/* ── Action button ── */}
           {isActive && (
             <Button size="sm" className="w-full gap-1.5" onClick={onIncrement}>
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -447,104 +410,97 @@ function ChallengeDetailPanel({
             </Button>
           )}
 
-          {/* Completion banner */}
-          {isCompleted && (
-            <div className="rounded-xl bg-accent-500/10 border border-accent-500/20 p-3 text-center">
-              <p className="text-lg">🏆</p>
-              <p className="text-xs font-bold text-foreground">Challenge Complete!</p>
-              <p className="text-[11px] text-muted-foreground">
-                Total earned: 🪙{' '}
-                {(challenge.target_days * coinsPerDay + completionBonus).toLocaleString()} coins
-              </p>
+          {/* ── Tasks accordion ── */}
+          {taskList.length > 0 && (
+            <div className="border-t border-border pt-1">
+              {/* Accordion toggle row */}
+              <button
+                onClick={handleToggleTasks}
+                className="w-full flex items-center justify-between py-2 text-xs font-semibold text-foreground hover:text-noor-500 transition-colors"
+              >
+                <span>Daily tasks ({taskList.length})</span>
+                <div className="flex items-center gap-2">
+                  {/* Edit button — only visible when open and not editing */}
+                  {tasksOpen && !editingTasks && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setTasks(taskList)
+                        setEditingTasks(true)
+                      }}
+                      className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </button>
+                  )}
+                  {tasksOpen ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </div>
+              </button>
+
+              {/* Collapsible content */}
+              <AnimatePresence initial={false}>
+                {tasksOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pb-2 space-y-2">
+                      {editingTasks ? (
+                        <>
+                          <EditableTaskList tasks={tasks} onChange={setTasks} />
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="flex-1 h-7 text-xs gap-1"
+                              onClick={handleSaveTasks}
+                              disabled={updateChallenge.isPending}
+                            >
+                              {updateChallenge.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Save className="h-3 w-3" />
+                              )}
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setTasks(taskList)
+                                setEditingTasks(false)
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {taskList.map((task, i) => (
+                            <div key={i} className="flex items-start gap-2 text-xs text-foreground">
+                              <div className="h-4 w-4 rounded border border-muted-foreground/25 shrink-0 mt-0.5 flex items-center justify-center">
+                                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
+                              </div>
+                              <span className="leading-snug">{task}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
-
-          {/* Plain description */}
-          {plainDescription && <p className="text-xs text-muted-foreground">{plainDescription}</p>}
-
-          {/* Tasks section */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-foreground">
-                Daily tasks ({getChallengeTasks(challenge).length})
-              </p>
-              <div className="flex items-center gap-1.5">
-                {editingTasks ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setTasks(getChallengeTasks(challenge))
-                        setEditingTasks(false)
-                      }}
-                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <Button
-                      size="sm"
-                      className="h-6 text-[11px] px-2 gap-1"
-                      onClick={handleSaveTasks}
-                      disabled={updateChallenge.isPending}
-                    >
-                      {updateChallenge.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Save className="h-3 w-3" />
-                      )}
-                      Save
-                    </Button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setTasks(getChallengeTasks(challenge))
-                      setEditingTasks(true)
-                    }}
-                    className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Edit
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {editingTasks ? (
-                <motion.div
-                  key="editing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                >
-                  <EditableTaskList tasks={tasks} onChange={setTasks} />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="viewing"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                  className="space-y-1.5"
-                >
-                  {getChallengeTasks(challenge).length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No tasks defined.</p>
-                  ) : (
-                    getChallengeTasks(challenge).map((task, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs text-foreground">
-                        <div className="h-4 w-4 rounded border border-muted-foreground/25 shrink-0 mt-0.5 flex items-center justify-center">
-                          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
-                        </div>
-                        <span className="leading-snug">{task}</span>
-                      </div>
-                    ))
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
         </div>
       </CardContent>
     </Card>
@@ -1446,7 +1402,7 @@ export default function ChallengesView() {
           <div
             className={cn(
               'gap-6',
-              selectedChallenge ? 'grid grid-cols-1 lg:grid-cols-[1fr_360px]' : 'flex flex-col',
+              selectedChallenge ? 'grid grid-cols-1 lg:grid-cols-[1fr_300px]' : 'flex flex-col',
             )}
           >
             {/* Left — challenge list */}
@@ -1497,7 +1453,7 @@ export default function ChallengesView() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 16 }}
                   transition={{ duration: 0.2 }}
-                  className="hidden lg:block sticky top-4 self-start"
+                  className="hidden lg:block sticky top-4 self-start max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl"
                 >
                   <ChallengeDetailPanel
                     challenge={selectedChallenge}
