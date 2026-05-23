@@ -66,6 +66,20 @@ export async function updateChallengeStatus(
   return data
 }
 
+export async function updateChallenge(
+  id: string,
+  updates: { title?: string; description?: string | null },
+): Promise<Challenge> {
+  const { data, error } = await supabase
+    .from('challenges')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function deleteChallenge(id: string): Promise<void> {
   const { error } = await supabase.from('challenges').delete().eq('id', id)
   if (error) throw error
