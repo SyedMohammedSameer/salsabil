@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus,
@@ -8,10 +8,14 @@ import {
   Loader2,
   Flame,
   ChevronLeft,
-  ChevronDown,
-  ChevronUp,
   Coins,
   Sparkles,
+  X,
+  Pencil,
+  Save,
+  Calendar,
+  Target,
+  TrendingUp,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -22,13 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -42,6 +40,7 @@ import {
   useCreateChallenge,
   useIncrementChallenge,
   useDeleteChallenge,
+  useUpdateChallenge,
 } from '@/hooks/useChallenges'
 import type { Challenge, ChallengeStatus } from '@/lib/database.types'
 import { cn } from '@/lib/cn'
@@ -56,7 +55,7 @@ import {
   type ChallengeDifficulty,
 } from '@/data/challengeTemplates'
 
-// ─── Shared constants ─────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<
   ChallengeStatus,
@@ -70,17 +69,554 @@ const STATUS_CONFIG: Record<
 
 const LEGACY_CATEGORIES = ['fitness', 'prayer', 'quran', 'mindset', 'habit', 'other']
 
-// ─── Step 1 — Template Picker ─────────────────────────────────────────────────
+/** Tasks are stored as a JSON array in the description field. */
+function getChallengeTasks(challenge: Challenge): string[] {
+  if (challenge.description) {
+    try {
+      const p = JSON.parse(challenge.description)
+      if (Array.isArray(p) && p.every((t) => typeof t === 'string')) return p
+    } catch {
+      /* plain text description */
+    }
+  }
+  const { level } = parseChallengeCategory(challenge.category)
+  return level?.tasks ?? []
+}
+
+function isDescriptionPlainText(description: string | null): boolean {
+  if (!description) return false
+  try {
+    const p = JSON.parse(description)
+    if (Array.isArray(p)) return false
+  } catch {
+    return true
+  }
+  return false
+}
+
+// ─── Progress ring ────────────────────────────────────────────────────────────
+
+function ProgressRing({
+  value,
+  max,
+  size = 72,
+  strokeWidth = 7,
+}: {
+  value: number
+  max: number
+  size?: number
+  strokeWidth?: number
+}) {
+  const radius = (size - strokeWidth) / 2
+  const circ = 2 * Math.PI * radius
+  const pct = Math.min(value / max, 1)
+  const offset = circ * (1 - pct)
+
+  return (
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          className="stroke-muted"
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="stroke-noor-500"
+          initial={{ strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </svg>
+      <div className="absolute text-center">
+        <p className="text-sm font-bold text-foreground leading-none">{Math.round(pct * 100)}%</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Challenge calendar ───────────────────────────────────────────────────────
+
+function ChallengeCalendar({ challenge }: { challenge: Challenge }) {
+  const start = new Date(challenge.start_date + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  start.setHours(0, 0, 0, 0)
+  const daysSinceStart = Math.floor((today.getTime() - start.getTime()) / 86400000)
+
+  const total = challenge.target_days
+  const done = challenge.current_days
+  // cell sizing: small for long challenges, larger for short ones
+  const cellPx = total <= 14 ? 26 : total <= 30 ? 20 : 14
+  const fontSize = cellPx >= 22 ? 9 : cellPx >= 18 ? 8 : 0 // 0 = no number
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <Calendar className="h-3 w-3 text-muted-foreground" />
+        <p className="text-xs text-muted-foreground font-medium">Progress Calendar</p>
+      </div>
+      <div className="flex flex-wrap gap-1" style={{ maxWidth: '100%' }}>
+        {Array.from({ length: total }).map((_, i) => {
+          const dayNum = i + 1
+          const isDone = dayNum <= done
+          const isTodaySlot =
+            dayNum === daysSinceStart + 1 && challenge.status === 'active' && !isDone
+
+          return (
+            <div
+              key={i}
+              style={{ width: cellPx, height: cellPx }}
+              title={`Day ${dayNum}`}
+              className={cn(
+                'rounded-sm flex items-center justify-center transition-colors duration-200 shrink-0',
+                isDone
+                  ? 'bg-noor-500 text-white'
+                  : isTodaySlot
+                    ? 'bg-noor-500/20 ring-1 ring-noor-500 text-noor-500'
+                    : 'bg-muted text-muted-foreground/30',
+              )}
+            >
+              {fontSize > 0 && (
+                <span style={{ fontSize }} className="font-medium leading-none select-none">
+                  {dayNum}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-2">
+        <div className="flex items-center gap-1">
+          <div className="h-2.5 w-2.5 rounded-sm bg-noor-500" />
+          <span className="text-[10px] text-muted-foreground">Completed</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="h-2.5 w-2.5 rounded-sm bg-muted" />
+          <span className="text-[10px] text-muted-foreground">Pending</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Editable task list ───────────────────────────────────────────────────────
+
+function EditableTaskList({
+  tasks,
+  onChange,
+}: {
+  tasks: string[]
+  onChange: (tasks: string[]) => void
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  const update = (i: number, val: string) => onChange(tasks.map((t, idx) => (idx === i ? val : t)))
+
+  const remove = (i: number) => onChange(tasks.filter((_, idx) => idx !== i))
+
+  const add = () => {
+    onChange([...tasks, ''])
+    // Focus the new input on next tick
+    setTimeout(() => inputRefs.current[tasks.length]?.focus(), 30)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {tasks.map((task, i) => (
+        <div key={i} className="flex items-center gap-1.5 group">
+          <div className="h-4 w-4 rounded border border-muted-foreground/25 shrink-0 flex items-center justify-center">
+            <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
+          </div>
+          <input
+            ref={(el) => {
+              inputRefs.current[i] = el
+            }}
+            value={task}
+            onChange={(e) => update(i, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                add()
+              }
+            }}
+            placeholder="Task description…"
+            className="flex-1 text-xs bg-transparent border-none outline-none rounded px-1 py-0.5 text-foreground placeholder:text-muted-foreground/50 focus:bg-muted/40 transition-colors"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="p-0.5 rounded text-muted-foreground/30 hover:text-destructive transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center gap-1 text-[11px] text-noor-500 hover:text-noor-400 transition-colors mt-1"
+      >
+        <Plus className="h-3 w-3" />
+        Add task
+      </button>
+    </div>
+  )
+}
+
+// ─── Challenge detail panel ───────────────────────────────────────────────────
+
+function ChallengeDetailPanel({
+  challenge,
+  onClose,
+  onIncrement,
+}: {
+  challenge: Challenge
+  onClose: () => void
+  onIncrement: () => void
+}) {
+  const [editingTasks, setEditingTasks] = useState(false)
+  const [tasks, setTasks] = useState<string[]>([])
+  const updateChallenge = useUpdateChallenge()
+
+  const { template, level, difficulty } = parseChallengeCategory(challenge.category)
+  const { coinsPerDay, completionBonus } = getChallengeRewards(challenge.category)
+  const diffMeta = difficulty ? DIFFICULTY_META[difficulty] : null
+  const statusCfg = STATUS_CONFIG[challenge.status]
+  const isActive = challenge.status === 'active'
+  const isCompleted = challenge.status === 'completed'
+
+  const pct = (challenge.current_days / challenge.target_days) * 100
+  const daysLeft = challenge.target_days - challenge.current_days
+  const coinsEarned = challenge.current_days * coinsPerDay + (isCompleted ? completionBonus : 0)
+  const coinsLeft = isActive ? daysLeft * coinsPerDay + completionBonus : 0
+
+  const startDate = new Date(challenge.start_date + 'T00:00:00')
+  const projectedEnd = new Date(startDate)
+  projectedEnd.setDate(projectedEnd.getDate() + challenge.target_days)
+
+  // Reset when challenge changes
+  useEffect(() => {
+    setTasks(getChallengeTasks(challenge))
+    setEditingTasks(false)
+  }, [challenge.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveTasks = async () => {
+    const finalTasks = tasks.filter((t) => t.trim())
+    await updateChallenge.mutateAsync({ id: challenge.id, description: JSON.stringify(finalTasks) })
+    setEditingTasks(false)
+  }
+
+  const plainDescription = isDescriptionPlainText(challenge.description)
+    ? challenge.description
+    : null
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header bar */}
+        <div
+          className={cn(
+            'px-4 pt-4 pb-3 flex items-start justify-between gap-2',
+            template ? cn(template.bgClass) : '',
+          )}
+        >
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {template ? (
+              <span className="text-2xl shrink-0">{template.emoji}</span>
+            ) : (
+              <Trophy className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground leading-tight truncate">
+                {challenge.title}
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                {diffMeta && difficulty && (
+                  <span
+                    className={cn(
+                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                      diffMeta.bgClass,
+                      diffMeta.colorClass,
+                    )}
+                  >
+                    {DIFFICULTY_META[difficulty].label}
+                  </span>
+                )}
+                <Badge variant={statusCfg.variant} className="text-[10px] h-4 px-1.5">
+                  {statusCfg.label}
+                </Badge>
+                {level && <span className="text-[10px] text-muted-foreground">{level.label}</span>}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-muted/50 transition-colors shrink-0"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-4 pb-4 space-y-4">
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {[
+              {
+                icon: CheckCircle2,
+                label: 'Done',
+                value: `${challenge.current_days}d`,
+                color: 'text-noor-500',
+              },
+              {
+                icon: Target,
+                label: 'Left',
+                value: `${daysLeft}d`,
+                color: 'text-muted-foreground',
+              },
+              {
+                icon: TrendingUp,
+                label: 'Progress',
+                value: `${Math.round(pct)}%`,
+                color: 'text-accent-500',
+              },
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="rounded-xl bg-muted/40 p-2 text-center">
+                <Icon className={cn('h-3.5 w-3.5 mx-auto mb-1', color)} />
+                <p className="text-sm font-bold text-foreground">{value}</p>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress ring + coin stats */}
+          <div className="flex items-center gap-4">
+            <ProgressRing value={challenge.current_days} max={challenge.target_days} size={72} />
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Coins className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    🪙 {coinsEarned.toLocaleString()} earned
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {coinsPerDay}/day × {challenge.current_days} days
+                    {isCompleted ? ' + bonus' : ''}
+                  </p>
+                </div>
+              </div>
+              {isActive && coinsLeft > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-noor-500">
+                    🪙 {coinsLeft.toLocaleString()} to earn
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    incl. {completionBonus.toLocaleString()} completion bonus
+                  </p>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                {isCompleted
+                  ? `Finished ${projectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  : `Ends ~${projectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Calendar */}
+          <ChallengeCalendar challenge={challenge} />
+
+          {/* Mark done button */}
+          {isActive && (
+            <Button size="sm" className="w-full gap-1.5" onClick={onIncrement}>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Mark today as done (+{coinsPerDay} 🪙)
+            </Button>
+          )}
+
+          {/* Completion banner */}
+          {isCompleted && (
+            <div className="rounded-xl bg-accent-500/10 border border-accent-500/20 p-3 text-center">
+              <p className="text-lg">🏆</p>
+              <p className="text-xs font-bold text-foreground">Challenge Complete!</p>
+              <p className="text-[11px] text-muted-foreground">
+                Total earned: 🪙{' '}
+                {(challenge.target_days * coinsPerDay + completionBonus).toLocaleString()} coins
+              </p>
+            </div>
+          )}
+
+          {/* Plain description */}
+          {plainDescription && <p className="text-xs text-muted-foreground">{plainDescription}</p>}
+
+          {/* Tasks section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-foreground">
+                Daily tasks ({getChallengeTasks(challenge).length})
+              </p>
+              <div className="flex items-center gap-1.5">
+                {editingTasks ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setTasks(getChallengeTasks(challenge))
+                        setEditingTasks(false)
+                      }}
+                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <Button
+                      size="sm"
+                      className="h-6 text-[11px] px-2 gap-1"
+                      onClick={handleSaveTasks}
+                      disabled={updateChallenge.isPending}
+                    >
+                      {updateChallenge.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Save className="h-3 w-3" />
+                      )}
+                      Save
+                    </Button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTasks(getChallengeTasks(challenge))
+                      setEditingTasks(true)
+                    }}
+                    className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {editingTasks ? (
+                <motion.div
+                  key="editing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <EditableTaskList tasks={tasks} onChange={setTasks} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="viewing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.1 }}
+                  className="space-y-1.5"
+                >
+                  {getChallengeTasks(challenge).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">No tasks defined.</p>
+                  ) : (
+                    getChallengeTasks(challenge).map((task, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-foreground">
+                        <div className="h-4 w-4 rounded border border-muted-foreground/25 shrink-0 mt-0.5 flex items-center justify-center">
+                          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
+                        </div>
+                        <span className="leading-snug">{task}</span>
+                      </div>
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Template showcase (always visible on the tab) ────────────────────────────
+
+function TemplateShowcase({
+  onStartTemplate,
+}: {
+  onStartTemplate: (t: ChallengeTemplate) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">
+        Challenge Templates
+      </p>
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
+        {CHALLENGE_TEMPLATES.map((template) => (
+          <div
+            key={template.id}
+            className={cn(
+              'shrink-0 w-44 rounded-xl border p-3 space-y-2 flex flex-col',
+              template.bgClass,
+              template.borderClass,
+            )}
+          >
+            <span className="text-2xl">{template.emoji}</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground leading-tight">{template.name}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
+                {template.tagline}
+              </p>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {(['easy', 'medium', 'hard'] as ChallengeDifficulty[]).map((d) => (
+                <span
+                  key={d}
+                  className={cn(
+                    'text-[9px] px-1.5 py-0.5 rounded-full font-semibold',
+                    DIFFICULTY_META[d].bgClass,
+                    DIFFICULTY_META[d].colorClass,
+                  )}
+                >
+                  {DIFFICULTY_META[d].label}
+                </span>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className={cn('w-full h-7 text-xs gap-1', template.colorClass)}
+              onClick={() => onStartTemplate(template)}
+            >
+              Start →
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Step 1 — Template Picker (in dialog) ─────────────────────────────────────
 
 function TemplatePicker({ onSelect }: { onSelect: (template: ChallengeTemplate | null) => void }) {
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-xs text-muted-foreground">
-          Pick a template or build your own from scratch
-        </p>
-      </div>
-
+      <p className="text-xs text-muted-foreground">
+        Pick a template or build your own from scratch
+      </p>
       <div className="grid grid-cols-2 gap-2.5">
         {CHALLENGE_TEMPLATES.map((template) => (
           <button
@@ -99,19 +635,8 @@ function TemplatePicker({ onSelect }: { onSelect: (template: ChallengeTemplate |
             <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
               {template.tagline}
             </p>
-            <span
-              className={cn(
-                'inline-block mt-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full',
-                template.bgClass,
-                template.colorClass,
-              )}
-            >
-              {template.category}
-            </span>
           </button>
         ))}
-
-        {/* Custom option */}
         <button
           onClick={() => onSelect(null)}
           className="rounded-xl p-3 border border-dashed border-muted-foreground/30 text-left transition-all hover:scale-[1.02] active:scale-[0.98] hover:border-muted-foreground/50 col-span-2"
@@ -129,7 +654,7 @@ function TemplatePicker({ onSelect }: { onSelect: (template: ChallengeTemplate |
   )
 }
 
-// ─── Difficulty card (used in Step 2) ────────────────────────────────────────
+// ─── Difficulty card ──────────────────────────────────────────────────────────
 
 function DifficultyCard({
   template,
@@ -144,7 +669,6 @@ function DifficultyCard({
 }) {
   const level = template.levels[diff]
   const meta = DIFFICULTY_META[diff]
-
   return (
     <button
       onClick={onClick}
@@ -171,7 +695,7 @@ function DifficultyCard({
   )
 }
 
-// ─── Step 2a — Configure template challenge ───────────────────────────────────
+// ─── Step 2a — Configure template (with editable tasks) ───────────────────────
 
 function TemplateConfigure({
   template,
@@ -196,28 +720,29 @@ function TemplateConfigure({
   const [customDaysRaw, setCustomDaysRaw] = useState('')
   const [title, setTitle] = useState(template.name)
   const [startDate, setStartDate] = useState(localDateString())
-  const [showAllTasks, setShowAllTasks] = useState(false)
+  const [tasks, setTasks] = useState<string[]>(template.levels.medium.tasks)
 
   const level = template.levels[difficulty]
 
-  // Reset days when difficulty changes
   useEffect(() => {
     setSelectedDays(level.defaultDays)
     setUseCustomDays(false)
     setCustomDaysRaw('')
-  }, [difficulty, level.defaultDays])
+    setTasks(level.tasks)
+  }, [difficulty]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const effectiveDays = useCustomDays
     ? Math.max(1, Math.min(365, Number(customDaysRaw) || level.defaultDays))
     : selectedDays
 
   const totalCoins = level.coinsPerDay * effectiveDays + level.completionBonus
-  const visibleTasks = showAllTasks ? level.tasks : level.tasks.slice(0, 3)
 
   const handleCreate = () => {
-    if (!title.trim() || effectiveDays < 1) return
+    if (!title.trim()) return
+    const finalTasks = tasks.filter((t) => t.trim())
     onSubmit({
       title: title.trim(),
+      description: JSON.stringify(finalTasks),
       target_days: effectiveDays,
       start_date: startDate,
       category: encodeChallengeCategory(template.id, difficulty),
@@ -317,35 +842,14 @@ function TemplateConfigure({
         )}
       </div>
 
-      {/* Tasks preview */}
+      {/* Editable tasks */}
       <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Daily tasks ({level.tasks.length})</Label>
-        <div className="space-y-1.5">
-          {visibleTasks.map((task, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs text-foreground">
-              <div className="h-4 w-4 rounded border border-muted-foreground/30 shrink-0 mt-0.5 flex items-center justify-center">
-                <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-              </div>
-              <span className="leading-snug">{task}</span>
-            </div>
-          ))}
+        <Label className="text-xs text-muted-foreground">
+          Daily tasks — edit, remove, or add your own
+        </Label>
+        <div className="rounded-xl border border-border bg-muted/20 p-3">
+          <EditableTaskList tasks={tasks} onChange={setTasks} />
         </div>
-        {level.tasks.length > 3 && (
-          <button
-            onClick={() => setShowAllTasks((p) => !p)}
-            className="text-[11px] text-noor-500 hover:underline flex items-center gap-0.5"
-          >
-            {showAllTasks ? (
-              <>
-                <ChevronUp className="h-3 w-3" /> Show less
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3" /> +{level.tasks.length - 3} more tasks
-              </>
-            )}
-          </button>
-        )}
       </div>
 
       {/* Start date */}
@@ -360,24 +864,24 @@ function TemplateConfigure({
       </div>
 
       {/* Reward preview */}
-      <div className="rounded-xl bg-gradient-to-br from-noor-500/10 via-accent-500/5 to-transparent border border-noor-500/20 p-3 space-y-0.5">
-        <div className="flex items-center gap-1.5">
+      <div className="rounded-xl bg-gradient-to-br from-noor-500/10 via-accent-500/5 to-transparent border border-noor-500/20 p-3">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <Coins className="h-3.5 w-3.5 text-noor-500" />
-          <p className="text-xs text-muted-foreground">Total reward</p>
+          <p className="text-xs text-muted-foreground">Total reward if completed</p>
         </div>
         <p className="text-xl font-bold text-foreground tracking-tight">
           🪙 {totalCoins.toLocaleString()} coins
         </p>
         <p className="text-[11px] text-muted-foreground">
           {level.coinsPerDay} × {effectiveDays} days + {level.completionBonus.toLocaleString()}{' '}
-          completion bonus
+          bonus
         </p>
       </div>
 
       <Button
         onClick={handleCreate}
         className="w-full gap-1.5"
-        disabled={isLoading || !title.trim() || effectiveDays < 1}
+        disabled={isLoading || !title.trim()}
       >
         {isLoading ? (
           <>
@@ -395,7 +899,7 @@ function TemplateConfigure({
   )
 }
 
-// ─── Step 2b — Custom challenge form ─────────────────────────────────────────
+// ─── Step 2b — Custom form ────────────────────────────────────────────────────
 
 const customSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
@@ -432,10 +936,10 @@ function CustomChallengeForm({
     resolver: zodResolver(customSchema),
     defaultValues: { start_date: localDateString(), target_days: 30 },
   })
-
   const category = watch('category')
   const targetDays = watch('target_days')
-  const { coinsPerDay, completionBonus } = getChallengeRewards(null)
+  const coinsPerDay = 10
+  const completionBonus = 150
   const totalCoins = (Number(targetDays) || 0) * coinsPerDay + completionBonus
 
   return (
@@ -506,15 +1010,14 @@ function CustomChallengeForm({
         <Input id="cc-start" type="date" {...register('start_date')} />
       </div>
 
-      {/* Reward preview */}
-      <div className="rounded-xl bg-gradient-to-br from-noor-500/10 via-accent-500/5 to-transparent border border-noor-500/20 p-3 space-y-0.5">
-        <div className="flex items-center gap-1.5">
+      <div className="rounded-xl bg-gradient-to-br from-noor-500/10 via-accent-500/5 to-transparent border border-noor-500/20 p-3">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <Coins className="h-3.5 w-3.5 text-noor-500" />
-          <p className="text-xs text-muted-foreground">Total reward</p>
+          <p className="text-xs text-muted-foreground">Total reward if completed</p>
         </div>
         <p className="text-xl font-bold text-foreground">🪙 {totalCoins.toLocaleString()} coins</p>
         <p className="text-[11px] text-muted-foreground">
-          {coinsPerDay} × {Number(targetDays) || 0} days + {completionBonus} completion bonus
+          {coinsPerDay} × {Number(targetDays) || 0} days + {completionBonus} bonus
         </p>
       </div>
 
@@ -532,29 +1035,55 @@ function CustomChallengeForm({
   )
 }
 
-// ─── Combined new-challenge dialog ────────────────────────────────────────────
+// ─── New challenge dialog (fully controlled) ──────────────────────────────────
 
 type DialogStep = 'pick' | 'configure-template' | 'configure-custom'
 
-function NewChallengeDialog({ onAdded }: { onAdded: () => void }) {
-  const [open, setOpen] = useState(false)
+interface NewChallengeDialogProps {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  /** undefined = show picker, null = custom, ChallengeTemplate = go straight to configure */
+  initialTemplate?: ChallengeTemplate | null
+  onAdded: () => void
+}
+
+function NewChallengeDialog({
+  open,
+  onOpenChange,
+  initialTemplate,
+  onAdded,
+}: NewChallengeDialogProps) {
   const [step, setStep] = useState<DialogStep>('pick')
   const [selectedTemplate, setSelectedTemplate] = useState<ChallengeTemplate | null>(null)
   const create = useCreateChallenge()
 
-  const resetDialog = () => {
-    setStep('pick')
-    setSelectedTemplate(null)
+  // Sync step when dialog opens with an initialTemplate
+  useEffect(() => {
+    if (open) {
+      if (initialTemplate === undefined) {
+        setStep('pick')
+        setSelectedTemplate(null)
+      } else if (initialTemplate === null) {
+        setStep('configure-custom')
+        setSelectedTemplate(null)
+      } else {
+        setStep('configure-template')
+        setSelectedTemplate(initialTemplate)
+      }
+    }
+  }, [open, initialTemplate])
+
+  const handleClose = (v: boolean) => {
+    onOpenChange(v)
+    if (!v) {
+      setStep('pick')
+      setSelectedTemplate(null)
+    }
   }
 
-  const handleOpenChange = (v: boolean) => {
-    setOpen(v)
-    if (!v) resetDialog()
-  }
-
-  const handleTemplateSelect = (template: ChallengeTemplate | null) => {
-    if (template) {
-      setSelectedTemplate(template)
+  const handleTemplateSelect = (t: ChallengeTemplate | null) => {
+    if (t) {
+      setSelectedTemplate(t)
       setStep('configure-template')
     } else {
       setStep('configure-custom')
@@ -569,8 +1098,7 @@ function NewChallengeDialog({ onAdded }: { onAdded: () => void }) {
     category?: string
   }) => {
     await create.mutateAsync(data)
-    setOpen(false)
-    resetDialog()
+    handleClose(false)
     onAdded()
   }
 
@@ -582,16 +1110,9 @@ function NewChallengeDialog({ onAdded }: { onAdded: () => void }) {
         : 'Custom Challenge'
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          New challenge
-        </Button>
-      </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className={cn('max-h-[88vh] overflow-y-auto', step === 'pick' ? 'max-w-md' : 'max-w-sm')}
+        className={cn('max-h-[90vh] overflow-y-auto', step === 'pick' ? 'max-w-md' : 'max-w-sm')}
       >
         <DialogHeader>
           <DialogTitle className="text-base">{dialogTitle}</DialogTitle>
@@ -648,7 +1169,7 @@ function NewChallengeDialog({ onAdded }: { onAdded: () => void }) {
   )
 }
 
-// ─── Progress bar ─────────────────────────────────────────────────────────────
+// ─── Progress bar (used in compact card) ─────────────────────────────────────
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = Math.min((value / max) * 100, 100)
@@ -664,30 +1185,26 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
   )
 }
 
-// ─── Challenge card ───────────────────────────────────────────────────────────
+// ─── Challenge card (compact, clickable) ──────────────────────────────────────
 
 function ChallengeCard({
   challenge,
-  onIncrement,
+  selected,
+  onClick,
   onDelete,
 }: {
   challenge: Challenge
-  onIncrement: () => void
+  selected: boolean
+  onClick: () => void
   onDelete: () => void
 }) {
-  const [tasksExpanded, setTasksExpanded] = useState(false)
   const statusCfg = STATUS_CONFIG[challenge.status]
   const isActive = challenge.status === 'active'
   const isCompleted = challenge.status === 'completed'
-  const pct = Math.round((challenge.current_days / challenge.target_days) * 100)
-
-  // Decode template + difficulty from category
-  const { template, level, difficulty } = parseChallengeCategory(challenge.category)
+  const { template, difficulty } = parseChallengeCategory(challenge.category)
+  const { coinsPerDay } = getChallengeRewards(challenge.category)
   const diffMeta = difficulty ? DIFFICULTY_META[difficulty] : null
-  const { coinsPerDay, completionBonus } = getChallengeRewards(challenge.category)
-
-  const remainingDays = challenge.target_days - challenge.current_days
-  const projectedCoins = coinsPerDay * remainingDays + (isActive ? completionBonus : 0)
+  const pct = Math.round((challenge.current_days / challenge.target_days) * 100)
 
   return (
     <motion.div
@@ -696,7 +1213,14 @@ function ChallengeCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
     >
-      <Card className={cn(isCompleted && 'border-accent-500/30 bg-accent-500/5')}>
+      <Card
+        onClick={onClick}
+        className={cn(
+          'cursor-pointer transition-all hover:shadow-sm',
+          isCompleted && 'border-accent-500/30 bg-accent-500/5',
+          selected && 'ring-2 ring-noor-500 ring-offset-1',
+        )}
+      >
         <CardContent className="p-4 space-y-3">
           {/* Title row */}
           <div className="flex items-start justify-between gap-2">
@@ -716,8 +1240,7 @@ function ChallengeCard({
                 )}
                 <p className="text-sm font-semibold text-foreground truncate">{challenge.title}</p>
               </div>
-
-              {/* Difficulty + category badges */}
+              {/* Badges row */}
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {diffMeta && difficulty && (
                   <span
@@ -730,25 +1253,20 @@ function ChallengeCard({
                     {DIFFICULTY_META[difficulty].label}
                   </span>
                 )}
-                {challenge.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-1">
-                    {challenge.description}
-                  </p>
-                )}
+                <Badge variant={statusCfg.variant} className="text-[10px] h-4 px-1.5">
+                  {statusCfg.label}
+                </Badge>
               </div>
             </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <Badge variant={statusCfg.variant} className="text-[10px] h-4 px-1.5">
-                {statusCfg.label}
-              </Badge>
-              <button
-                onClick={onDelete}
-                className="rounded-lg p-1 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="rounded-lg p-1 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
           </div>
 
           {/* Progress */}
@@ -762,62 +1280,6 @@ function ChallengeCard({
             <ProgressBar value={challenge.current_days} max={challenge.target_days} />
           </div>
 
-          {/* Tasks expandable list (template challenges only) */}
-          {level && level.tasks.length > 0 && (
-            <div className="space-y-1.5">
-              <button
-                onClick={() => setTasksExpanded((p) => !p)}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {tasksExpanded ? (
-                  <ChevronUp className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-                {tasksExpanded ? 'Hide' : 'Show'} {level.tasks.length} daily tasks
-              </button>
-
-              <AnimatePresence>
-                {tasksExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-1 pt-0.5">
-                      {level.tasks.map((task, i) => (
-                        <div
-                          key={i}
-                          className="flex items-start gap-2 text-[11px] text-muted-foreground"
-                        >
-                          <div className="h-3.5 w-3.5 rounded border border-muted-foreground/30 shrink-0 mt-0.5 flex items-center justify-center">
-                            <div className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-                          </div>
-                          <span className="leading-snug">{task}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Mark done button */}
-          {isActive && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full h-8 text-xs gap-1.5"
-              onClick={onIncrement}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Mark today as done (+{coinsPerDay} 🪙)
-            </Button>
-          )}
-
           {/* Footer */}
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>
@@ -827,11 +1289,8 @@ function ChallengeCard({
                 day: 'numeric',
               })}
             </span>
-
-            {isActive && remainingDays > 0 ? (
-              <span className="text-noor-500 font-medium">
-                🪙 {projectedCoins.toLocaleString()} left to earn
-              </span>
+            {isActive ? (
+              <span className="text-noor-500 font-medium">+{coinsPerDay} 🪙 / day</span>
             ) : isCompleted ? (
               <span className="text-accent-500 font-medium">Complete! 🏆</span>
             ) : challenge.category && !challenge.category.includes('|') ? (
@@ -844,6 +1303,44 @@ function ChallengeCard({
   )
 }
 
+// ─── Section group helper ─────────────────────────────────────────────────────
+
+function ChallengeGroup({
+  label,
+  challenges,
+  selectedId,
+  onSelect,
+  onDelete,
+}: {
+  label: string
+  challenges: Challenge[]
+  selectedId: string | null
+  onSelect: (c: Challenge) => void
+  onDelete: (id: string) => void
+}) {
+  if (challenges.length === 0) return null
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">
+        {label} ({challenges.length})
+      </p>
+      <AnimatePresence>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {challenges.map((c) => (
+            <ChallengeCard
+              key={c.id}
+              challenge={c}
+              selected={selectedId === c.id}
+              onClick={() => onSelect(c)}
+              onDelete={() => onDelete(c.id)}
+            />
+          ))}
+        </div>
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export default function ChallengesView() {
@@ -851,9 +1348,56 @@ export default function ChallengesView() {
   const increment = useIncrementChallenge()
   const deleteChallenge = useDeleteChallenge()
 
+  // Dialog state — lifted so template showcase can open it pre-filled
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogInitialTemplate, setDialogInitialTemplate] = useState<
+    ChallengeTemplate | null | undefined
+  >(undefined)
+
+  // Selected challenge for detail panel
+  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null)
+  const [showMobileDetail, setShowMobileDetail] = useState(false)
+
   const active = challenges?.filter((c) => c.status === 'active') ?? []
   const completed = challenges?.filter((c) => c.status === 'completed') ?? []
   const others = challenges?.filter((c) => c.status !== 'active' && c.status !== 'completed') ?? []
+
+  const openDialogFresh = () => {
+    setDialogInitialTemplate(undefined)
+    setDialogOpen(true)
+  }
+
+  const openDialogWithTemplate = (t: ChallengeTemplate) => {
+    setDialogInitialTemplate(t)
+    setDialogOpen(true)
+  }
+
+  const handleSelectChallenge = (c: Challenge) => {
+    if (selectedChallenge?.id === c.id) {
+      setSelectedChallenge(null)
+      setShowMobileDetail(false)
+    } else {
+      setSelectedChallenge(c)
+      setShowMobileDetail(true)
+    }
+  }
+
+  // Keep selected challenge in sync after mutations
+  useEffect(() => {
+    if (!selectedChallenge || !challenges) return
+    const updated = challenges.find((c) => c.id === selectedChallenge.id)
+    if (updated) setSelectedChallenge(updated)
+    else setSelectedChallenge(null)
+  }, [challenges]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleIncrement = (c: Challenge) => {
+    increment.mutate({
+      id: c.id,
+      currentDays: c.current_days,
+      targetDays: c.target_days,
+      category: c.category,
+    })
+  }
 
   return (
     <PageShell maxWidth="full">
@@ -861,7 +1405,7 @@ export default function ChallengesView() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="space-y-5"
+        className="space-y-6"
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -870,100 +1414,127 @@ export default function ChallengesView() {
             <p className="text-sm text-muted-foreground">
               {active.length > 0
                 ? `${active.length} active · ${completed.length} completed`
-                : 'Start a challenge to build lasting habits'}
+                : 'Build habits, earn massive rewards'}
             </p>
           </div>
-          <NewChallengeDialog onAdded={() => {}} />
+          <Button size="sm" className="gap-1.5" onClick={openDialogFresh}>
+            <Plus className="h-4 w-4" />
+            New challenge
+          </Button>
         </div>
 
+        {/* Template showcase — always visible */}
+        <TemplateShowcase onStartTemplate={openDialogWithTemplate} />
+
+        {/* My challenges + detail panel (2-col on desktop) */}
         {isLoading ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded-2xl" />
+          <div className="grid sm:grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
             ))}
           </div>
         ) : !challenges || challenges.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-center">
-            <Trophy className="h-14 w-14 text-muted-foreground/20 mb-3" strokeWidth={1.25} />
-            <p className="text-sm font-medium text-foreground">No challenges yet</p>
+          <div className="flex flex-col items-center py-12 text-center">
+            <Trophy className="h-12 w-12 text-muted-foreground/20 mb-3" strokeWidth={1.25} />
+            <p className="text-sm font-medium text-foreground">No challenges started yet</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              Pick a challenge template and start earning massive coin rewards.
+              Pick a template above and start earning massive coin rewards.
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Active */}
-            {active.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                  Active ({active.length})
-                </p>
-                <AnimatePresence>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {active.map((c) => (
-                      <ChallengeCard
-                        key={c.id}
-                        challenge={c}
-                        onIncrement={() =>
-                          increment.mutate({
-                            id: c.id,
-                            currentDays: c.current_days,
-                            targetDays: c.target_days,
-                            category: c.category,
-                          })
-                        }
-                        onDelete={() => deleteChallenge.mutate(c.id)}
-                      />
-                    ))}
-                  </div>
-                </AnimatePresence>
-              </div>
+          <div
+            className={cn(
+              'gap-6',
+              selectedChallenge ? 'grid grid-cols-1 lg:grid-cols-[1fr_360px]' : 'flex flex-col',
             )}
+          >
+            {/* Left — challenge list */}
+            <div className="space-y-6 min-w-0">
+              {(active.length > 0 || completed.length > 0 || others.length > 0) && (
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-0.5">
+                  My Challenges
+                </p>
+              )}
+              <ChallengeGroup
+                label="Active"
+                challenges={active}
+                selectedId={selectedChallenge?.id ?? null}
+                onSelect={handleSelectChallenge}
+                onDelete={(id) => {
+                  deleteChallenge.mutate(id)
+                  if (selectedChallenge?.id === id) setSelectedChallenge(null)
+                }}
+              />
+              <ChallengeGroup
+                label="Completed"
+                challenges={completed}
+                selectedId={selectedChallenge?.id ?? null}
+                onSelect={handleSelectChallenge}
+                onDelete={(id) => {
+                  deleteChallenge.mutate(id)
+                  if (selectedChallenge?.id === id) setSelectedChallenge(null)
+                }}
+              />
+              <ChallengeGroup
+                label="Other"
+                challenges={others}
+                selectedId={selectedChallenge?.id ?? null}
+                onSelect={handleSelectChallenge}
+                onDelete={(id) => {
+                  deleteChallenge.mutate(id)
+                  if (selectedChallenge?.id === id) setSelectedChallenge(null)
+                }}
+              />
+            </div>
 
-            {/* Completed */}
-            {completed.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                  Completed ({completed.length})
-                </p>
-                <AnimatePresence>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {completed.map((c) => (
-                      <ChallengeCard
-                        key={c.id}
-                        challenge={c}
-                        onIncrement={() => {}}
-                        onDelete={() => deleteChallenge.mutate(c.id)}
-                      />
-                    ))}
-                  </div>
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* Others (paused / failed) */}
-            {others.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                  Other ({others.length})
-                </p>
-                <AnimatePresence>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {others.map((c) => (
-                      <ChallengeCard
-                        key={c.id}
-                        challenge={c}
-                        onIncrement={() => {}}
-                        onDelete={() => deleteChallenge.mutate(c.id)}
-                      />
-                    ))}
-                  </div>
-                </AnimatePresence>
-              </div>
-            )}
+            {/* Right — desktop detail panel */}
+            <AnimatePresence>
+              {selectedChallenge && (
+                <motion.div
+                  key={selectedChallenge.id}
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 16 }}
+                  transition={{ duration: 0.2 }}
+                  className="hidden lg:block sticky top-4 self-start"
+                >
+                  <ChallengeDetailPanel
+                    challenge={selectedChallenge}
+                    onClose={() => setSelectedChallenge(null)}
+                    onIncrement={() => handleIncrement(selectedChallenge)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </motion.div>
+
+      {/* New challenge dialog */}
+      <NewChallengeDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initialTemplate={dialogInitialTemplate}
+        onAdded={() => {}}
+      />
+
+      {/* Mobile — detail panel as dialog */}
+      <Dialog
+        open={showMobileDetail && !!selectedChallenge}
+        onOpenChange={(v) => {
+          if (!v) setShowMobileDetail(false)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-w-sm lg:hidden p-0">
+          {selectedChallenge && (
+            <ChallengeDetailPanel
+              challenge={selectedChallenge}
+              onClose={() => setShowMobileDetail(false)}
+              onIncrement={() => handleIncrement(selectedChallenge)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </PageShell>
   )
 }

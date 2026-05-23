@@ -6,6 +6,7 @@ import {
   createChallenge,
   incrementChallenge,
   updateChallengeStatus,
+  updateChallenge,
   deleteChallenge,
 } from '@/lib/api/challenges'
 import { awardCoins } from '@/lib/api/coins'
@@ -104,6 +105,17 @@ export function useUpdateChallengeStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: ChallengeStatus }) =>
       updateChallengeStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: challengeKeys.all })
+    },
+  })
+}
+
+export function useUpdateChallenge() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...updates }: { id: string; title?: string; description?: string | null }) =>
+      updateChallenge(id, updates),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: challengeKeys.all })
     },
