@@ -12,7 +12,7 @@ import { awardCoins } from '@/lib/api/coins'
 import { waterNewestActiveTree } from '@/lib/api/garden'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
-import { REWARDS } from '@/lib/rewards'
+import { getChallengeRewards } from '@/data/challengeTemplates'
 import type { ChallengeStatus } from '@/lib/database.types'
 
 export const challengeKeys = {
@@ -58,16 +58,20 @@ export function useIncrementChallenge() {
       id: string
       currentDays: number
       targetDays: number
+      /** Passed through for coin calculation in onSuccess */
+      category?: string | null
     }) => incrementChallenge(id, currentDays, targetDays),
-    onSuccess: (updated) => {
+
+    onSuccess: (updated, variables) => {
       qc.invalidateQueries({ queryKey: challengeKeys.all })
       if (!user) return
 
+      const { coinsPerDay, completionBonus, treeXpPerDay, treeXpCompletionBonus } =
+        getChallengeRewards(variables.category)
+
       const justCompleted = updated.status === 'completed'
-      const totalCoins =
-        REWARDS.challenge_daily.coins + (justCompleted ? REWARDS.challenge_complete_bonus.coins : 0)
-      const totalXP =
-        REWARDS.challenge_daily.xp + (justCompleted ? REWARDS.challenge_complete_bonus.xp : 0)
+      const totalCoins = coinsPerDay + (justCompleted ? completionBonus : 0)
+      const totalXP = treeXpPerDay + (justCompleted ? treeXpCompletionBonus : 0)
 
       Promise.allSettled([
         awardCoins(
@@ -83,7 +87,12 @@ export function useIncrementChallenge() {
         ),
       ]).then(() => {
         if (justCompleted) {
-          toast.success(`Challenge complete! +${totalCoins} coins, +${totalXP} tree XP 🎉`)
+          toast.success(
+            `🏆 Challenge complete! +${totalCoins.toLocaleString()} coins, +${totalXP} tree XP 🎉`,
+            { duration: 6000 },
+          )
+        } else {
+          toast.success(`+${totalCoins} coins 🔥 Day ${updated.current_days} done!`)
         }
       })
     },
