@@ -89,6 +89,7 @@
     "lint-staged": "^15.3.0",
     "netlify-cli": "^23.15.1",
     "prettier": "^3.4.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.0",
     "typescript": "~5.7.2",
     "vite": "^6.2.0",
