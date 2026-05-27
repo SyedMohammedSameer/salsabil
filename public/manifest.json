@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Salsabil — Productivity & Spiritual Growth",
   "short_name": "Salsabil",
   "description": "A productivity and spiritual growth companion. Track prayers, Quran, tasks, focus sessions, and more.",
@@ -20,6 +21,15 @@
     { "src": "/salsabil-icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
     { "src": "/salsabil-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/salsabil-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "/salsabil-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Salsabil home screen"
+    }
   ],
   "shortcuts": [
     {
