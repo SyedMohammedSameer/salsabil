@@ -38,6 +38,50 @@ export function DesertBiome() {
   )
 }
 
+// ─── Ambient life — grows with the world's level ─────────────────────────────
+// The more the user has done (higher level), the more alive the scene feels:
+// birds gather in the sky and desert plants sprout along the ground. Positions
+// are deterministic so the scene doesn't jitter between renders.
+
+export function AmbientLife({ level }: { level: number }) {
+  const birds = Math.min(Math.floor(level / 2), 6)
+  const tufts = Math.min(level, 10)
+
+  return (
+    <g aria-hidden="true">
+      {Array.from({ length: birds }).map((_, i) => {
+        const x = 50 + i * 46 + (i % 2) * 14
+        const y = 52 + ((i * 17) % 34)
+        return (
+          <path
+            key={`b${i}`}
+            d={`M ${x} ${y} q 3 -3.5 6 0 q 3 -3.5 6 0`}
+            fill="none"
+            stroke="#6b5540"
+            strokeWidth={1.2}
+            strokeLinecap="round"
+            opacity={0.65}
+          />
+        )
+      })}
+      {Array.from({ length: tufts }).map((_, i) => {
+        const x = 18 + ((i * 71) % (SCENE_W - 36))
+        const h = 4 + (i % 3) * 2
+        return (
+          <path
+            key={`t${i}`}
+            d={`M ${x} ${GROUND_Y + 2} l -1.5 -${h} M ${x + 1} ${GROUND_Y + 2} l 0 -${h + 2} M ${x + 2.5} ${GROUND_Y + 2} l 1.5 -${h}`}
+            stroke="#a98a4e"
+            strokeWidth={0.9}
+            strokeLinecap="round"
+            opacity={0.7}
+          />
+        )
+      })}
+    </g>
+  )
+}
+
 // ─── Decoration sprites (feet at local 0,0) ──────────────────────────────────
 
 function Cactus() {

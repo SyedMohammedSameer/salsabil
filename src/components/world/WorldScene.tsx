@@ -2,11 +2,13 @@ import { useMemo } from 'react'
 import type { AvatarSlot, WorldItem, WorldState } from '@/lib/database.types'
 import { CATALOG_BY_KEY } from '@/data/worldCatalog'
 import { Avatar, type EquippedMap } from './Avatar'
-import { DECORATION_SPRITES, DesertBiome, GROUND_Y, SCENE_H, SCENE_W } from './sprites'
+import { AmbientLife, DECORATION_SPRITES, DesertBiome, GROUND_Y, SCENE_H, SCENE_W } from './sprites'
 
 interface WorldSceneProps {
   world: WorldState
   items: WorldItem[]
+  /** Drives ambient life (birds, plants). Defaults to 1. */
+  level?: number
   className?: string
 }
 
@@ -15,7 +17,7 @@ interface WorldSceneProps {
  * their catalog anchors + the avatar wearing whatever is equipped. One
  * responsive SVG so everything scales and layers together.
  */
-export function WorldScene({ world, items, className }: WorldSceneProps) {
+export function WorldScene({ world, items, level = 1, className }: WorldSceneProps) {
   const equipped: EquippedMap = useMemo(() => {
     const map: EquippedMap = {}
     for (const it of items) {
@@ -52,6 +54,7 @@ export function WorldScene({ world, items, className }: WorldSceneProps) {
       </defs>
 
       <DesertBiome />
+      <AmbientLife level={level} />
 
       {decorations.map((c) => {
         const Sprite = DECORATION_SPRITES[c!.key]

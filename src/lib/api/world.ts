@@ -19,13 +19,33 @@ export async function ensureWorldState(userId: string): Promise<WorldState> {
   const existing = await fetchWorldState(userId)
   if (existing) return existing
 
+  // Seed XP from lifetime coins earned so activity before the world existed
+  // still counts. After this the feed_world_xp trigger keeps it live.
+  const seededXp = await lifetimeEarned(userId)
+
   const { data, error } = await supabase
     .from('world_state')
-    .insert({ user_id: userId, biome: DEFAULT_BIOME, avatar_variant: DEFAULT_AVATAR })
+    .insert({
+      user_id: userId,
+      biome: DEFAULT_BIOME,
+      avatar_variant: DEFAULT_AVATAR,
+      xp: seededXp,
+    })
     .select()
     .single()
   if (error) throw error
   return data
+}
+
+/** Sum of all coins the user has ever earned (positive ledger entries). */
+async function lifetimeEarned(userId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('coin_transactions')
+    .select('amount')
+    .eq('user_id', userId)
+    .gt('amount', 0)
+  if (error) throw error
+  return (data ?? []).reduce((sum, t) => sum + t.amount, 0)
 }
 
 export async function setBiome(userId: string, biome: WorldBiome): Promise<WorldState> {

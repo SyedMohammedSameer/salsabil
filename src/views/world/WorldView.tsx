@@ -26,6 +26,7 @@ import {
   itemsForBiome,
   type CatalogItem,
 } from '@/data/worldCatalog'
+import { levelProgress } from '@/lib/world/levels'
 import type { AvatarVariant, WorldItem, WorldState } from '@/lib/database.types'
 
 // ─── Shop item card ───────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ export default function WorldView() {
 
   const coins = profile?.coins ?? 0
   const variant: AvatarVariant = world?.avatar_variant ?? 'man'
+  const progress = levelProgress(world?.xp ?? 0)
 
   const ownedByKey = useMemo(() => {
     const map = new Map<string, WorldItem>()
@@ -173,10 +175,16 @@ export default function WorldView() {
                 : `${ownedCount} of ${totalCount} things collected`}
             </p>
           </div>
-          <Badge variant="secondary" className="gap-1">
-            <Coins className="h-3 w-3 text-amber-500" />
-            <span className="font-semibold">{coins}</span>
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="gap-1">
+              <Sparkles className="h-3 w-3 text-noor-500" />
+              <span className="font-semibold">Lv {progress.level}</span>
+            </Badge>
+            <Badge variant="secondary" className="gap-1">
+              <Coins className="h-3 w-3 text-amber-500" />
+              <span className="font-semibold">{coins}</span>
+            </Badge>
+          </div>
         </div>
 
         {/* Scene */}
@@ -184,9 +192,35 @@ export default function WorldView() {
           <div className="w-full rounded-2xl bg-muted animate-pulse" style={{ height: 240 }} />
         ) : (
           <div className="w-full overflow-hidden rounded-2xl border border-border">
-            <WorldScene world={world as WorldState} items={items} className="h-[240px] w-full" />
+            <WorldScene
+              world={world as WorldState}
+              items={items}
+              level={progress.level}
+              className="h-[240px] w-full"
+            />
           </div>
         )}
+
+        {/* Level progress — driven by real activity */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-foreground">Level {progress.level}</span>
+            <span className="text-muted-foreground">
+              {progress.intoLevel} / {progress.levelSpan} XP to Lv {progress.level + 1}
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <motion.div
+              className="h-full rounded-full bg-noor-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress.pct}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Every prayer, focus session, task, workout, and challenge grows your world.
+          </p>
+        </div>
 
         {/* Shop */}
         <Tabs value={tab} onValueChange={setTab}>

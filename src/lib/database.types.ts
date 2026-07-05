@@ -290,6 +290,7 @@ export interface Database {
           user_id: string
           biome: WorldBiome
           avatar_variant: AvatarVariant
+          xp: number
           created_at: string
           updated_at: string
         }
@@ -297,10 +298,12 @@ export interface Database {
           user_id: string
           biome?: WorldBiome
           avatar_variant?: AvatarVariant
+          xp?: number
         }
         Update: {
           biome?: WorldBiome
           avatar_variant?: AvatarVariant
+          xp?: number
         }
         Relationships: []
       }
