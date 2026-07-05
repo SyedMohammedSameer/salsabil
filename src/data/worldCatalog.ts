@@ -36,12 +36,13 @@ export const DEFAULT_BIOME: WorldBiome = 'desert'
 
 export interface AvatarInfo {
   variant: AvatarVariant
-  name: string
+  /** UI label for the body picker — the character itself is named after the user. */
+  label: string
 }
 
 export const AVATARS: AvatarInfo[] = [
-  { variant: 'man', name: 'Yusuf' },
-  { variant: 'woman', name: 'Maryam' },
+  { variant: 'man', label: 'Male' },
+  { variant: 'woman', label: 'Female' },
 ]
 
 export const DEFAULT_AVATAR: AvatarVariant = 'man'

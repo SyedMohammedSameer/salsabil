@@ -9,15 +9,45 @@ interface WorldSceneProps {
   items: WorldItem[]
   /** Drives ambient life (birds, plants). Defaults to 1. */
   level?: number
+  /** When false the avatar stands still (used for static previews). */
+  animate?: boolean
   className?: string
 }
+
+// Walk cycle. Scoped under `.world-walker` so it only animates the scene's
+// avatar, never the shop-preview avatars, and it's fully disabled for users
+// who prefer reduced motion. Pure CSS → works without JS and costs nothing.
+const WALK_CSS = `
+@media (prefers-reduced-motion: no-preference) {
+  .world-walker { animation: world-stroll 26s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+  .world-walker .world-bob { animation: world-bob 0.62s ease-in-out infinite; }
+  .world-walker .world-foot--l { animation: world-step-l 0.62s ease-in-out infinite; transform-box: fill-box; }
+  .world-walker .world-foot--r { animation: world-step-r 0.62s ease-in-out infinite; transform-box: fill-box; }
+}
+@keyframes world-stroll {
+  0%   { transform: translateX(-70px) scaleX(1); }
+  46%  { transform: translateX(70px)  scaleX(1); }
+  50%  { transform: translateX(70px)  scaleX(-1); }
+  96%  { transform: translateX(-70px) scaleX(-1); }
+  100% { transform: translateX(-70px) scaleX(1); }
+}
+@keyframes world-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes world-step-l { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@keyframes world-step-r { 0%,100% { transform: translateY(-2.5px); } 50% { transform: translateY(0); } }
+`
 
 /**
  * The full living-world canvas: biome backdrop + owned decorations placed at
  * their catalog anchors + the avatar wearing whatever is equipped. One
  * responsive SVG so everything scales and layers together.
  */
-export function WorldScene({ world, items, level = 1, className }: WorldSceneProps) {
+export function WorldScene({
+  world,
+  items,
+  level = 1,
+  animate = true,
+  className,
+}: WorldSceneProps) {
   const equipped: EquippedMap = useMemo(() => {
     const map: EquippedMap = {}
     for (const it of items) {
@@ -52,6 +82,7 @@ export function WorldScene({ world, items, level = 1, className }: WorldScenePro
           <stop offset="100%" stopColor="#f2a765" />
         </linearGradient>
       </defs>
+      {animate && <style>{WALK_CSS}</style>}
 
       <DesertBiome />
       <AmbientLife level={level} />
@@ -68,10 +99,18 @@ export function WorldScene({ world, items, level = 1, className }: WorldScenePro
         )
       })}
 
-      {/* Avatar, centred on the ground */}
+      {/* Avatar — strolls around the ground line (see WALK_CSS). The static
+          scale and the animated transforms live on separate groups: a CSS
+          transform animation overrides an element's SVG transform attribute,
+          so they must not share a node. */}
       <g transform={`translate(${SCENE_W / 2} ${GROUND_Y})`}>
-        <ellipse cx={0} cy={-1} rx={20} ry={4} fill="#00000022" />
-        <Avatar variant={world.avatar_variant} equipped={equipped} />
+        <g className={animate ? 'world-walker' : undefined}>
+          <g transform="scale(0.9)">
+            <g className="world-bob">
+              <Avatar variant={world.avatar_variant} equipped={equipped} />
+            </g>
+          </g>
+        </g>
       </g>
     </svg>
   )

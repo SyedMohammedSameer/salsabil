@@ -221,7 +221,7 @@ export function ItemPreview({ itemKey, variant, size = 72 }: ItemPreviewProps) {
   if (item.category === 'accessory' && item.slot) {
     // Show the accessory on the character.
     return (
-      <svg width={size} height={size} viewBox="-40 -112 80 116" role="img" aria-label={item.name}>
+      <svg width={size} height={size} viewBox="-42 -136 84 144" role="img" aria-label={item.name}>
         <Avatar variant={variant} equipped={{ [item.slot]: item.key }} />
       </svg>
     )

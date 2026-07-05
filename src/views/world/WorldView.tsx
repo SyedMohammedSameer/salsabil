@@ -127,6 +127,7 @@ export default function WorldView() {
   const coins = profile?.coins ?? 0
   const variant: AvatarVariant = world?.avatar_variant ?? 'man'
   const progress = levelProgress(world?.xp ?? 0)
+  const characterName = profile?.display_name || profile?.username || 'Your character'
 
   const ownedByKey = useMemo(() => {
     const map = new Map<string, WorldItem>()
@@ -168,7 +169,9 @@ export default function WorldView() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">My World</h1>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              {characterName}&apos;s World
+            </h1>
             <p className="text-sm text-muted-foreground">
               {ownedCount === 0
                 ? 'Earn coins, then bring your world to life'
@@ -253,7 +256,11 @@ export default function WorldView() {
 
           <TabsContent value="char" className="mt-3 space-y-4">
             <div>
-              <p className="mb-2 text-sm font-semibold text-foreground">Character</p>
+              <p className="mb-1 text-sm font-semibold text-foreground">
+                {characterName}
+                <span className="ml-1 font-normal text-muted-foreground">— that&apos;s you</span>
+              </p>
+              <p className="mb-2 text-xs text-muted-foreground">Choose your character</p>
               <div className="grid grid-cols-2 gap-3">
                 {AVATARS.map((a) => {
                   const active = variant === a.variant
@@ -271,15 +278,15 @@ export default function WorldView() {
                       <div
                         className="flex w-full items-end justify-center rounded-xl overflow-hidden"
                         style={{
-                          height: 104,
+                          height: 112,
                           background: 'linear-gradient(to bottom, #fbe0b8, #e8b878)',
                         }}
                       >
-                        <svg width={90} height={100} viewBox="-40 -112 80 116">
+                        <svg width={96} height={108} viewBox="-42 -136 84 144">
                           <Avatar variant={a.variant} />
                         </svg>
                       </div>
-                      <span className="text-xs font-medium text-foreground">{a.name}</span>
+                      <span className="text-xs font-medium text-foreground">{a.label}</span>
                     </button>
                   )
                 })}
