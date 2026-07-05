@@ -6,9 +6,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { WorldScene } from '@/components/world/WorldScene'
-import { ItemPreview } from '@/components/world/sprites'
+import { RoomScene, FurnitureIcon } from '@/components/world/RoomScene'
 import { PixelAvatar } from '@/components/world/PixelAvatar'
+import type { Placed } from '@/lib/world/pixel/room'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/hooks/useProfile'
 import {
@@ -19,7 +19,14 @@ import {
   useSetAvatar,
   useSetCustomization,
 } from '@/hooks/useWorld'
-import { ACCESSORIES, AVATARS, BIOMES, itemsForBiome, type CatalogItem } from '@/data/worldCatalog'
+import {
+  ACCESSORIES,
+  AVATARS,
+  BIOMES,
+  CATALOG_BY_KEY,
+  itemsForBiome,
+  type CatalogItem,
+} from '@/data/worldCatalog'
 import {
   SKIN_TONES,
   SKIN_ORDER,
@@ -56,18 +63,6 @@ function buildLook(
     ...overrides,
   }
 }
-
-const WALK_CSS = `
-@media (prefers-reduced-motion: no-preference) {
-  .pixel-walker { animation: pixel-stroll 24s ease-in-out infinite; }
-}
-@keyframes pixel-stroll {
-  0%   { transform: translateX(-84px) scaleX(1); }
-  47%  { transform: translateX(84px)  scaleX(1); }
-  50%  { transform: translateX(84px)  scaleX(-1); }
-  97%  { transform: translateX(-84px) scaleX(-1); }
-  100% { transform: translateX(-84px) scaleX(1); }
-}`
 
 // ─── Shop item card ───────────────────────────────────────────────────────────
 
@@ -109,7 +104,7 @@ function ItemCard({
         {isAccessory && item.slot ? (
           <PixelAvatar look={{ ...baseLook, [item.slot]: item.key }} height={104} />
         ) : (
-          <ItemPreview itemKey={item.key} variant={baseLook.variant} size={90} />
+          <FurnitureIcon itemKey={item.key} size={88} />
         )}
         {isOwned && (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-noor-500 p-0.5 text-white">
@@ -213,6 +208,15 @@ export default function WorldView() {
   }, [items])
 
   const look = useMemo(() => (world ? buildLook(world, items) : null), [world, items])
+  const placed = useMemo<Placed[]>(() => {
+    const out: Placed[] = []
+    for (const it of items) {
+      const c = CATALOG_BY_KEY[it.item_key]
+      if (c?.category === 'decoration' && c.tile)
+        out.push({ key: it.item_key, gx: c.tile.gx, gy: c.tile.gy })
+    }
+    return out
+  }, [items])
   const decorations = world ? itemsForBiome(world.biome) : []
   const ownedCount = items.length
   const totalCount = decorations.length + ACCESSORIES.length
@@ -265,28 +269,15 @@ export default function WorldView() {
           </div>
         </div>
 
-        {/* Scene — pixel character strolls over the biome */}
+        {/* Scene — pixel character in an isometric room */}
         {worldLoading || !world || !look ? (
           <div className="w-full animate-pulse rounded-2xl bg-muted" style={{ height: 240 }} />
         ) : (
           <div
-            className="relative w-full overflow-hidden rounded-2xl border border-border"
+            className="w-full overflow-hidden rounded-2xl border border-border"
             style={{ height: 240 }}
           >
-            <WorldScene
-              world={world as WorldState}
-              items={items}
-              level={progress.level}
-              showAvatar={false}
-              animate={false}
-              className="absolute inset-0 h-full w-full"
-            />
-            <div className="absolute inset-x-0 flex justify-center" style={{ bottom: '8%' }}>
-              <div className="pixel-walker">
-                <PixelAvatar look={look} height={150} animated walking />
-              </div>
-            </div>
-            <style>{WALK_CSS}</style>
+            <RoomScene look={look} placed={placed} animated className="h-full w-full" />
           </div>
         )}
 

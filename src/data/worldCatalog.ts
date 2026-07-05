@@ -59,13 +59,8 @@ export interface CatalogItem {
   slot?: AvatarSlot
   /** Decorations only — which biome they belong to. */
   biome?: WorldBiome
-  /**
-   * Decorations only — where the piece sits in the scene.
-   *  x: 0 (far left) … 1 (far right) along the ground line
-   *  scale: size multiplier relative to the base sprite
-   *  flip: mirror horizontally
-   */
-  anchor?: { x: number; scale: number; flip?: boolean }
+  /** Furniture only — the isometric floor tile it occupies in the room. */
+  tile?: { gx: number; gy: number }
 }
 
 export const CATALOG: CatalogItem[] = [
@@ -215,60 +210,78 @@ export const CATALOG: CatalogItem[] = [
     cost: 120,
   },
 
-  // ── Desert decorations (appear in the scene once owned) ──
-  {
-    key: 'cactus',
-    name: 'Saguaro Cactus',
-    description: 'Standing patient against the sun.',
-    category: 'decoration',
-    biome: 'desert',
-    cost: 20,
-    anchor: { x: 0.12, scale: 0.9 },
-  },
+  // ── Room furniture (placed on the isometric floor once owned) ──
   {
     key: 'rug',
-    name: 'Prayer Rug',
-    description: 'A place to turn toward your Lord.',
+    name: 'Rug',
+    description: 'Ties the room together.',
     category: 'decoration',
     biome: 'desert',
     cost: 30,
-    anchor: { x: 0.68, scale: 1 },
+    tile: { gx: 2, gy: 3 },
   },
   {
-    key: 'palm',
-    name: 'Date Palm',
-    description: 'Shade and sweetness in the heat.',
+    key: 'plant',
+    name: 'Potted Plant',
+    description: 'A little green friend.',
     category: 'decoration',
     biome: 'desert',
     cost: 40,
-    anchor: { x: 0.85, scale: 1.05 },
+    tile: { gx: 4, gy: 0 },
   },
   {
-    key: 'lantern_post',
-    name: 'Standing Lantern',
-    description: 'Marks the path home after Isha.',
+    key: 'lamp',
+    name: 'Floor Lamp',
+    description: 'Warm light for late nights.',
     category: 'decoration',
     biome: 'desert',
-    cost: 55,
-    anchor: { x: 0.3, scale: 1 },
+    cost: 45,
+    tile: { gx: 4, gy: 2 },
   },
   {
-    key: 'tent',
-    name: 'Bedouin Tent',
-    description: 'Rest for the traveler.',
+    key: 'table',
+    name: 'Coffee Table',
+    description: 'For books and tea.',
+    category: 'decoration',
+    biome: 'desert',
+    cost: 70,
+    tile: { gx: 2, gy: 2 },
+  },
+  {
+    key: 'shelf',
+    name: 'Bookshelf',
+    description: 'Stack your knowledge.',
     category: 'decoration',
     biome: 'desert',
     cost: 90,
-    anchor: { x: 0.9, scale: 1.1, flip: true },
+    tile: { gx: 0, gy: 2 },
   },
   {
-    key: 'fountain',
-    name: 'Oasis Fountain',
-    description: 'The heart of the oasis — the reward of patience.',
+    key: 'sofa',
+    name: 'Sofa',
+    description: 'Sink in and relax.',
+    category: 'decoration',
+    biome: 'desert',
+    cost: 120,
+    tile: { gx: 0, gy: 0 },
+  },
+  {
+    key: 'tv',
+    name: 'TV',
+    description: 'For a well-earned break.',
+    category: 'decoration',
+    biome: 'desert',
+    cost: 130,
+    tile: { gx: 2, gy: 0 },
+  },
+  {
+    key: 'bed',
+    name: 'Bed',
+    description: 'Rest is worship too.',
     category: 'decoration',
     biome: 'desert',
     cost: 150,
-    anchor: { x: 0.5, scale: 1.15 },
+    tile: { gx: 4, gy: 4 },
   },
 ]
 
