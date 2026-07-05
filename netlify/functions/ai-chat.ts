@@ -1,3 +1,5 @@
+import { verifyUser } from './_shared/auth'
+
 const MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
 
 const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
@@ -109,6 +111,16 @@ export default async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Require a valid Supabase session — this endpoint consumes paid LLM/STT
+  // quota, so it must never be callable anonymously.
+  const userId = await verifyUser(req.headers.get('authorization'))
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }

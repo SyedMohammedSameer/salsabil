@@ -7,6 +7,8 @@
 // TTS: the /tts Netlify function calls Hugging Face's MMS-TTS model and
 // streams audio back, which we play via a single shared <audio> element.
 
+import { supabase } from '@/lib/supabase'
+
 export interface AudioCapture {
   data: string // base64 (no data: prefix)
   format: 'webm' | 'wav' | 'mp3' | 'ogg'
@@ -116,9 +118,16 @@ let currentObjectUrl: string | null = null
 export async function speak(text: string, signal?: AbortSignal): Promise<void> {
   stopSpeaking()
   if (!text.trim()) return
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const token = session?.access_token
   const res = await fetch('/.netlify/functions/tts', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ text }),
     signal,
   })

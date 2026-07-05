@@ -12,6 +12,7 @@
 //   EDGE_TTS_RATE    — e.g. "+0%", "+13%", "-10%"
 
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts'
+import { verifyUser } from './_shared/auth'
 
 const DEFAULT_VOICE = 'en-US-AriaNeural'
 
@@ -35,6 +36,16 @@ export default async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Require a valid Supabase session — keeps the TTS endpoint from being
+  // driven anonymously as a free synthesis proxy.
+  const userId = await verifyUser(req.headers.get('authorization'))
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }

@@ -58,9 +58,17 @@ export async function streamNoor(
   handlers: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const token = session?.access_token
+
   const res = await fetch('/.netlify/functions/ai-chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ message, history, context, memories, audio }),
     signal,
   })
