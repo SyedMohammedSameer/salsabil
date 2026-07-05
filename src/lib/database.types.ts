@@ -38,6 +38,12 @@ export type CoinAction =
 export type ChatRole = 'user' | 'assistant' | 'system'
 export type TimerState = 'idle' | 'running' | 'paused' | 'done'
 
+// ─── Living World ────────────────────────────────────────────────────────────
+export type WorldBiome = 'desert' | 'ocean' | 'forest' | 'meadow' | 'night'
+export type AvatarVariant = 'man' | 'woman'
+export type WorldItemCategory = 'accessory' | 'decoration'
+export type AvatarSlot = 'hat' | 'outer' | 'held' | 'companion'
+
 // ─── Database schema ─────────────────────────────────────────────────────────
 
 export interface Database {
@@ -276,6 +282,47 @@ export interface Database {
           last_watered_at?: string | null
           position_x?: number
           position_y?: number
+        }
+        Relationships: []
+      }
+      world_state: {
+        Row: {
+          user_id: string
+          biome: WorldBiome
+          avatar_variant: AvatarVariant
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          biome?: WorldBiome
+          avatar_variant?: AvatarVariant
+        }
+        Update: {
+          biome?: WorldBiome
+          avatar_variant?: AvatarVariant
+        }
+        Relationships: []
+      }
+      world_items: {
+        Row: {
+          id: string
+          user_id: string
+          item_key: string
+          category: WorldItemCategory
+          slot: AvatarSlot | null
+          equipped: boolean
+          acquired_at: string
+        }
+        Insert: {
+          user_id: string
+          item_key: string
+          category: WorldItemCategory
+          slot?: AvatarSlot | null
+          equipped?: boolean
+        }
+        Update: {
+          equipped?: boolean
         }
         Relationships: []
       }
@@ -558,6 +605,25 @@ export interface Database {
         }
         Returns: number
       }
+      buy_world_item: {
+        Args: {
+          p_user_id: string
+          p_item_key: string
+          p_category: string
+          p_slot: string | null
+          p_cost: number
+          p_name?: string | null
+        }
+        Returns: number
+      }
+      equip_world_item: {
+        Args: {
+          p_user_id: string
+          p_item_id: string
+          p_equip?: boolean
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       prayer_name: PrayerName
@@ -587,6 +653,8 @@ export type AdhkarLog = Database['public']['Tables']['adhkar_logs']['Row']
 export type Task = Database['public']['Tables']['tasks']['Row']
 export type FocusSession = Database['public']['Tables']['focus_sessions']['Row']
 export type GardenTree = Database['public']['Tables']['garden_trees']['Row']
+export type WorldState = Database['public']['Tables']['world_state']['Row']
+export type WorldItem = Database['public']['Tables']['world_items']['Row']
 export type Workout = Database['public']['Tables']['workouts']['Row']
 export type Challenge = Database['public']['Tables']['challenges']['Row']
 export type Achievement = Database['public']['Tables']['achievements']['Row']
