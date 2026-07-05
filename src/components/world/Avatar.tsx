@@ -149,56 +149,46 @@ export function Avatar({ variant, equipped = {} }: AvatarProps) {
 function Face({ woman }: { woman: boolean }) {
   return (
     <g>
-      {/* eyebrows */}
+      {/* soft, high eyebrows — light and gently arched reads young */}
       <path
-        d="M -8 -112.5 Q -5 -114 -2.5 -112.5"
-        stroke="#4a3326"
-        strokeWidth={1}
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M 2.5 -112.5 Q 5 -114 8 -112.5"
-        stroke="#4a3326"
-        strokeWidth={1}
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* eyes */}
-      <ellipse cx={-5} cy={-108} rx={2.3} ry={2.9} fill="#fff" />
-      <ellipse cx={5} cy={-108} rx={2.3} ry={2.9} fill="#fff" />
-      <circle cx={-4.7} cy={-107.5} r={1.5} fill="#4a3326" />
-      <circle cx={5.3} cy={-107.5} r={1.5} fill="#4a3326" />
-      <circle cx={-4.2} cy={-108.3} r={0.5} fill="#fff" />
-      <circle cx={5.8} cy={-108.3} r={0.5} fill="#fff" />
-      {/* lash line */}
-      <path
-        d="M -7.3 -109.6 Q -5 -110.6 -2.7 -109.6"
-        stroke="#4a3326"
-        strokeWidth={0.7}
-        fill="none"
-        strokeLinecap="round"
-      />
-      <path
-        d="M 2.7 -109.6 Q 5 -110.6 7.3 -109.6"
-        stroke="#4a3326"
-        strokeWidth={0.7}
-        fill="none"
-        strokeLinecap="round"
-      />
-      {/* nose */}
-      <path
-        d="M 0 -106 q 1.2 1.6 -0.6 2.4"
-        stroke="#c07d4f"
+        d="M -8.5 -113 Q -5.5 -114.4 -2.6 -113.2"
+        stroke="#5a4030"
         strokeWidth={0.9}
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.85}
+      />
+      <path
+        d="M 2.6 -113.2 Q 5.5 -114.4 8.5 -113"
+        stroke="#5a4030"
+        strokeWidth={0.9}
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.85}
+      />
+      {/* big bright doe eyes */}
+      <ellipse cx={-5.2} cy={-107} rx={3} ry={3.7} fill="#fff" />
+      <ellipse cx={5.2} cy={-107} rx={3} ry={3.7} fill="#fff" />
+      <circle cx={-5} cy={-106.4} r={2.1} fill="#5b3d2a" />
+      <circle cx={5.4} cy={-106.4} r={2.1} fill="#5b3d2a" />
+      <circle cx={-5} cy={-106.4} r={0.9} fill="#2a1c12" />
+      <circle cx={5.4} cy={-106.4} r={0.9} fill="#2a1c12" />
+      <circle cx={-4.2} cy={-107.4} r={0.8} fill="#fff" />
+      <circle cx={6.2} cy={-107.4} r={0.8} fill="#fff" />
+      {/* tiny soft nose */}
+      <path
+        d="M -0.6 -104.4 q 1.2 0.9 0.2 1.7"
+        stroke="#cf8a5b"
+        strokeWidth={0.8}
         fill="none"
         strokeLinecap="round"
+        opacity={0.7}
       />
-      {/* mouth */}
+      {/* friendly smile */}
       <path
-        d="M -3 -100.5 Q 0 -98.2 3 -100.5"
-        stroke={woman ? '#c05f6a' : '#a5573a'}
-        strokeWidth={1.2}
+        d="M -3.4 -100.6 Q 0 -97.6 3.4 -100.6"
+        stroke={woman ? '#d16e77' : '#b5674a'}
+        strokeWidth={1.3}
         fill="none"
         strokeLinecap="round"
       />
@@ -218,25 +208,31 @@ function HairBack({ id }: { id: (k: string) => string }) {
 }
 
 function HairFront({ id }: { id: (k: string) => string }) {
+  // Youthful side-swept fringe — clean-shaven, fuller hair, no beard.
   return (
     <g>
-      {/* fringe */}
       <path
-        d="M -13 -108 C -14 -119 -4 -121 0 -120 C 6 -121 14 -118 13 -108 C 9 -113 6 -112 2 -113 C 6 -110 4 -108 4 -108 C 3 -111 -1 -112 -3 -110 C -5 -112 -9 -111 -8 -108 C -9 -111 -11 -111 -13 -108 Z"
+        d="M -13.2 -106 C -14 -120 -3 -122 1 -121 C 7 -122 14 -117 13.2 -106
+           C 11.5 -110 8 -111.5 4 -111 C 8 -114 4 -117 -1 -116
+           C -6 -117 -9 -114 -8.5 -110 C -10 -113 -12 -111 -13.2 -106 Z"
         fill={`url(#${id('hair')})`}
       />
-      {/* trimmed beard along the jaw */}
+      {/* soft sideburn hints */}
       <path
-        d="M -11 -108 C -12 -99 -6 -92 0 -92 C 6 -92 12 -99 11 -108 C 9 -103 6 -101 6 -101 C 3 -99.5 -3 -99.5 -6 -101 C -6 -101 -9 -103 -11 -108 Z"
-        fill="#33251c"
-      />
-      {/* moustache */}
-      <path
-        d="M -3.4 -101.3 Q 0 -102.6 3.4 -101.3"
-        stroke="#33251c"
-        strokeWidth={1.6}
+        d="M -12.6 -107 C -13 -102 -12 -100 -10.5 -99"
+        stroke="#3a2a1e"
+        strokeWidth={1.4}
         fill="none"
         strokeLinecap="round"
+        opacity={0.8}
+      />
+      <path
+        d="M 12.6 -107 C 13 -102 12 -100 10.5 -99"
+        stroke="#3a2a1e"
+        strokeWidth={1.4}
+        fill="none"
+        strokeLinecap="round"
+        opacity={0.8}
       />
     </g>
   )
@@ -244,9 +240,9 @@ function HairFront({ id }: { id: (k: string) => string }) {
 
 // ─── Woman hijab ─────────────────────────────────────────────────────────────
 
-const HIJAB = '#e7d6bd'
-const HIJAB_SHADE = '#cdb794'
-const HIJAB_LINE = '#b89f78'
+const HIJAB = '#f0a894'
+const HIJAB_SHADE = '#dd9078'
+const HIJAB_LINE = '#c97a63'
 
 function HijabBack({ id }: { id: (k: string) => string }) {
   void id
