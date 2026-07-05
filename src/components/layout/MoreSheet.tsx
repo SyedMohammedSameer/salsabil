@@ -26,7 +26,7 @@ const MORE_ITEMS = [
   { path: '/workouts', icon: <IconWorkouts />, label: 'Workouts' },
   { path: '/challenges', icon: <IconChallenges />, label: 'Challenges' },
   { path: '/rooms', icon: <IconRooms />, label: 'Study Rooms' },
-  { path: '/garden', icon: <IconGarden />, label: 'Garden' },
+  { path: '/world', icon: <IconGarden />, label: 'World' },
   { path: '/analytics', icon: <IconAnalytics />, label: 'Analytics' },
   { path: '/profile', icon: <IconProfile />, label: 'Profile' },
   { path: '/settings', icon: <IconSettings />, label: 'Settings' },

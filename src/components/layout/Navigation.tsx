@@ -46,7 +46,7 @@ const SIDEBAR_NAV: NavItem[] = [
   { path: '/workouts', icon: <IconWorkouts />, label: 'Workouts' },
   { path: '/challenges', icon: <IconChallenges />, label: 'Challenges' },
   { path: '/rooms', icon: <IconRooms />, label: 'Study Rooms' },
-  { path: '/garden', icon: <IconGarden />, label: 'Garden' },
+  { path: '/world', icon: <IconGarden />, label: 'World' },
 ]
 
 export function Navigation() {
