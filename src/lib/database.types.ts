@@ -42,7 +42,7 @@ export type TimerState = 'idle' | 'running' | 'paused' | 'done'
 export type WorldBiome = 'desert' | 'ocean' | 'forest' | 'meadow' | 'night'
 export type AvatarVariant = 'man' | 'woman'
 export type WorldItemCategory = 'accessory' | 'decoration'
-export type AvatarSlot = 'hat' | 'outer' | 'held' | 'companion'
+export type AvatarSlot = 'hat' | 'outer' | 'held' | 'companion' | 'outfit' | 'face'
 
 // ─── Database schema ─────────────────────────────────────────────────────────
 
@@ -291,6 +291,9 @@ export interface Database {
           biome: WorldBiome
           avatar_variant: AvatarVariant
           xp: number
+          skin_tone: string
+          hair_color: string
+          hijab_color: string
           created_at: string
           updated_at: string
         }
@@ -299,11 +302,17 @@ export interface Database {
           biome?: WorldBiome
           avatar_variant?: AvatarVariant
           xp?: number
+          skin_tone?: string
+          hair_color?: string
+          hijab_color?: string
         }
         Update: {
           biome?: WorldBiome
           avatar_variant?: AvatarVariant
           xp?: number
+          skin_tone?: string
+          hair_color?: string
+          hijab_color?: string
         }
         Relationships: []
       }

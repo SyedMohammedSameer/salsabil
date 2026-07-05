@@ -69,7 +69,57 @@ export interface CatalogItem {
 }
 
 export const CATALOG: CatalogItem[] = [
-  // ── Accessories (any biome, layer onto the avatar) ──
+  // ── Outfits (worn on the body — one at a time) ──
+  {
+    key: 'hoodie_sand',
+    name: 'Sand Hoodie',
+    description: 'Cosy and casual.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 60,
+  },
+  {
+    key: 'hoodie_navy',
+    name: 'Navy Hoodie',
+    description: 'Everyday comfort.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 60,
+  },
+  {
+    key: 'hoodie_maroon',
+    name: 'Maroon Hoodie',
+    description: 'A warm street look.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 60,
+  },
+  {
+    key: 'bomber',
+    name: 'Bomber Jacket',
+    description: 'Sporty with a striped collar.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 95,
+  },
+  {
+    key: 'kurta',
+    name: 'Kurta',
+    description: 'Classic and elegant.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 80,
+  },
+  {
+    key: 'track',
+    name: 'Tracksuit',
+    description: 'For the gym and the grind.',
+    category: 'accessory',
+    slot: 'outfit',
+    cost: 100,
+  },
+
+  // ── Headwear ──
   {
     key: 'kufi',
     name: 'Kufi Cap',
@@ -79,20 +129,82 @@ export const CATALOG: CatalogItem[] = [
     cost: 20,
   },
   {
-    key: 'cloak',
-    name: 'Woven Cloak',
-    description: 'Warmth for the cold desert nights.',
+    key: 'beanie',
+    name: 'Beanie',
+    description: 'Keeps you warm.',
     category: 'accessory',
-    slot: 'outer',
-    cost: 45,
+    slot: 'hat',
+    cost: 40,
   },
   {
-    key: 'lantern',
-    name: 'Hand Lantern',
-    description: 'A little light to carry with you.',
+    key: 'cap',
+    name: 'Ball Cap',
+    description: 'Casual and cool.',
+    category: 'accessory',
+    slot: 'hat',
+    cost: 45,
+  },
+
+  // ── Face ──
+  {
+    key: 'glasses',
+    name: 'Glasses',
+    description: 'Smart and studious.',
+    category: 'accessory',
+    slot: 'face',
+    cost: 30,
+  },
+  {
+    key: 'sunglasses',
+    name: 'Sunglasses',
+    description: 'Shade for the sun.',
+    category: 'accessory',
+    slot: 'face',
+    cost: 50,
+  },
+
+  // ── Held ──
+  {
+    key: 'book',
+    name: 'Book',
+    description: 'Always be learning.',
+    category: 'accessory',
+    slot: 'held',
+    cost: 25,
+  },
+  {
+    key: 'coffee',
+    name: 'Coffee',
+    description: 'Fuel for late-night study.',
+    category: 'accessory',
+    slot: 'held',
+    cost: 25,
+  },
+  {
+    key: 'misbaha',
+    name: 'Misbaha',
+    description: 'Prayer beads for dhikr.',
     category: 'accessory',
     slot: 'held',
     cost: 35,
+  },
+  {
+    key: 'lantern',
+    name: 'Lantern',
+    description: 'A little light to carry.',
+    category: 'accessory',
+    slot: 'held',
+    cost: 35,
+  },
+
+  // ── Companions ──
+  {
+    key: 'cat',
+    name: 'Cat',
+    description: 'A calm little friend.',
+    category: 'accessory',
+    slot: 'companion',
+    cost: 90,
   },
   {
     key: 'falcon',
@@ -173,8 +285,10 @@ export function itemsForBiome(biome: WorldBiome): CatalogItem[] {
 export const ACCESSORIES: CatalogItem[] = CATALOG.filter((i) => i.category === 'accessory')
 
 export const SLOT_LABELS: Record<AvatarSlot, string> = {
+  outfit: 'Outfit',
   hat: 'Head',
-  outer: 'Outerwear',
+  face: 'Face',
   held: 'Held',
   companion: 'Companion',
+  outer: 'Outerwear',
 }

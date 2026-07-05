@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { WorldScene } from '@/components/world/WorldScene'
 import { ItemPreview } from '@/components/world/sprites'
-import { Avatar } from '@/components/world/Avatar'
+import { PixelAvatar } from '@/components/world/PixelAvatar'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/hooks/useProfile'
 import {
@@ -17,17 +17,57 @@ import {
   useBuyItem,
   useSetEquipped,
   useSetAvatar,
+  useSetCustomization,
 } from '@/hooks/useWorld'
+import { ACCESSORIES, AVATARS, BIOMES, itemsForBiome, type CatalogItem } from '@/data/worldCatalog'
 import {
-  ACCESSORIES,
-  AVATARS,
-  BIOMES,
-  SLOT_LABELS,
-  itemsForBiome,
-  type CatalogItem,
-} from '@/data/worldCatalog'
+  SKIN_TONES,
+  SKIN_ORDER,
+  HAIR_COLORS,
+  HAIR_ORDER,
+  HIJAB_COLORS,
+  HIJAB_ORDER,
+  type RGBA,
+} from '@/lib/world/pixel/palette'
 import { levelProgress } from '@/lib/world/levels'
+import type { CharacterLook } from '@/lib/world/pixel/draw'
 import type { AvatarVariant, WorldItem, WorldState } from '@/lib/database.types'
+
+const rgb = (c: RGBA) => `rgb(${c[0]},${c[1]},${c[2]})`
+
+// Compose the character look from saved state + currently-equipped items.
+function buildLook(
+  world: WorldState,
+  items: WorldItem[],
+  overrides: Partial<CharacterLook> = {},
+): CharacterLook {
+  const eq: Record<string, string> = {}
+  for (const it of items) if (it.equipped && it.slot) eq[it.slot] = it.item_key
+  return {
+    variant: world.avatar_variant,
+    skin: world.skin_tone,
+    hair: world.hair_color,
+    hijab: world.hijab_color,
+    outfit: eq.outfit ?? (world.avatar_variant === 'woman' ? 'abaya' : 'thobe'),
+    hat: eq.hat,
+    face: eq.face,
+    held: eq.held,
+    companion: eq.companion,
+    ...overrides,
+  }
+}
+
+const WALK_CSS = `
+@media (prefers-reduced-motion: no-preference) {
+  .pixel-walker { animation: pixel-stroll 24s ease-in-out infinite; }
+}
+@keyframes pixel-stroll {
+  0%   { transform: translateX(-84px) scaleX(1); }
+  47%  { transform: translateX(84px)  scaleX(1); }
+  50%  { transform: translateX(84px)  scaleX(-1); }
+  97%  { transform: translateX(-84px) scaleX(-1); }
+  100% { transform: translateX(-84px) scaleX(1); }
+}`
 
 // ─── Shop item card ───────────────────────────────────────────────────────────
 
@@ -36,7 +76,7 @@ function ItemCard({
   owned,
   equipped,
   coins,
-  variant,
+  baseLook,
   onBuy,
   onToggleEquip,
   busy,
@@ -45,7 +85,7 @@ function ItemCard({
   owned: WorldItem | undefined
   equipped: boolean
   coins: number
-  variant: AvatarVariant
+  baseLook: CharacterLook
   onBuy: (key: string) => void
   onToggleEquip: (owned: WorldItem, equip: boolean) => void
   busy: boolean
@@ -58,18 +98,19 @@ function ItemCard({
     <motion.div
       whileTap={{ scale: 0.98 }}
       className={cn(
-        'flex flex-col items-center gap-2 rounded-2xl border p-2.5 overflow-hidden',
+        'flex flex-col items-center gap-2 overflow-hidden rounded-2xl border p-2.5',
         equipped ? 'border-noor-500/50 bg-noor-500/5' : 'border-border',
       )}
     >
       <div
-        className="relative flex w-full items-end justify-center rounded-xl overflow-hidden"
-        style={{
-          height: 96,
-          background: 'linear-gradient(to bottom, #fbe0b8 0%, #f8c48a 55%, #e8b878 100%)',
-        }}
+        className="relative flex w-full items-end justify-center overflow-hidden rounded-xl"
+        style={{ height: 96, background: 'linear-gradient(to bottom, #fbe0b8 0%, #f2c48c 100%)' }}
       >
-        <ItemPreview itemKey={item.key} variant={variant} size={90} />
+        {isAccessory && item.slot ? (
+          <PixelAvatar look={{ ...baseLook, [item.slot]: item.key }} height={104} />
+        ) : (
+          <ItemPreview itemKey={item.key} variant={baseLook.variant} size={90} />
+        )}
         {isOwned && (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-noor-500 p-0.5 text-white">
             <Check className="h-3 w-3" />
@@ -101,7 +142,7 @@ function ItemCard({
           disabled={busy}
           onClick={() => owned && onToggleEquip(owned, !equipped)}
         >
-          {equipped ? 'Equipped' : 'Wear'}
+          {equipped ? 'Worn' : 'Wear'}
         </Button>
       ) : (
         <span className="flex h-7 items-center text-[10px] font-medium text-noor-500">
@@ -109,6 +150,42 @@ function ItemCard({
         </span>
       )}
     </motion.div>
+  )
+}
+
+// ─── Colour swatch row ──────────────────────────────────────────────────────
+
+function Swatches({
+  label,
+  keys,
+  colorOf,
+  active,
+  onPick,
+}: {
+  label: string
+  keys: readonly string[]
+  colorOf: (k: string) => string
+  active: string
+  onPick: (k: string) => void
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {keys.map((k) => (
+          <button
+            key={k}
+            onClick={() => onPick(k)}
+            aria-label={k}
+            className={cn(
+              'h-7 w-7 rounded-full border-2 transition-transform hover:scale-110',
+              active === k ? 'border-noor-500 ring-2 ring-noor-500/30' : 'border-border',
+            )}
+            style={{ background: colorOf(k) }}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -121,11 +198,11 @@ export default function WorldView() {
   const buyItem = useBuyItem()
   const setEquipped = useSetEquipped()
   const setAvatar = useSetAvatar()
+  const setCustom = useSetCustomization()
 
-  const [tab, setTab] = useState('decor')
+  const [tab, setTab] = useState('wear')
 
   const coins = profile?.coins ?? 0
-  const variant: AvatarVariant = world?.avatar_variant ?? 'man'
   const progress = levelProgress(world?.xp ?? 0)
   const characterName = profile?.display_name || profile?.username || 'Your character'
 
@@ -135,28 +212,26 @@ export default function WorldView() {
     return map
   }, [items])
 
+  const look = useMemo(() => (world ? buildLook(world, items) : null), [world, items])
   const decorations = world ? itemsForBiome(world.biome) : []
   const ownedCount = items.length
   const totalCount = decorations.length + ACCESSORIES.length
-
   const busy = buyItem.isPending || setEquipped.isPending
 
-  const renderCard = (item: CatalogItem) => {
-    const owned = ownedByKey.get(item.key)
-    return (
+  const renderCard = (item: CatalogItem) =>
+    look ? (
       <ItemCard
         key={item.key}
         item={item}
-        owned={owned}
-        equipped={!!owned?.equipped}
+        owned={ownedByKey.get(item.key)}
+        equipped={!!ownedByKey.get(item.key)?.equipped}
         coins={coins}
-        variant={variant}
+        baseLook={look}
         busy={busy}
         onBuy={(key) => buyItem.mutate(key)}
         onToggleEquip={(o, equip) => setEquipped.mutate({ item: o, equip })}
       />
-    )
-  }
+    ) : null
 
   return (
     <PageShell maxWidth="full">
@@ -174,7 +249,7 @@ export default function WorldView() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {ownedCount === 0
-                ? 'Earn coins, then bring your world to life'
+                ? 'Earn coins, then make it yours'
                 : `${ownedCount} of ${totalCount} things collected`}
             </p>
           </div>
@@ -190,21 +265,32 @@ export default function WorldView() {
           </div>
         </div>
 
-        {/* Scene */}
-        {worldLoading || !world ? (
-          <div className="w-full rounded-2xl bg-muted animate-pulse" style={{ height: 240 }} />
+        {/* Scene — pixel character strolls over the biome */}
+        {worldLoading || !world || !look ? (
+          <div className="w-full animate-pulse rounded-2xl bg-muted" style={{ height: 240 }} />
         ) : (
-          <div className="w-full overflow-hidden rounded-2xl border border-border">
+          <div
+            className="relative w-full overflow-hidden rounded-2xl border border-border"
+            style={{ height: 240 }}
+          >
             <WorldScene
               world={world as WorldState}
               items={items}
               level={progress.level}
-              className="h-[240px] w-full"
+              showAvatar={false}
+              animate={false}
+              className="absolute inset-0 h-full w-full"
             />
+            <div className="absolute inset-x-0 flex justify-center" style={{ bottom: '8%' }}>
+              <div className="pixel-walker">
+                <PixelAvatar look={look} height={150} animated walking />
+              </div>
+            </div>
+            <style>{WALK_CSS}</style>
           </div>
         )}
 
-        {/* Level progress — driven by real activity */}
+        {/* Level progress */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-foreground">Level {progress.level}</span>
@@ -228,16 +314,22 @@ export default function WorldView() {
         {/* Shop */}
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="decor" className="flex-1">
-              Decorations
-            </TabsTrigger>
             <TabsTrigger value="wear" className="flex-1">
               Wardrobe
             </TabsTrigger>
+            <TabsTrigger value="decor" className="flex-1">
+              Decor
+            </TabsTrigger>
             <TabsTrigger value="char" className="flex-1">
-              Character
+              Looks
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="wear" className="mt-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {ACCESSORIES.map(renderCard)}
+            </div>
+          </TabsContent>
 
           <TabsContent value="decor" className="mt-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -245,25 +337,16 @@ export default function WorldView() {
             </div>
           </TabsContent>
 
-          <TabsContent value="wear" className="mt-3">
-            <p className="mb-2 text-xs text-muted-foreground">
-              One item per slot: {Object.values(SLOT_LABELS).join(' · ')}
-            </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {ACCESSORIES.map(renderCard)}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="char" className="mt-3 space-y-4">
+          <TabsContent value="char" className="mt-3 space-y-5">
+            {/* Character body */}
             <div>
               <p className="mb-1 text-sm font-semibold text-foreground">
                 {characterName}
                 <span className="ml-1 font-normal text-muted-foreground">— that&apos;s you</span>
               </p>
-              <p className="mb-2 text-xs text-muted-foreground">Choose your character</p>
               <div className="grid grid-cols-2 gap-3">
                 {AVATARS.map((a) => {
-                  const active = variant === a.variant
+                  const active = world?.avatar_variant === a.variant
                   return (
                     <button
                       key={a.variant}
@@ -276,15 +359,15 @@ export default function WorldView() {
                       )}
                     >
                       <div
-                        className="flex w-full items-end justify-center rounded-xl overflow-hidden"
-                        style={{
-                          height: 112,
-                          background: 'linear-gradient(to bottom, #fbe0b8, #e8b878)',
-                        }}
+                        className="flex h-[116px] w-full items-end justify-center overflow-hidden rounded-xl"
+                        style={{ background: 'linear-gradient(to bottom, #fbe0b8, #e8b878)' }}
                       >
-                        <svg width={96} height={108} viewBox="-42 -136 84 144">
-                          <Avatar variant={a.variant} />
-                        </svg>
+                        {look && (
+                          <PixelAvatar
+                            look={{ ...look, variant: a.variant as AvatarVariant }}
+                            height={108}
+                          />
+                        )}
                       </div>
                       <span className="text-xs font-medium text-foreground">{a.label}</span>
                     </button>
@@ -293,6 +376,37 @@ export default function WorldView() {
               </div>
             </div>
 
+            {/* Colours */}
+            {world && (
+              <div className="space-y-4 rounded-2xl border border-border p-3">
+                <Swatches
+                  label="Skin tone"
+                  keys={SKIN_ORDER}
+                  colorOf={(k) => rgb(SKIN_TONES[k].base)}
+                  active={world.skin_tone}
+                  onPick={(k) => setCustom.mutate({ skin_tone: k })}
+                />
+                {world.avatar_variant === 'man' ? (
+                  <Swatches
+                    label="Hair colour"
+                    keys={HAIR_ORDER}
+                    colorOf={(k) => rgb(HAIR_COLORS[k].base)}
+                    active={world.hair_color}
+                    onPick={(k) => setCustom.mutate({ hair_color: k })}
+                  />
+                ) : (
+                  <Swatches
+                    label="Hijab colour"
+                    keys={HIJAB_ORDER}
+                    colorOf={(k) => rgb(HIJAB_COLORS[k].base)}
+                    active={world.hijab_color}
+                    onPick={(k) => setCustom.mutate({ hijab_color: k })}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Biome */}
             <div>
               <p className="mb-2 text-sm font-semibold text-foreground">Biome</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -327,8 +441,7 @@ export default function WorldView() {
               <p className="text-xs font-medium text-foreground">How your world grows</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Every focus session, prayer, task, workout, and challenge earns coins. Spend them
-                here to dress your character and fill your world. More biomes and characters are on
-                the way, inshaAllah.
+                here to dress your character and fill your world.
               </p>
             </div>
           </CardContent>

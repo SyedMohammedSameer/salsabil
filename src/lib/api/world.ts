@@ -70,6 +70,20 @@ export async function setAvatar(userId: string, variant: AvatarVariant): Promise
   return data
 }
 
+export type Customization = Partial<Pick<WorldState, 'skin_tone' | 'hair_color' | 'hijab_color'>>
+
+/** Update free identity customization (skin tone, hair/hijab colour). */
+export async function setCustomization(userId: string, patch: Customization): Promise<WorldState> {
+  const { data, error } = await supabase
+    .from('world_state')
+    .update(patch)
+    .eq('user_id', userId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ─── Inventory ─────────────────────────────────────────────────────────────
 
 export async function fetchWorldItems(userId: string): Promise<WorldItem[]> {

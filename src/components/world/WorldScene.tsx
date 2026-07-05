@@ -11,6 +11,8 @@ interface WorldSceneProps {
   level?: number
   /** When false the avatar stands still (used for static previews). */
   animate?: boolean
+  /** When false the (vector) avatar is omitted — the pixel character overlays instead. */
+  showAvatar?: boolean
   className?: string
 }
 
@@ -46,6 +48,7 @@ export function WorldScene({
   items,
   level = 1,
   animate = true,
+  showAvatar = true,
   className,
 }: WorldSceneProps) {
   const equipped: EquippedMap = useMemo(() => {
@@ -99,19 +102,18 @@ export function WorldScene({
         )
       })}
 
-      {/* Avatar — strolls around the ground line (see WALK_CSS). The static
-          scale and the animated transforms live on separate groups: a CSS
-          transform animation overrides an element's SVG transform attribute,
-          so they must not share a node. */}
-      <g transform={`translate(${SCENE_W / 2} ${GROUND_Y})`}>
-        <g className={animate ? 'world-walker' : undefined}>
-          <g transform="scale(0.9)">
-            <g className="world-bob">
-              <Avatar variant={world.avatar_variant} equipped={equipped} />
+      {/* Legacy vector avatar — omitted when the pixel character overlays. */}
+      {showAvatar && (
+        <g transform={`translate(${SCENE_W / 2} ${GROUND_Y})`}>
+          <g className={animate ? 'world-walker' : undefined}>
+            <g transform="scale(0.9)">
+              <g className="world-bob">
+                <Avatar variant={world.avatar_variant} equipped={equipped} />
+              </g>
             </g>
           </g>
         </g>
-      </g>
+      )}
     </svg>
   )
 }

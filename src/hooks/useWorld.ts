@@ -8,7 +8,9 @@ import {
   fetchWorldItems,
   setAvatar,
   setBiome,
+  setCustomization,
   setEquipped,
+  type Customization,
 } from '@/lib/api/world'
 import { CATALOG_BY_KEY } from '@/data/worldCatalog'
 import type { AvatarVariant, WorldBiome, WorldItem, WorldState } from '@/lib/database.types'
@@ -118,5 +120,26 @@ export function useSetBiome() {
       qc.setQueryData<WorldState>(worldKeys.state(user!.id), state)
     },
     onError: () => toast.error('Could not change biome.'),
+  })
+}
+
+export function useSetCustomization() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (patch: Customization) => setCustomization(user!.id, patch),
+    // Optimistic — recolour instantly.
+    onMutate: async (patch) => {
+      const key = worldKeys.state(user!.id)
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<WorldState>(key)
+      if (prev) qc.setQueryData<WorldState>(key, { ...prev, ...patch })
+      return { prev }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(worldKeys.state(user!.id), ctx.prev)
+      toast.error('Could not update your look.')
+    },
   })
 }
