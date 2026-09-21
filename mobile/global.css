@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Semantic tokens ─────────────────────────────────────────────────────────
+ *
+ * Ported from src/styles/globals.css. The web defines these in oklch, which
+ * React Native cannot parse, so each value is converted to sRGB channels here.
+ * The conversion is exact — these are the same colours the web renders, not
+ * approximations.
+ *
+ * Channels rather than hex so Tailwind's `/<alpha-value>` opacity modifiers
+ * (bg-primary/20) keep working, exactly as on web.
+ *
+ * Keep in sync with the web tokens; they are the same design system.
+ */
+
+@layer base {
+  :root {
+    --background: 252 252 252;
+    --foreground: 10 10 10;
+    --card: 255 255 255;
+    --card-foreground: 10 10 10;
+    --popover: 255 255 255;
+    --popover-foreground: 10 10 10;
+    --primary: 0 161 136;
+    --primary-foreground: 252 252 252;
+    --secondary: 235 244 242;
+    --secondary-foreground: 10 10 10;
+    --muted: 239 243 242;
+    --muted-foreground: 103 119 115;
+    --accent: 235 244 242;
+    --accent-foreground: 10 10 10;
+    --destructive: 231 0 11;
+    --destructive-foreground: 252 252 252;
+    --border: 226 230 229;
+    --input: 226 230 229;
+    --ring: 0 161 136;
+    --sidebar: 248 251 250;
+    --sidebar-border: 222 228 226;
+  }
+
+  .dark:root {
+    --background: 3 5 5;
+    --foreground: 245 245 245;
+    --card: 7 12 11;
+    --card-foreground: 245 245 245;
+    --popover: 7 12 11;
+    --popover-foreground: 245 245 245;
+    --primary: 0 161 136;
+    --primary-foreground: 252 252 252;
+    --secondary: 17 27 24;
+    --secondary-foreground: 245 245 245;
+    --muted: 17 27 24;
+    --muted-foreground: 131 147 143;
+    --accent: 17 27 24;
+    --accent-foreground: 245 245 245;
+    --destructive: 231 0 11;
+    --destructive-foreground: 252 252 252;
+    --border: 25 35 32;
+    --input: 25 35 32;
+    --ring: 0 161 136;
+    --sidebar: 4 8 7;
+    --sidebar-border: 25 35 32;
+  }
+}

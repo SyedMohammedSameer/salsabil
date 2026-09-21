@@ -7,6 +7,8 @@
 // TTS: the /tts Netlify function calls Hugging Face's MMS-TTS model and
 // streams audio back, which we play via a single shared <audio> element.
 
+import { functionUrl } from '@/lib/api/functions'
+
 export interface AudioCapture {
   data: string // base64 (no data: prefix)
   format: 'webm' | 'wav' | 'mp3' | 'ogg'
@@ -116,7 +118,7 @@ let currentObjectUrl: string | null = null
 export async function speak(text: string, signal?: AbortSignal): Promise<void> {
   stopSpeaking()
   if (!text.trim()) return
-  const res = await fetch('/.netlify/functions/tts', {
+  const res = await fetch(functionUrl('tts'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),

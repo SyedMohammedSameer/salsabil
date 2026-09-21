@@ -56,6 +56,15 @@ export default [
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'public/**', '*.config.*', 'netlify/functions/**'],
+    // mobile/ is a separate workspace with its own React Native toolchain and
+    // lint config; this one only covers the web app.
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'public/**',
+      '*.config.*',
+      'netlify/functions/**',
+      'mobile/**',
+    ],
   },
 ]

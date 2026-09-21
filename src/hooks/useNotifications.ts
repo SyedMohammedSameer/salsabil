@@ -9,6 +9,7 @@ import {
 import { savePushSubscription, deletePushSubscription } from '@/lib/api/notifications'
 import { registerSW, subscribeToPush, unsubscribeFromPush } from '@/lib/registerSW'
 import { supabase } from '@/lib/supabase'
+import { env } from '@/lib/platform/env'
 import { useAuth } from './useAuth'
 import type { Notification } from '@/lib/database.types'
 
@@ -114,7 +115,7 @@ export function usePushNotifications() {
       setStatus(permission as PushStatus)
       if (permission !== 'granted') throw new Error('Permission denied')
 
-      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
+      const vapidKey = env.vapidPublicKey
       if (!vapidKey) throw new Error('VAPID key not configured')
 
       let reg = swRegRef.current

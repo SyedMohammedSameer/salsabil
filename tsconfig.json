@@ -21,5 +21,8 @@
     }
   },
   "include": ["src", "netlify/functions"],
-  "exclude": ["node_modules", "dist"]
+  // *.native.ts are the React Native halves of the platform adapters. Their
+  // dependencies live in mobile/, and Vite never resolves them, so they are
+  // type-checked by mobile/tsconfig.json instead.
+  "exclude": ["node_modules", "dist", "src/**/*.native.ts", "src/**/*.native.tsx"]
 }

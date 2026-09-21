@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { ChatMessage } from '@/lib/database.types'
+import { functionUrl } from '@/lib/api/functions'
 
 export async function getChatHistory(userId: string, limit = 60): Promise<ChatMessage[]> {
   const { data, error } = await supabase
@@ -58,7 +59,7 @@ export async function streamNoor(
   handlers: StreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch('/.netlify/functions/ai-chat', {
+  const res = await fetch(functionUrl('ai-chat'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history, context, memories, audio }),

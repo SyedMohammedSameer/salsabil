@@ -1,0 +1,33 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    // Resolve modules the way Metro does, so `@/lib/platform/env` picks up
+    // env.native.ts here while the web tsconfig gets env.ts. Without this the
+    // mobile build type-checks against the browser implementations, which
+    // reference import.meta and localStorage.
+    "moduleSuffixes": [".native", ""],
+    "paths": {
+      // The mobile app consumes the web app's business logic directly rather
+      // than duplicating it, so `@/…` resolves to ../src on both platforms.
+      // Only the files mobile actually imports get pulled in — the web views
+      // under src/views are never referenced from here.
+      "@/*": ["../src/*"],
+      "~/*": ["./*"],
+
+      // The *.native.ts adapters live under ../src, so tsc resolves their
+      // imports by walking up from there — which reaches the web app's
+      // node_modules and never mobile's. Metro is told the same thing via
+      // nodeModulesPaths in metro.config.js. Both packages ship their own
+      // types, so mapping them here is safe. React deliberately is NOT mapped:
+      // a path mapping bypasses @types/react resolution and breaks every JSX
+      // element in the project.
+      "expo-constants": ["./node_modules/expo-constants"],
+      "@react-native-async-storage/async-storage": [
+        "./node_modules/@react-native-async-storage/async-storage"
+      ]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
+}
