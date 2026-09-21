@@ -29,9 +29,8 @@ import {
 } from '@/hooks/useStudyRooms'
 import { profileKeys } from '@/hooks/useProfile'
 import { gardenKeys } from '@/hooks/useGarden'
-import { awardCoins } from '@/lib/api/coins'
-import { waterNewestActiveTree } from '@/lib/api/garden'
-import { REWARDS } from '@/lib/rewards'
+import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
+import { coinsFor } from '@/lib/rewards'
 import type { RoomMessage, RoomParticipant } from '@/lib/database.types'
 
 // ─── Timer ring ───────────────────────────────────────────────────────────────
@@ -88,9 +87,12 @@ function formatTime(secs: number) {
 
 function TimerSection({ roomId, isHost }: { roomId: string; isHost: boolean }) {
   const { data: room } = useRoom(roomId)
+  const { data: participants = [] } = useParticipants(roomId)
   const updateTimer = useUpdateTimer()
   const { user } = useAuth()
   const qc = useQueryClient()
+  // When this participant joined, used to size the end-of-session payout.
+  const myJoinedAt = participants.find((p) => p.user_id === user?.id)?.joined_at ?? null
   const [remaining, setRemaining] = useState(0)
   // Tracks the `timer_started_at` value of the session we've already rewarded,
   // so reloads / realtime echoes don't double-award.
@@ -130,6 +132,13 @@ function TimerSection({ roomId, isHost }: { roomId: string; isHost: boolean }) {
   }, [remaining, room?.timer_state, isHost])
 
   // Reward the local participant once per completed session.
+  //
+  // Two things previously went wrong here. The in-memory ref guard died on
+  // reload, so refreshing a finished room paid out again; and the payout used
+  // the room's configured duration, so joining with five seconds left still
+  // earned a full hour. The award is now keyed on the session's start time in
+  // the server-side ledger, and sized by the time this participant was
+  // actually present for.
   useEffect(() => {
     if (!room || !user) return
     if (room.timer_state !== 'done') return
@@ -138,24 +147,35 @@ function TimerSection({ roomId, isHost }: { roomId: string; isHost: boolean }) {
     if (rewardedStartedAtRef.current === sessionKey) return
     rewardedStartedAtRef.current = sessionKey
 
-    const blocks = Math.max(1, Math.floor(room.timer_duration / 5))
-    const coins = blocks * REWARDS.study_room_per_5min.coins
-    const xp = blocks * REWARDS.study_room_per_5min.xp
+    const startedAt = new Date(sessionKey).getTime()
+    const endedAt = startedAt + room.timer_duration * 60_000
+    // A participant who joined mid-session only earns from the moment they
+    // arrived. joinedAt is absent for the first render after joining, in
+    // which case they were present throughout.
+    const joinedAt = myJoinedAt ? new Date(myJoinedAt).getTime() : startedAt
+    const attendedMs = endedAt - Math.max(startedAt, joinedAt)
+    const attendedMins = Math.max(0, Math.floor(attendedMs / 60_000))
 
-    Promise.allSettled([
-      awardCoins(
-        user.id,
-        'focus_complete',
-        coins,
-        `Study room: ${room.name} (${room.timer_duration}m)`,
-      ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
-      waterNewestActiveTree(user.id, xp).then(() =>
-        qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
-      ),
-    ]).then(() => {
-      toast.success(`Session complete! +${coins} coins, +${xp} tree XP 🎉`)
-    })
-  }, [room, user, qc])
+    const reward = coinsFor({ kind: 'study_room', minutes: attendedMins })
+    if (reward.coins <= 0) return
+
+    awardCoinsOnce(
+      user.id,
+      'focus_complete',
+      reward,
+      awardKeys.studyRoom(room.id, sessionKey),
+      `Study room: ${room.name} (${attendedMins}m)`,
+    )
+      .then((balance) => {
+        if (balance === null) return
+        qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
+        qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+        toast.success(`Session complete! +${reward.coins} coins, +${reward.xp} tree XP 🎉`)
+      })
+      .catch(() => {
+        /* a failed payout must not break the room UI */
+      })
+  }, [room, user, qc, myJoinedAt])
 
   if (!room) return null
 

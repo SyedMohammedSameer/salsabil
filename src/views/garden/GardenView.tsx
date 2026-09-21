@@ -14,7 +14,7 @@ import { useGardenTrees, usePlantTree, useWaterTree } from '@/hooks/useGarden'
 import { SPECIES_INFO } from '@/lib/api/garden'
 import type { GardenTree, TreeSpecies, TreeStage } from '@/lib/database.types'
 import { XP_THRESHOLDS } from '@/lib/api/garden'
-import { WATER_COST_COINS, WATER_XP_GAIN } from '@/lib/rewards'
+import { waterCost, WATER_XP_GAIN } from '@/lib/rewards'
 import { endOfWeek, startOfWeek } from '@/lib/weeks'
 
 // ─── Stage progress bar ───────────────────────────────────────────────────────
@@ -60,12 +60,13 @@ function SelectedTreePanel({
   tree: GardenTree
   coins: number
   onClose: () => void
-  onWater: (id: string) => void
+  onWater: (tree: GardenTree) => void
   watering: boolean
 }) {
   const info = SPECIES_INFO[tree.species]
-  const canAfford = coins >= WATER_COST_COINS
   const isAncient = tree.stage === 'ancient'
+  const cost = waterCost(tree.stage)
+  const canAfford = coins >= cost
   const plantedAt = new Date(tree.planted_at)
   const plantedLabel = plantedAt.toLocaleDateString(undefined, {
     month: 'short',
@@ -112,13 +113,11 @@ function SelectedTreePanel({
               size="sm"
               variant="outline"
               className="w-full gap-1.5"
-              onClick={() => onWater(tree.id)}
+              onClick={() => onWater(tree)}
               disabled={watering || !canAfford || isAncient}
             >
               <Droplets className="h-3.5 w-3.5 text-blue-400" />
-              {isAncient
-                ? 'Fully grown'
-                : `Water (−${WATER_COST_COINS} coins → +${WATER_XP_GAIN} XP)`}
+              {isAncient ? 'Fully grown' : `Water (−${cost} coins → +${WATER_XP_GAIN} XP)`}
             </Button>
             {!isAncient && !canAfford && (
               <p className="text-[10px] text-muted-foreground text-center">
@@ -381,10 +380,11 @@ export default function GardenView() {
             <div>
               <p className="text-xs font-medium text-foreground">How trees grow</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Real effort grows the garden. Focus sessions, study rooms, completed tasks,
-                workouts, and challenges all add XP to your newest tree and earn coins. Spend{' '}
-                {WATER_COST_COINS} coins to water any tree for +{WATER_XP_GAIN} XP. Each week gets
-                its own scene — browse past weeks with the arrows above.
+                Real effort grows the garden. Prayers, Quran, adhkar, focus sessions, study rooms,
+                completed tasks, workouts, and challenges all add XP to your newest tree and earn
+                coins. You can also water a tree for +{WATER_XP_GAIN} XP — the cost rises as it
+                matures, from {waterCost('seed')} coins for a seed to {waterCost('mature')} for a
+                mature tree. Each week gets its own scene — browse past weeks with the arrows above.
               </p>
             </div>
           </CardContent>

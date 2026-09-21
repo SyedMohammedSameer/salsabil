@@ -375,15 +375,16 @@ function useActionExecutor() {
             if (!u) return { data: null }
             return await m.supabase
               .from('garden_trees')
-              .select('id')
+              .select('*')
               .eq('user_id', u.id)
               .neq('stage', 'ancient')
               .order('planted_at', { ascending: false })
               .limit(1)
               .maybeSingle()
           })
-          if (!data?.id) throw new Error('No trees to water — plant one first.')
-          await waterTree.mutateAsync(data.id)
+          if (!data) throw new Error('No trees to water — plant one first.')
+          // Watering cost depends on the tree's stage, so pass the whole row.
+          await waterTree.mutateAsync(data)
           return
         }
         case 'addMemory':

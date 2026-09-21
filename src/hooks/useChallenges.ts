@@ -9,8 +9,7 @@ import {
   updateChallenge,
   deleteChallenge,
 } from '@/lib/api/challenges'
-import { awardCoins } from '@/lib/api/coins'
-import { waterNewestActiveTree } from '@/lib/api/garden'
+import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { getChallengeRewards } from '@/data/challengeTemplates'
@@ -74,28 +73,48 @@ export function useIncrementChallenge() {
       const totalCoins = coinsPerDay + (justCompleted ? completionBonus : 0)
       const totalXP = treeXpPerDay + (justCompleted ? treeXpCompletionBonus : 0)
 
-      Promise.allSettled([
-        awardCoins(
+      // The daily tick and the completion bonus are keyed separately so a
+      // retried or double-fired increment cannot pay either one twice.
+      const awards: Promise<number | null>[] = [
+        awardCoinsOnce(
           user.id,
           'challenge_complete',
-          totalCoins,
-          justCompleted
-            ? `Challenge complete: ${updated.title}`
-            : `Challenge day ${updated.current_days}: ${updated.title}`,
-        ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
-        waterNewestActiveTree(user.id, totalXP).then(() =>
-          qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
+          { coins: coinsPerDay, xp: treeXpPerDay },
+          awardKeys.challengeDay(updated.id, updated.current_days),
+          `Challenge day ${updated.current_days}: ${updated.title}`,
         ),
-      ]).then(() => {
-        if (justCompleted) {
-          toast.success(
-            `🏆 Challenge complete! +${totalCoins.toLocaleString()} coins, +${totalXP} tree XP 🎉`,
-            { duration: 6000 },
-          )
-        } else {
-          toast.success(`+${totalCoins} coins 🔥 Day ${updated.current_days} done!`)
-        }
-      })
+      ]
+      if (justCompleted) {
+        awards.push(
+          awardCoinsOnce(
+            user.id,
+            'challenge_complete',
+            { coins: completionBonus, xp: treeXpCompletionBonus },
+            awardKeys.challengeComplete(updated.id),
+            `Challenge complete: ${updated.title}`,
+          ),
+        )
+      }
+
+      Promise.all(awards)
+        .then((balances) => {
+          // Nothing landed — this increment had already been paid out.
+          if (balances.every((b) => b === null)) return
+          qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
+          qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+
+          if (justCompleted) {
+            toast.success(
+              `🏆 Challenge complete! +${totalCoins.toLocaleString()} coins, +${totalXP} tree XP 🎉`,
+              { duration: 6000 },
+            )
+          } else {
+            toast.success(`+${totalCoins} coins 🔥 Day ${updated.current_days} done!`)
+          }
+        })
+        .catch(() => {
+          /* the challenge progress itself saved; a failed payout is not an error */
+        })
     },
   })
 }

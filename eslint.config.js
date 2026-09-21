@@ -45,6 +45,17 @@ export default [
     },
   },
   {
+    // Maintenance scripts run under Node, not the browser, so they legitimately
+    // use process/console/fetch. Without this they produced 28 no-undef errors
+    // that made `npm run lint` useless as a pre-push gate.
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node },
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', 'public/**', '*.config.*', 'netlify/functions/**'],
   },
 ]

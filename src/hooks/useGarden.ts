@@ -4,7 +4,7 @@ import { useAuth } from './useAuth'
 import { profileKeys } from './useProfile'
 import { fetchGardenTrees, plantTree, addXPToTree, waterNewestActiveTree } from '@/lib/api/garden'
 import { spendCoins } from '@/lib/api/coins'
-import { WATER_COST_COINS, WATER_XP_GAIN } from '@/lib/rewards'
+import { waterCost, WATER_XP_GAIN } from '@/lib/rewards'
 import type { TreeSpecies, GardenTree } from '@/lib/database.types'
 import { SPECIES_INFO } from '@/lib/api/garden'
 
@@ -66,23 +66,31 @@ export function useWaterTree() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async (treeId: string) => {
+    mutationFn: async (tree: GardenTree) => {
+      if (tree.stage === 'ancient') {
+        throw new Error('Tree is fully grown')
+      }
+      // Cost scales with the tree's current stage, so the stretch to 'ancient'
+      // is the expensive one and a single windfall cannot skip the stages.
+      const cost = waterCost(tree.stage)
       // Atomic coin deduction — throws 'Not enough coins' if balance too low.
-      await spendCoins(user!.id, 'tree_purchase', WATER_COST_COINS, 'Watered a tree')
-      return addXPToTree(treeId, WATER_XP_GAIN)
+      await spendCoins(user!.id, 'tree_purchase', cost, `Watered a ${tree.stage} tree`)
+      return addXPToTree(tree.id, WATER_XP_GAIN)
     },
-    onSuccess: (updated, _treeId, _ctx) => {
+    onSuccess: (updated) => {
       qc.setQueryData<GardenTree[]>(gardenKeys.trees(user!.id), (old) =>
         old?.map((t) => (t.id === updated.id ? updated : t)),
       )
       qc.invalidateQueries({ queryKey: profileKeys.byId(user!.id) })
       toast.success(`+${WATER_XP_GAIN} XP — tree is now ${updated.stage}`)
     },
-    onError: (err: Error) => {
+    onError: (err: Error, tree) => {
       if (err.message === 'Not enough coins') {
         toast.error(
-          `Watering costs ${WATER_COST_COINS} coins — earn more from focus, tasks, workouts.`,
+          `Watering a ${tree.stage} tree costs ${waterCost(tree.stage)} coins — pray, focus and log tasks to earn more.`,
         )
+      } else if (err.message === 'Tree is fully grown') {
+        toast.info('This tree is already ancient. Plant a new one to keep growing.')
       } else {
         toast.error('Could not water tree.')
       }

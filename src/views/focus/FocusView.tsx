@@ -204,8 +204,8 @@ export default function FocusView() {
     completeSession.mutate(
       {
         id: sessionId,
-        coinsEarned: Math.floor(preset.minutes / 5),
-        durationMins: preset.minutes,
+        // Timer ran to zero, so the full preset elapsed.
+        elapsedMins: preset.minutes,
       },
       {
         onSuccess: () => {
@@ -251,10 +251,12 @@ export default function FocusView() {
 
   const handleSkip = useCallback(() => {
     if (sessionId) {
-      completeSession.mutate({ id: sessionId, coinsEarned: 0, durationMins: preset.minutes })
+      // Credit only the time actually served, not the preset length.
+      const elapsedMins = Math.max(0, preset.minutes - remaining / 60)
+      completeSession.mutate({ id: sessionId, elapsedMins })
     }
     timer.finish()
-  }, [sessionId, completeSession, preset.minutes, timer])
+  }, [sessionId, completeSession, preset.minutes, remaining, timer])
 
   const handlePresetChange = useCallback(
     (p: Preset) => {

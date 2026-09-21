@@ -381,6 +381,21 @@ export interface Database {
         Update: never
         Relationships: []
       }
+      coin_award_ledger: {
+        Row: {
+          id: string
+          user_id: string
+          idempotency_key: string
+          action: CoinAction
+          amount: number
+          xp: number
+          created_at: string
+        }
+        // Written only by the award_coins_once security definer function.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           id: string
@@ -557,6 +572,32 @@ export interface Database {
           p_description?: string | null
         }
         Returns: number
+      }
+      award_coins_once: {
+        Args: {
+          p_user_id: string
+          p_action: string
+          p_amount: number
+          p_idempotency_key: string
+          p_xp?: number
+          p_description?: string | null
+        }
+        /** New balance, or null when this event was already paid out. */
+        Returns: number | null
+      }
+      has_been_awarded: {
+        Args: {
+          p_user_id: string
+          p_idempotency_key: string
+        }
+        Returns: boolean
+      }
+      add_tree_xp: {
+        Args: {
+          p_tree_id: string
+          p_xp: number
+        }
+        Returns: GardenTree
       }
     }
     Enums: {

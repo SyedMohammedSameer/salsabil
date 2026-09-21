@@ -6,13 +6,13 @@ import {
   completeFocusSession,
   getTodayFocusMinutes,
 } from '@/lib/api/focus'
-import { awardCoins } from '@/lib/api/coins'
-import { waterNewestActiveTree } from '@/lib/api/garden'
+import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { notificationKeys } from './useNotifications'
 import { localDateString } from '@/lib/dates'
+import { coinsFor } from '@/lib/rewards'
 import type { SessionType } from '@/lib/database.types'
 
 export const focusKeys = {
@@ -57,42 +57,45 @@ export function useCompleteFocusSession() {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      id,
-      coinsEarned,
-      durationMins,
-    }: {
-      id: string
-      coinsEarned: number
-      durationMins: number
-    }) => {
+    mutationFn: async ({ id, elapsedMins }: { id: string; elapsedMins: number }) => {
       // Skip empty IDs — happens if the optimistic timer started but the
       // server-side createFocusSession failed silently.
       if (!id) {
         throw new Error('No session to complete')
       }
-      const session = await completeFocusSession(id, coinsEarned)
+
+      // The payout is derived here from time actually elapsed, never supplied
+      // by the caller. Previously a skipped session reported its full preset
+      // duration, which paid zero coins but still granted the full tree XP —
+      // start-then-skip was unlimited free growth.
+      const mins = Math.max(0, Math.floor(elapsedMins))
+      const reward = coinsFor({ kind: 'focus', minutes: mins })
+
+      const session = await completeFocusSession(id, reward.coins)
       // `null` means the session was already completed — don't award again
       if (!session) {
         return null
       }
       if (user) {
-        const sideEffects: Promise<unknown>[] = [
-          waterNewestActiveTree(user.id, Math.ceil(durationMins / 5)),
+        await Promise.allSettled([
+          awardCoinsOnce(
+            user.id,
+            'focus_complete',
+            reward,
+            awardKeys.focus(id),
+            `${mins}m focus session`,
+          ),
           createNotification({
             user_id: user.id,
             type: 'focus_complete',
             title: 'Session complete! MashaAllah.',
-            body: `${durationMins}m focus — you earned ${coinsEarned} coins.`,
+            body:
+              reward.coins > 0
+                ? `${mins}m focus — you earned ${reward.coins} coins.`
+                : `${mins}m focus logged.`,
             action_url: '/focus',
           }),
-        ]
-        if (coinsEarned > 0) {
-          sideEffects.push(
-            awardCoins(user.id, 'focus_complete', coinsEarned, `${durationMins}m focus session`),
-          )
-        }
-        await Promise.allSettled(sideEffects)
+        ])
       }
       return session
     },

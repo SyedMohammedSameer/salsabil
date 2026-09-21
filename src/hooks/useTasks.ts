@@ -9,12 +9,11 @@ import {
   deleteTask,
   getTodayTaskStats,
 } from '@/lib/api/tasks'
-import { awardCoins } from '@/lib/api/coins'
-import { waterNewestActiveTree } from '@/lib/api/garden'
+import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
-import { REWARDS } from '@/lib/rewards'
+import { coinsFor } from '@/lib/rewards'
 import { notificationKeys } from './useNotifications'
 import type { Task, TaskPriority } from '@/lib/database.types'
 import { useAuth } from './useAuth'
@@ -141,16 +140,24 @@ export function useCompleteTask() {
       }
       invalidateDashboard(qc)
       if (completed && user) {
+        // Keyed on the task plus the day it was completed, so un-checking and
+        // re-checking a task cannot farm coins. A recurring task legitimately
+        // pays again on a later date.
+        const completedOn = (updated.completed_at ?? new Date().toISOString()).slice(0, 10)
+        const reward = coinsFor({ kind: 'task', priority: updated.priority })
+
         Promise.allSettled([
-          awardCoins(
+          awardCoinsOnce(
             user.id,
             'task_complete',
-            REWARDS.task_complete.coins,
+            reward,
+            awardKeys.task(updated.id, completedOn),
             `Task: ${updated.title}`,
-          ).then(() => qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })),
-          waterNewestActiveTree(user.id, REWARDS.task_complete.xp).then(() =>
-            qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) }),
-          ),
+          ).then((balance) => {
+            if (balance === null) return
+            qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
+            qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+          }),
           createNotification({
             user_id: user.id,
             type: 'task_complete',

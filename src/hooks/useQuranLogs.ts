@@ -6,7 +6,12 @@ import {
   createQuranLog,
   getTodayQuranPages,
 } from '@/lib/api/quran'
+import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
+import { coinsFor } from '@/lib/rewards'
+import { profileKeys } from './useProfile'
+import { gardenKeys } from './useGarden'
 import { useAuth } from './useAuth'
+import { toast } from 'sonner'
 
 export const quranKeys = {
   all: (userId: string) => ['quran', userId] as const,
@@ -65,6 +70,30 @@ export function useCreateQuranLog() {
       qc.invalidateQueries({ queryKey: quranKeys.all(user!.id) })
       qc.invalidateQueries({ queryKey: quranKeys.byDate(user!.id, log.date) })
       qc.invalidateQueries({ queryKey: quranKeys.todayPages(user!.id, log.date) })
+      if (!user) return
+
+      // Paid per page, keyed on the log row so a realtime echo or retry cannot
+      // pay twice. Capped inside coinsFor so one enormous entry cannot mint a
+      // fortune.
+      const reward = coinsFor({ kind: 'quran', pages: log.pages_read })
+      if (reward.coins <= 0) return
+
+      awardCoinsOnce(
+        user.id,
+        'quran_page',
+        reward,
+        awardKeys.quran(log.id),
+        `Quran: ${log.pages_read} page(s)`,
+      )
+        .then((balance) => {
+          if (balance === null) return
+          qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
+          qc.invalidateQueries({ queryKey: gardenKeys.trees(user.id) })
+          toast.success(`+${reward.coins} coins — may Allah accept your recitation.`)
+        })
+        .catch(() => {
+          /* the log itself saved; a failed payout must not surface as an error */
+        })
     },
   })
 }
