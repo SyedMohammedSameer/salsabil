@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
+import { useFonts } from 'expo-font'
 import * as Linking from 'expo-linking'
 import { StatusBar } from 'expo-status-bar'
 import { useColorScheme } from 'nativewind'
@@ -25,6 +26,14 @@ function AuthGate() {
   const { ready: themeReady } = useTheme()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
+  // Amiri is the web's Arabic face (src/styles/globals.css). Loaded at runtime
+  // from the JS bundle, so it needs no native rebuild. Latin text stays on the
+  // platform font — Roboto on Android, SF on iOS — which is what native apps
+  // are expected to use.
+  const [fontsReady] = useFonts({
+    Amiri: require('../assets/fonts/Amiri_400Regular.ttf'),
+    'Amiri-Bold': require('../assets/fonts/Amiri_700Bold.ttf'),
+  })
 
   useEffect(() => {
     if (loading) return
@@ -38,8 +47,8 @@ function AuthGate() {
   }, [session, loading, segments, router])
 
   useEffect(() => {
-    if (!loading && themeReady) void SplashScreen.hideAsync()
-  }, [loading, themeReady])
+    if (!loading && themeReady && fontsReady) void SplashScreen.hideAsync()
+  }, [loading, themeReady, fontsReady])
 
   return (
     <Stack

@@ -122,6 +122,11 @@ Two things the web gets from the browser are built differently here:
 Lucide icons take a literal colour, so screens carry light and dark hex pairs
 for each tint rather than a class.
 
+Arabic text is set in Amiri, the web's Arabic face, loaded at runtime from
+`assets/fonts` with expo-font (no native rebuild needed) and applied by the
+`Arabic` primitive. Latin text stays on the platform font, Roboto on Android
+and SF on iOS, which is what a native app is expected to use.
+
 ## The garden
 
 `components/garden/SvgTree.tsx` is the one place where native deliberately

@@ -1,23 +1,32 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Pressable, RefreshControl, ScrollView } from 'react-native'
-import { useRouter } from 'expo-router'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter, useIsFocused } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useColorScheme } from 'nativewind'
-import Svg, { Circle } from 'react-native-svg'
+import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg'
 import {
+  Bell,
   BookOpen,
-  CheckCircle2,
-  CheckSquare,
-  Circle as CircleIcon,
+  ChartColumn,
+  Check,
   Coins,
+  Droplets,
   Dumbbell,
   Flame,
+  MapPin,
   Moon,
-  Plus,
-  Sparkles,
+  Play,
+  Sun,
+  SunMedium,
+  Sunrise,
+  Sunset,
+  CheckSquare,
   Target,
   Timer,
   TreePine,
+  Users,
+  X,
 } from 'lucide-react-native'
 import {
   Arabic,
@@ -25,48 +34,53 @@ import {
   Card,
   FadeIn,
   Gradient,
-  HERO_GRADIENT,
   IconBadge,
   Muted,
-  NOOR_GRADIENT,
   PressableScale,
   Progress,
   SectionHeader,
-  Skeleton,
+  SHADOW,
 } from '~/components/ui'
 import { SvgTree } from '~/components/garden/SvgTree'
+import { useDeviceLocation } from '~/lib/location'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
-import { useWorkouts } from '@/hooks/useWorkouts'
-import { useChallenges } from '@/hooks/useChallenges'
 import { useAdhkarLogs } from '@/hooks/useAdhkar'
-import { useGardenTrees } from '@/hooks/useGarden'
-import { useAllTasks, useCompleteTask } from '@/hooks/useTasks'
+import { useGardenTrees, useWaterTree } from '@/hooks/useGarden'
+import { useAllTasks } from '@/hooks/useTasks'
+import { usePrayersForDate } from '@/hooks/usePrayers'
+import { usePrayerTimes } from '@/hooks/usePrayerTimes'
+import { useQuranLogsForDate } from '@/hooks/useQuranLogs'
+import { SPECIES_INFO } from '@/lib/api/garden'
+import { FARD_ORDER, nextPrayer, prayerTimeToDate, type FardName } from '@/lib/api/prayerTimes'
+import { waterCost } from '@/lib/rewards'
 import { getDailyQuote } from '@/data/quotes'
-import { localDateString, daysAgo } from '@/lib/dates'
+import { localDateString } from '@/lib/dates'
 import { cn } from '@/lib/cn'
+import type { PrayerStatus } from '@/lib/database.types'
 
-// The native dashboard. Same sections, same order and same data hooks as
-// src/views/dashboard/DashboardView.tsx, laid out for one hand on a phone:
+// The native dashboard, "immersive header" layout:
 //
-//   greeting → hero (coins, streak, today's prayers) → daily ayah →
-//   stats grid → garden → quick actions → Noor → today's tasks → challenges
+//   header (greeting, date, next prayer) with the stats card floating over
+//   its bottom edge → today's five prayers → bento tiles (focus, tasks,
+//   quran, adhkar) that each open their screen → garden scene with a water
+//   button → daily ayah → explore chips
 //
-// Everything a number here is the shared React Query cache; nothing is
-// computed twice or differently from the web.
+// Every number is the shared React Query cache the web dashboard reads;
+// nothing is computed twice or differently from src/views/dashboard.
 
-// ─── Greeting ────────────────────────────────────────────────────────────────
+// ─── Greeting & dates ────────────────────────────────────────────────────────
 
 function getGreeting(hour: number) {
-  if (hour < 6) return { ar: 'بِسْمِ اللهِ', en: 'Bismillah — start your day' }
+  if (hour < 6) return { ar: 'بِسْمِ اللهِ', en: 'Bismillah' }
   if (hour < 12) return { ar: 'صَبَاحُ الْخَيْرِ', en: 'Good morning' }
   if (hour < 17) return { ar: 'مَرْحَبًا', en: 'Good afternoon' }
   if (hour < 20) return { ar: 'مَسَاءُ الْخَيْرِ', en: 'Good evening' }
   return { ar: 'لَيْلَةً مُبَارَكَةً', en: 'Blessed night' }
 }
 
-/** "Monday, 22 September · 10 Rabi' II 1448" — Hijri part only where ICU has it. */
+/** "Tuesday, 22 September · 10 Rabiʿ II 1448" — Hijri part only where ICU has it. */
 function formatToday(date: Date): string {
   const gregorian = date.toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -82,10 +96,37 @@ function formatToday(date: Date): string {
     // An ICU build without the Islamic calendar silently falls back to
     // Gregorian, which would print the same date twice.
     if (!fmt.resolvedOptions().calendar.startsWith('islamic')) return gregorian
-    return `${gregorian}  ·  ${fmt.format(date).replace(/\s*AH$/, '')}`
+    return `${gregorian} · ${fmt.format(date).replace(/\s*AH$/, '')}`
   } catch {
     return gregorian
   }
+}
+
+/** "15:47" → "3:47" (and "3:47 PM" with `meridiem`). */
+function clock(hhmm: string | undefined, meridiem = false): string {
+  if (!hhmm) return '—'
+  const [h, m] = hhmm.split(':').map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm
+  const base = `${h % 12 || 12}:${String(m).padStart(2, '0')}`
+  return meridiem ? `${base} ${h < 12 ? 'AM' : 'PM'}` : base
+}
+
+function untilLabel(at: Date, now: Date): string {
+  const mins = Math.max(0, Math.round((at.getTime() - now.getTime()) / 60_000))
+  if (mins < 1) return 'now'
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return h > 0 ? `in ${h}h ${m}m` : `in ${m}m`
+}
+
+/** A clock that ticks once a minute, so countdowns stay honest. */
+function useNow(): Date {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  return now
 }
 
 // ─── Colour ──────────────────────────────────────────────────────────────────
@@ -102,7 +143,6 @@ const TINT = {
   rose: { icon: '#f43f5e', iconDark: '#fb7185', bg: 'bg-rose-500/10' },
   violet: { icon: '#8b5cf6', iconDark: '#a78bfa', bg: 'bg-violet-500/10' },
   indigo: { icon: '#6366f1', iconDark: '#818cf8', bg: 'bg-indigo-500/10' },
-  emerald: { icon: '#059669', iconDark: '#34d399', bg: 'bg-emerald-500/10' },
 } satisfies Record<string, Tint>
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -112,87 +152,157 @@ const PRIORITY_DOT: Record<string, string> = {
   low: 'bg-muted-foreground/40',
 }
 
+const PRAYER_LABEL: Record<FardName, string> = {
+  fajr: 'Fajr',
+  dhuhr: 'Dhuhr',
+  asr: 'Asr',
+  maghrib: 'Maghrib',
+  isha: 'Isha',
+}
+
+const PRAYER_ICON: Record<FardName, typeof Sun> = {
+  fajr: Sunrise,
+  dhuhr: Sun,
+  asr: SunMedium,
+  maghrib: Sunset,
+  isha: Moon,
+}
+
+/** A soft daily focus target the tile's bar fills against. */
+const FOCUS_DAILY_TARGET_MIN = 90
+
+const HEADER_GRADIENT = ['#023728', '#0b5c4c', '#0f766e'] as const
+
 // ─── Pieces ──────────────────────────────────────────────────────────────────
 
-function PrayerRing({ prayed, total }: { prayed: number; total: number }) {
-  const size = 72
-  const stroke = 6
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const pct = total > 0 ? Math.min(1, prayed / total) : 0
+function HeaderDots() {
+  // The faint dot grid under the header, as on web hero surfaces.
   return (
-    <View style={{ width: size, height: size }} className="items-center justify-center">
-      <Svg width={size} height={size} style={{ position: 'absolute' }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#ffffff" strokeOpacity={0.2} strokeWidth={stroke} fill="none" />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke="#ffffff"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          fill="none"
-          strokeDasharray={`${c} ${c}`}
-          strokeDashoffset={c * (1 - pct)}
-          rotation={-90}
-          origin={`${size / 2}, ${size / 2}`}
-        />
-      </Svg>
-      <Text className="text-lg font-bold text-white">
-        {prayed}
-        <Text className="text-xs font-medium text-white/70">/{total}</Text>
+    <Svg pointerEvents="none" style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+      <Defs>
+        <Pattern id="dots" width={14} height={14} patternUnits="userSpaceOnUse">
+          <Circle cx={1} cy={1} r={1} fill="#ffffff" fillOpacity={0.07} />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#dots)" />
+    </Svg>
+  )
+}
+
+type ChipState = 'done' | 'missed' | 'next' | 'todo'
+
+function PrayerChip({
+  name,
+  time,
+  state,
+  dark,
+  onPress,
+}: {
+  name: FardName
+  time?: string
+  state: ChipState
+  dark: boolean
+  onPress: () => void
+}) {
+  const Icon = PRAYER_ICON[name]
+  const muted = dark ? '#83938f' : '#677773'
+  const noor = dark ? '#2dd4bf' : '#0d9488'
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${PRAYER_LABEL[name]} ${state}`}
+      onPress={onPress}
+      className="items-center gap-1.5"
+      style={{ width: 60 }}
+    >
+      <View
+        className={cn(
+          'h-[46px] w-[46px] items-center justify-center rounded-full',
+          state === 'done' && 'bg-noor-500',
+          state === 'missed' && 'bg-danger-500/15',
+          state === 'next' && 'border-2 border-noor-500 bg-noor-500/10',
+          state === 'todo' && 'bg-muted',
+        )}
+      >
+        {state === 'done' ? (
+          <Check size={20} strokeWidth={2.5} color="#ffffff" />
+        ) : state === 'missed' ? (
+          <X size={18} strokeWidth={2.25} color="#ef4444" />
+        ) : (
+          <Icon size={20} strokeWidth={1.75} color={state === 'next' ? noor : muted} />
+        )}
+      </View>
+      <Text
+        className={cn('text-xs font-semibold text-foreground', state === 'next' && 'text-noor-600 dark:text-noor-400')}
+      >
+        {PRAYER_LABEL[name]}
       </Text>
-    </View>
+      <Text className="text-[10px] text-muted-foreground">{clock(time)}</Text>
+    </Pressable>
   )
 }
 
-function HeroPill({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <View className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5">
-      {icon}
-      <Text className="text-xs font-semibold text-white">{label}</Text>
-    </View>
-  )
-}
-
-function StatTile({
-  label,
-  value,
+function Tile({
+  title,
   icon: Icon,
   tint,
   dark,
+  onPress,
+  children,
 }: {
-  label: string
-  value: string
-  icon: typeof Flame
+  title: string
+  icon: typeof Sun
   tint: Tint
   dark: boolean
+  onPress: () => void
+  children: React.ReactNode
 }) {
   return (
-    <Card className="flex-1 flex-row items-start justify-between gap-3 p-4">
-      <View className="min-w-0 flex-1">
-        <Muted className="text-xs">{label}</Muted>
-        <Text className="mt-1 text-2xl font-bold tracking-tight text-foreground" numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-      <IconBadge className={tint.bg}>
-        <Icon size={20} strokeWidth={1.75} color={dark ? tint.iconDark : tint.icon} />
-      </IconBadge>
-    </Card>
+    <PressableScale onPress={onPress} style={{ flex: 1 }} accessibilityLabel={`Open ${title}`}>
+      <Card className="gap-2.5">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-sm font-medium text-muted-foreground">{title}</Text>
+          <IconBadge className={cn(tint.bg, 'rounded-[10px]')} size={36}>
+            <Icon size={18} strokeWidth={1.75} color={dark ? tint.iconDark : tint.icon} />
+          </IconBadge>
+        </View>
+        {children}
+      </Card>
+    </PressableScale>
   )
 }
 
-function StatsSkeleton() {
+function Big({ value, unit }: { value: string | number; unit?: string }) {
   return (
-    <View className="gap-3">
-      {[0, 1].map((row) => (
-        <View key={row} className="flex-row gap-3">
-          <Skeleton className="h-[88px]" style={{ flex: 1 }} />
-          <Skeleton className="h-[88px]" style={{ flex: 1 }} />
-        </View>
-      ))}
-    </View>
+    <Text className="text-[26px] font-bold leading-7 tracking-tight text-foreground">
+      {value}
+      {unit ? <Text className="text-[13px] font-medium tracking-normal text-muted-foreground"> {unit}</Text> : null}
+    </Text>
+  )
+}
+
+function Chip({
+  label,
+  icon: Icon,
+  tint,
+  dark,
+  onPress,
+}: {
+  label: string
+  icon: typeof Sun
+  tint: Tint
+  dark: boolean
+  onPress: () => void
+}) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      className="flex-row items-center gap-2 rounded-full border border-border bg-card py-2.5 pl-3.5 pr-4"
+      accessibilityLabel={label}
+    >
+      <Icon size={16} strokeWidth={1.75} color={dark ? tint.iconDark : tint.icon} />
+      <Text className="text-[13px] font-medium text-foreground">{label}</Text>
+    </PressableScale>
   )
 }
 
@@ -200,43 +310,30 @@ function StatsSkeleton() {
 
 export default function HomeScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const focused = useIsFocused()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
   const { user } = useAuth()
   const { data: profile } = useProfile()
 
-  const now = useMemo(() => new Date(), [])
+  const now = useNow()
+  const today = useMemo(() => localDateString(now), [now])
   const greeting = useMemo(() => getGreeting(now.getHours()), [now])
   const dateLine = useMemo(() => formatToday(now), [now])
-  const today = useMemo(() => localDateString(now), [now])
-  const weekAgo = useMemo(() => localDateString(daysAgo(7)), [])
   const quote = useMemo(() => getDailyQuote(), [])
 
   const { data: stats, isLoading: statsLoading, isRefetching, refetch } = useDashboardStats(today)
-  const { data: workouts } = useWorkouts()
-  const { data: challenges } = useChallenges()
+  const { coords } = useDeviceLocation()
+  const { data: times } = usePrayerTimes(coords)
+  const { data: prayerLogs } = usePrayersForDate(today)
   const { data: adhkarLogs } = useAdhkarLogs(today)
+  const { data: quranLogs } = useQuranLogsForDate(today)
   const { data: trees } = useGardenTrees()
-  const { data: allTasks, isLoading: tasksLoading } = useAllTasks()
-  const completeTask = useCompleteTask()
+  const { data: allTasks } = useAllTasks()
+  const waterTree = useWaterTree()
 
-  const todayTasks = useMemo(
-    () => (allTasks ?? []).filter((t) => t.due_date === today),
-    [allTasks, today],
-  )
-  const todayPending = todayTasks.filter((t) => !t.completed)
-  const todayDone = todayTasks.filter((t) => t.completed)
-
-  const workoutsThisWeek = useMemo(
-    () => workouts?.filter((w) => w.date >= weekAgo).length ?? 0,
-    [workouts, weekAgo],
-  )
-  const activeChallenges = useMemo(
-    () => challenges?.filter((c) => c.status === 'active') ?? [],
-    [challenges],
-  )
-  const adhkarDone = adhkarLogs?.filter((a) => a.completed).length ?? 0
-  const treesPlanted = trees?.length ?? 0
+  // ── Derived ────────────────────────────────────────────────────────────────
 
   const displayName =
     profile?.username ??
@@ -250,343 +347,392 @@ export default function HomeScreen() {
   const prayed = stats?.prayers?.prayed ?? 0
   const prayerTotal = stats?.prayers?.total ?? 5
 
-  const quickActions = [
-    { label: 'Workouts', icon: Dumbbell, path: '/workouts', tint: TINT.rose },
-    { label: 'Challenges', icon: Target, path: '/challenges', tint: TINT.violet },
-    { label: 'Adhkar', icon: Moon, path: '/adhkar', tint: TINT.indigo },
-    { label: 'Quran', icon: BookOpen, path: '/quran', tint: TINT.gold },
-  ] as const
+  const upcoming = times ? nextPrayer(times.prayers, now) : null
+  const lastPassed = useMemo(() => {
+    if (!times) return null
+    let last: { name: FardName; at: Date } | null = null
+    for (const name of FARD_ORDER) {
+      const at = prayerTimeToDate(now, times.prayers[name])
+      if (at && at.getTime() <= now.getTime()) last = { name, at }
+    }
+    return last
+  }, [times, now])
+
+  const statusOf = (name: FardName): PrayerStatus | null =>
+    prayerLogs?.find((p) => p.prayer === name)?.status ?? null
+
+  const chipState = (name: FardName): ChipState => {
+    const s = statusOf(name)
+    if (s === 'prayed' || s === 'late' || s === 'qada') return 'done'
+    if (s === 'missed') return 'missed'
+    if (upcoming?.name === name) return 'next'
+    return 'todo'
+  }
+
+  const todayTasks = useMemo(
+    () => (allTasks ?? []).filter((t) => t.due_date === today),
+    [allTasks, today],
+  )
+  const pending = todayTasks.filter((t) => !t.completed)
+  const doneCount = todayTasks.length - pending.length
+
+  const focusMins = stats?.focusMinutes ?? 0
+  const quranPages = stats?.quranPages ?? 0
+  const latestQuran = quranLogs?.[0]
+
+  const adhkarDone = adhkarLogs?.filter((a) => a.completed).length ?? 0
+  const adhkarHint = (() => {
+    const done = new Set(adhkarLogs?.filter((a) => a.completed).map((a) => a.time))
+    if (!done.has('morning') && now.getHours() < 12) return 'Morning adhkar after Fajr'
+    if (!done.has('evening')) return 'Evening adhkar after Maghrib'
+    if (!done.has('morning')) return 'Morning adhkar after Fajr'
+    if (!done.has('after_prayer')) return 'Adhkar after prayer'
+    return 'All done for today'
+  })()
+
+  const treesPlanted = trees?.length ?? 0
+  const newestActive = useMemo(
+    () =>
+      [...(trees ?? [])]
+        .filter((t) => t.stage !== 'ancient')
+        .sort((a, b) => (a.planted_at < b.planted_at ? 1 : -1))[0] ?? null,
+    [trees],
+  )
+  const waterPrice = newestActive ? waterCost(newestActive.stage) : 0
+  const canWater = !!newestActive && coins >= waterPrice
+
+  const white = '#ffffff'
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+    <View className="flex-1 bg-background">
+      {focused ? <StatusBar style="light" /> : null}
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40, gap: 20 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={() => void refetch()}
-            tintColor="#14b8a6"
+            tintColor={white}
             colors={['#14b8a6']}
+            progressViewOffset={insets.top + 8}
           />
         }
       >
-        {/* ─── Greeting ─────────────────────────────────────────────────────── */}
-        <FadeIn index={0}>
-          <View className="flex-row items-end justify-between gap-3 pt-2">
-            <View className="flex-1 gap-0.5">
-              <Text className="text-xl text-noor-600 dark:text-noor-400" style={{ writingDirection: 'rtl', textAlign: 'left' }}>
-                {greeting.ar}
-              </Text>
-              <Text className="text-2xl font-bold tracking-tight text-foreground" numberOfLines={1}>
-                {greeting.en}, {displayName}
-              </Text>
-              <Muted className="text-xs">{dateLine}</Muted>
+        {/* ─── Header ───────────────────────────────────────────────────────── */}
+        <Gradient
+          colors={HEADER_GRADIENT}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          orbs
+          style={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 64 }}
+        >
+          <HeaderDots />
+          <FadeIn index={0}>
+            <View className="flex-row items-center justify-between">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Profile"
+                onPress={() => router.push('/profile')}
+                className="flex-row items-center gap-3"
+              >
+                <View className="h-[42px] w-[42px] items-center justify-center rounded-full border border-white/25 bg-white/20">
+                  <Text className="text-base font-bold text-white">
+                    {displayName.slice(0, 1).toUpperCase()}
+                  </Text>
+                </View>
+                <View>
+                  <Text className="text-xs text-white/75">Assalamu alaikum</Text>
+                  <Text className="text-[21px] font-bold tracking-tight text-white" numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Prayer reminders"
+                onPress={() => router.push('/prayers')}
+                className="h-10 w-10 items-center justify-center rounded-full bg-white/15"
+              >
+                <Bell size={20} strokeWidth={1.75} color={white} />
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Profile"
-              onPress={() => router.push('/profile')}
-              className="h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
+
+            <Arabic className="mt-4 text-left text-[30px] leading-[42px] text-white dark:text-white">
+              {greeting.ar}
+            </Arabic>
+            <Text className="mt-1 text-xs text-white/75">
+              {greeting.en} · {dateLine}
+            </Text>
+          </FadeIn>
+
+          <FadeIn index={1}>
+            <PressableScale
+              onPress={() => router.push('/prayers')}
+              className="mt-4 flex-row items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3.5 py-3"
+              accessibilityLabel="Open prayers"
             >
-              <Text className="text-base font-bold text-noor-600 dark:text-noor-400">
-                {displayName.slice(0, 1).toUpperCase()}
-              </Text>
-            </Pressable>
-          </View>
-        </FadeIn>
-
-        {/* ─── Hero: the progress that matters ──────────────────────────────── */}
-        <FadeIn index={1}>
-          <PressableScale onPress={() => router.push('/garden')} accessibilityLabel="Open your garden">
-            <Gradient colors={HERO_GRADIENT} radius={24} orbs style={{ ...shadowLg }}>
-              <View className="gap-4 p-5">
-                <View className="flex-row items-center justify-between">
-                  <View className="gap-1">
-                    <View className="flex-row items-center gap-1.5">
-                      <Coins size={14} color="#fde68a" />
-                      <Text className="text-xs font-semibold uppercase tracking-wider text-white/80">
-                        Coins
-                      </Text>
-                    </View>
-                    <Text className="text-4xl font-bold tracking-tight text-white">
-                      {statsLoading && !profile ? '—' : coins.toLocaleString()}
-                    </Text>
-                  </View>
-                  <View className="items-center gap-1">
-                    <PrayerRing prayed={prayed} total={prayerTotal} />
-                    <Text className="text-[11px] font-medium text-white/80">prayers today</Text>
-                  </View>
-                </View>
-
-                <View className="flex-row flex-wrap gap-2">
-                  <HeroPill icon={<Flame size={13} color="#fdba74" />} label={`${streak} day streak`} />
-                  <HeroPill icon={<Timer size={13} color="#99f6e4" />} label={`${stats?.focusMinutes ?? 0} min focused`} />
-                  <HeroPill icon={<TreePine size={13} color="#bbf7d0" />} label={`${treesPlanted} ${treesPlanted === 1 ? 'tree' : 'trees'}`} />
-                </View>
+              <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-white/15">
+                {!coords ? (
+                  <MapPin size={18} color={white} />
+                ) : upcoming ? (
+                  (() => {
+                    const Icon = PRAYER_ICON[upcoming.name]
+                    return <Icon size={18} color={white} />
+                  })()
+                ) : (
+                  <Moon size={18} color={white} />
+                )}
               </View>
-            </Gradient>
-          </PressableScale>
-        </FadeIn>
-
-        {/* ─── Daily ayah ───────────────────────────────────────────────────── */}
-        <FadeIn index={2}>
-          <Card variant="glass-noor" className="gap-2 p-5">
-            <Arabic>{quote.arabic}</Arabic>
-            <Text className="text-sm leading-6 text-foreground/80">{quote.translation}</Text>
-            <Muted className="text-xs">{quote.source}</Muted>
-          </Card>
-        </FadeIn>
-
-        {/* ─── Stats ────────────────────────────────────────────────────────── */}
-        <FadeIn index={3}>
-          {statsLoading ? (
-            <StatsSkeleton />
-          ) : (
-            <View className="gap-3">
-              <View className="flex-row gap-3">
-                <StatTile label="Day streak" value={String(streak)} icon={Flame} tint={TINT.warn} dark={dark} />
-                <StatTile label="Tasks done" value={String(stats?.tasks?.completed ?? 0)} icon={CheckSquare} tint={TINT.accent} dark={dark} />
-              </View>
-              <View className="flex-row gap-3">
-                <StatTile label="Quran pages" value={String(stats?.quranPages ?? 0)} icon={BookOpen} tint={TINT.gold} dark={dark} />
-                <StatTile label="Focus mins" value={String(stats?.focusMinutes ?? 0)} icon={Timer} tint={TINT.noor} dark={dark} />
-              </View>
-              <View className="flex-row gap-3">
-                <StatTile label="Workouts (week)" value={String(workoutsThisWeek)} icon={Dumbbell} tint={TINT.rose} dark={dark} />
-                <StatTile label="Challenges" value={String(activeChallenges.length)} icon={Target} tint={TINT.violet} dark={dark} />
-              </View>
-              <View className="flex-row gap-3">
-                <StatTile label="Adhkar today" value={`${adhkarDone}/3`} icon={Moon} tint={TINT.indigo} dark={dark} />
-                <StatTile label="Trees planted" value={String(treesPlanted)} icon={TreePine} tint={TINT.emerald} dark={dark} />
-              </View>
-            </View>
-          )}
-        </FadeIn>
-
-        {/* ─── Garden ───────────────────────────────────────────────────────── */}
-        <FadeIn index={4}>
-          <Card className="gap-3 p-0">
-            <View className="px-4 pt-4">
-              <SectionHeader title="My Garden" action="Visit" onAction={() => router.push('/garden')} />
-            </View>
-            {treesPlanted === 0 ? (
-              <View className="items-center gap-2 px-4 pb-5 pt-2">
-                <TreePine size={36} strokeWidth={1.25} color={dark ? '#3f4f4a' : '#c4cfcc'} />
-                <Muted className="text-center">
-                  No trees yet — complete a focus session to plant your first
-                </Muted>
-                <Button variant="outline" size="sm" onPress={() => router.push('/focus')}>
-                  Start focusing
-                </Button>
-              </View>
-            ) : (
-              <>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-                >
-                  {trees!.slice(0, 9).map((tree) => (
-                    <View
-                      key={tree.id}
-                      className="items-center gap-1 rounded-xl border border-border bg-muted/30 px-2 pb-2 pt-1"
-                      style={{ minWidth: 72 }}
-                    >
-                      <SvgTree species={tree.species} stage={tree.stage} seed={tree.id} size={56} />
-                      <Text className="text-[10px] capitalize text-muted-foreground">{tree.stage}</Text>
-                    </View>
-                  ))}
-                  {treesPlanted > 9 ? (
-                    <Pressable
-                      onPress={() => router.push('/garden')}
-                      className="items-center justify-center rounded-xl border border-dashed border-border px-3"
-                      style={{ minWidth: 72 }}
-                    >
-                      <Muted className="text-xs">+{treesPlanted - 9}</Muted>
-                    </Pressable>
-                  ) : null}
-                </ScrollView>
-                <View className="px-4 pb-4">
-                  <Muted className="text-xs">
-                    {treesPlanted} tree{treesPlanted !== 1 ? 's' : ''} in your garden ·{' '}
-                    <Text className="text-noor-600 dark:text-noor-400" onPress={() => router.push('/garden')}>
-                      Plant more
-                    </Text>
-                  </Muted>
-                </View>
-              </>
-            )}
-          </Card>
-        </FadeIn>
-
-        {/* ─── Quick actions ────────────────────────────────────────────────── */}
-        <FadeIn index={5}>
-          <View className="gap-3">
-            <SectionHeader title="Quick Actions" />
-            <View className="flex-row gap-3">
-              {quickActions.map(({ label, icon: Icon, path, tint }) => (
-                <PressableScale
-                  key={path}
-                  onPress={() => router.push(path)}
-                  style={{ flex: 1 }}
-                  className="items-center gap-2 rounded-2xl border border-border bg-card py-4"
-                >
-                  <IconBadge className={tint.bg} size={44}>
-                    <Icon size={22} strokeWidth={1.75} color={dark ? tint.iconDark : tint.icon} />
-                  </IconBadge>
-                  <Text className="text-xs font-medium text-foreground">{label}</Text>
-                </PressableScale>
-              ))}
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* ─── Noor ─────────────────────────────────────────────────────────── */}
-        <FadeIn index={6}>
-          <PressableScale onPress={() => router.push('/noor')} accessibilityLabel="Open Noor AI">
-            <Card variant="glass-noor" className="flex-row items-center gap-3 p-4">
-              <Gradient colors={NOOR_GRADIENT} radius={20} style={{ width: 40, height: 40, ...shadowNoor }}>
-                <View className="flex-1 items-center justify-center">
-                  <Sparkles size={18} color="#ffffff" />
-                </View>
-              </Gradient>
               <View className="flex-1">
-                <Text className="text-sm font-semibold text-noor-700 dark:text-noor-300">Noor AI</Text>
-                <Muted className="mt-0.5 text-xs">
-                  Ask me anything about your day, Quran, or productivity.
-                </Muted>
-              </View>
-              <Text className="text-lg text-noor-600 dark:text-noor-400">›</Text>
-            </Card>
-          </PressableScale>
-        </FadeIn>
-
-        {/* ─── Today's tasks ────────────────────────────────────────────────── */}
-        <FadeIn index={7}>
-          <View className="gap-3">
-            <SectionHeader title="Today's Tasks" action="View all" onAction={() => router.push('/tasks')} />
-            {tasksLoading ? (
-              <View className="gap-2">
-                <Skeleton className="h-12 rounded-xl" />
-                <Skeleton className="h-12 rounded-xl" />
-                <Skeleton className="h-12 rounded-xl" />
-              </View>
-            ) : todayTasks.length === 0 ? (
-              <Card variant="outline-dashed" className="items-center gap-2 py-8">
-                <CheckSquare size={30} strokeWidth={1.5} color={dark ? '#3f4f4a' : '#c4cfcc'} />
-                <Muted>No tasks for today</Muted>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={() => router.push('/tasks')}
-                  icon={<Plus size={14} color={dark ? '#f5f5f5' : '#0a0a0a'} />}
-                >
-                  Add task
-                </Button>
-              </Card>
-            ) : (
-              <Card className="gap-0 p-0">
-                {todayPending.slice(0, 5).map((task, i) => (
-                  <View
-                    key={task.id}
-                    className={cn(
-                      'flex-row items-center gap-3 px-4 py-3',
-                      i > 0 && 'border-t border-border',
-                    )}
-                  >
-                    <Pressable
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: false }}
-                      accessibilityLabel={`Complete ${task.title}`}
-                      hitSlop={10}
-                      onPress={() => completeTask.mutate({ id: task.id, completed: true })}
-                    >
-                      <CircleIcon size={20} strokeWidth={1.75} color={dark ? '#5a6a66' : '#a9b6b2'} />
-                    </Pressable>
-                    <View className={cn('h-1.5 w-1.5 rounded-full', PRIORITY_DOT[task.priority ?? 'medium'])} />
-                    <Text className="flex-1 text-sm text-foreground" numberOfLines={1}>
-                      {task.title}
+                {!coords ? (
+                  <>
+                    <Text className="text-[13px] font-semibold text-white">Set your location</Text>
+                    <Text className="text-xs text-white/75">Prayer times and adhan reminders need it</Text>
+                  </>
+                ) : !times ? (
+                  <>
+                    <Text className="text-[13px] font-semibold text-white">Fetching prayer times…</Text>
+                    <Text className="text-xs text-white/75">{prayed} of {prayerTotal} prayed today</Text>
+                  </>
+                ) : upcoming ? (
+                  <>
+                    <Text className="text-[13px] font-semibold text-white">
+                      {PRAYER_LABEL[upcoming.name]} {untilLabel(upcoming.at, now)}
                     </Text>
-                  </View>
-                ))}
-                {todayPending.length > 5 ? (
-                  <Pressable
-                    onPress={() => router.push('/tasks')}
-                    className="border-t border-border px-4 py-2.5"
-                  >
-                    <Muted className="text-xs">+{todayPending.length - 5} more — view all</Muted>
-                  </Pressable>
-                ) : null}
-                {todayDone.length > 0 ? (
-                  <View
-                    className={cn(
-                      'flex-row items-center gap-2 bg-muted/30 px-4 py-2.5',
-                      todayPending.length > 0 && 'border-t border-border',
-                    )}
-                  >
-                    <CheckCircle2 size={14} color="#10b981" />
-                    <Muted className="text-xs">{todayDone.length} completed today</Muted>
-                  </View>
-                ) : null}
-              </Card>
-            )}
-          </View>
-        </FadeIn>
+                    <Text className="text-xs text-white/75">
+                      {clock(times.prayers[upcoming.name], true)} · {prayed} of {prayerTotal} prayed
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-[13px] font-semibold text-white">All of today's prayers have passed</Text>
+                    <Text className="text-xs text-white/75">
+                      {lastPassed ? `${PRAYER_LABEL[lastPassed.name]} was at ${clock(times.prayers[lastPassed.name], true)}` : ''}
+                      {' · '}{prayed} of {prayerTotal} prayed
+                    </Text>
+                  </>
+                )}
+              </View>
+              <Text className="text-lg text-white/80">›</Text>
+            </PressableScale>
+          </FadeIn>
+        </Gradient>
 
-        {/* ─── Active challenges ────────────────────────────────────────────── */}
-        {activeChallenges.length > 0 ? (
-          <FadeIn index={8}>
+        <View className="gap-5 px-4">
+          {/* ─── Floating stats ────────────────────────────────────────────── */}
+          <FadeIn index={2} style={{ marginTop: -48 }}>
+            <Card className="flex-row p-0" style={SHADOW.lg}>
+              {[
+                { k: 'Coins', v: statsLoading && !profile ? '—' : coins.toLocaleString(), Icon: Coins, tint: TINT.gold, to: '/garden' },
+                { k: 'Day streak', v: String(streak), Icon: Flame, tint: TINT.warn, to: '/analytics' },
+                { k: 'Prayers', v: `${prayed}`, suffix: `/${prayerTotal}`, Icon: Moon, tint: TINT.noor, to: '/prayers' },
+              ].map((cell, i) => (
+                <Pressable
+                  key={cell.k}
+                  accessibilityRole="button"
+                  onPress={() => router.push(cell.to)}
+                  className={cn('flex-1 items-center gap-1 px-2 py-4', i > 0 && 'border-l border-border')}
+                >
+                  <cell.Icon size={18} strokeWidth={1.75} color={dark ? cell.tint.iconDark : cell.tint.icon} />
+                  <Text className="text-[22px] font-bold tracking-tight text-foreground">
+                    {cell.v}
+                    {cell.suffix ? (
+                      <Text className="text-sm font-medium tracking-normal text-muted-foreground">{cell.suffix}</Text>
+                    ) : null}
+                  </Text>
+                  <Text className="text-[11px] font-medium text-muted-foreground">{cell.k}</Text>
+                </Pressable>
+              ))}
+            </Card>
+          </FadeIn>
+
+          {/* ─── Today's prayers ───────────────────────────────────────────── */}
+          <FadeIn index={3}>
             <View className="gap-3">
-              <SectionHeader title="Active Challenges" action="View all" onAction={() => router.push('/challenges')} />
-              <View className="gap-2">
-                {activeChallenges.slice(0, 3).map((challenge) => {
-                  const pct = Math.min(100, Math.round((challenge.current_days / challenge.target_days) * 100))
-                  return (
-                    <Card key={challenge.id} className="flex-row items-center gap-3 px-4 py-3">
-                      <IconBadge className={TINT.violet.bg} size={36}>
-                        <Target size={16} strokeWidth={1.75} color={dark ? TINT.violet.iconDark : TINT.violet.icon} />
-                      </IconBadge>
-                      <View className="min-w-0 flex-1 gap-1.5">
-                        <View className="flex-row items-center justify-between gap-2">
-                          <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
-                            {challenge.title}
-                          </Text>
-                          <Muted className="text-xs">
-                            {challenge.current_days}/{challenge.target_days}d
-                          </Muted>
-                        </View>
-                        <Progress value={pct} className="h-1" indicatorClassName="bg-violet-500" />
-                      </View>
-                    </Card>
-                  )
-                })}
+              <SectionHeader title="Today's prayers" action="Log" onAction={() => router.push('/prayers')} />
+              <View className="flex-row justify-between">
+                {FARD_ORDER.map((name) => (
+                  <PrayerChip
+                    key={name}
+                    name={name}
+                    time={times?.prayers[name]}
+                    state={chipState(name)}
+                    dark={dark}
+                    onPress={() => router.push('/prayers')}
+                  />
+                ))}
               </View>
             </View>
           </FadeIn>
-        ) : null}
+
+          {/* ─── Bento ─────────────────────────────────────────────────────── */}
+          <FadeIn index={4}>
+            <View className="gap-3">
+              <View className="flex-row gap-3">
+                <Tile title="Focus" icon={Timer} tint={TINT.noor} dark={dark} onPress={() => router.push('/focus')}>
+                  <Big value={focusMins} unit={`/ ${FOCUS_DAILY_TARGET_MIN} min`} />
+                  <Progress value={(focusMins / FOCUS_DAILY_TARGET_MIN) * 100} className="h-[5px]" />
+                  <Button
+                    size="sm"
+                    onPress={() => router.push('/focus')}
+                    icon={<Play size={14} color="#ffffff" />}
+                    className="mt-0.5"
+                  >
+                    Start session
+                  </Button>
+                </Tile>
+                <Tile title="Tasks" icon={CheckSquare} tint={TINT.accent} dark={dark} onPress={() => router.push('/tasks')}>
+                  <Big value={doneCount} unit={`/ ${todayTasks.length} done`} />
+                  <Progress
+                    value={todayTasks.length ? (doneCount / todayTasks.length) * 100 : 0}
+                    className="h-[5px]"
+                    indicatorClassName="bg-accentGreen-500"
+                  />
+                  <View className="gap-1.5 pt-0.5">
+                    {pending.slice(0, 2).map((t) => (
+                      <View key={t.id} className="flex-row items-center gap-2">
+                        <View className={cn('h-1.5 w-1.5 rounded-full', PRIORITY_DOT[t.priority ?? 'medium'])} />
+                        <Text className="flex-1 text-xs text-foreground" numberOfLines={1}>{t.title}</Text>
+                      </View>
+                    ))}
+                    {pending.length === 0 ? (
+                      <Muted className="text-xs">{todayTasks.length ? 'All done for today' : 'Nothing due today'}</Muted>
+                    ) : null}
+                  </View>
+                </Tile>
+              </View>
+              <View className="flex-row gap-3">
+                <Tile title="Quran" icon={BookOpen} tint={TINT.gold} dark={dark} onPress={() => router.push('/quran')}>
+                  <Big value={quranPages} unit={quranPages === 1 ? 'page' : 'pages'} />
+                  <Muted className="text-xs">
+                    {latestQuran
+                      ? `Surah ${latestQuran.surah_from} · from ayah ${latestQuran.ayah_from}`
+                      : 'Log today’s reading'}
+                  </Muted>
+                </Tile>
+                <Tile title="Adhkar" icon={Moon} tint={TINT.indigo} dark={dark} onPress={() => router.push('/adhkar')}>
+                  <Big value={adhkarDone} unit="/ 3" />
+                  <Muted className="text-xs">{adhkarHint}</Muted>
+                </Tile>
+              </View>
+            </View>
+          </FadeIn>
+
+          {/* ─── Garden ────────────────────────────────────────────────────── */}
+          <FadeIn index={5}>
+            <Card className="p-0">
+              <Pressable accessibilityRole="button" accessibilityLabel="Open your garden" onPress={() => router.push('/garden')}>
+                <Gradient
+                  colors={dark ? ['#062a27', '#070c0b'] : ['#f0fdfa', '#ffffff']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  radius={20}
+                  style={{ height: 150, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+                >
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: '-10%',
+                      right: '-10%',
+                      bottom: -70,
+                      height: 110,
+                      borderRadius: 999,
+                      backgroundColor: dark ? '#123d2c' : '#cfe8d2',
+                    }}
+                  />
+                  {treesPlanted === 0 ? (
+                    <View className="flex-1 items-center justify-center gap-1 px-6">
+                      <TreePine size={30} strokeWidth={1.25} color={dark ? '#3f4f4a' : '#9fb8b1'} />
+                      <Muted className="text-center text-xs">
+                        No trees yet. Finish a focus session to plant your first.
+                      </Muted>
+                    </View>
+                  ) : (
+                    <View
+                      className="flex-row items-end justify-evenly"
+                      style={{ position: 'absolute', left: 0, right: 0, bottom: 18 }}
+                    >
+                      {trees!.slice(0, 5).map((tree, i) => (
+                        <SvgTree
+                          key={tree.id}
+                          species={tree.species}
+                          stage={tree.stage}
+                          seed={tree.id}
+                          size={i === 1 ? 96 : i === 2 ? 84 : i === 3 ? 80 : 66}
+                        />
+                      ))}
+                    </View>
+                  )}
+                </Gradient>
+              </Pressable>
+              <View className="flex-row items-center justify-between gap-3 px-4 pb-3.5 pt-3">
+                <View className="min-w-0 flex-1">
+                  <Text className="text-[13px] font-semibold text-foreground">My Garden</Text>
+                  <Muted className="text-xs" numberOfLines={1}>
+                    {treesPlanted === 0
+                      ? 'Plant your first tree'
+                      : `${treesPlanted} ${treesPlanted === 1 ? 'tree' : 'trees'}${
+                          newestActive ? ` · ${SPECIES_INFO[newestActive.species].name} is ${newestActive.stage}` : ''
+                        }`}
+                  </Muted>
+                </View>
+                {newestActive ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canWater}
+                    loading={waterTree.isPending}
+                    onPress={() => waterTree.mutate(newestActive)}
+                    icon={<Droplets size={14} color={dark ? TINT.noor.iconDark : TINT.noor.icon} />}
+                  >
+                    Water · {waterPrice}
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onPress={() => router.push('/garden')}>
+                    Visit
+                  </Button>
+                )}
+              </View>
+            </Card>
+          </FadeIn>
+
+          {/* ─── Daily ayah ────────────────────────────────────────────────── */}
+          <FadeIn index={6}>
+            <Card variant="glass-noor" className="gap-2 px-5 pb-4 pt-5">
+              <Text
+                className="absolute left-3.5 top-1 text-[56px] leading-[56px] text-noor-300 dark:text-noor-800"
+                style={{ fontFamily: 'Amiri' }}
+              >
+                ”
+              </Text>
+              <Arabic className="text-[22px] leading-[42px]">{quote.arabic}</Arabic>
+              <Text className="text-[13px] leading-5 text-foreground/85">{quote.translation}</Text>
+              <Muted className="text-xs">{quote.source}</Muted>
+            </Card>
+          </FadeIn>
+
+          {/* ─── Explore ───────────────────────────────────────────────────── */}
+          <FadeIn index={7}>
+            <View className="gap-3">
+              <SectionHeader title="Explore" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+                style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
+              >
+                <Chip label="Workouts" icon={Dumbbell} tint={TINT.rose} dark={dark} onPress={() => router.push('/workouts')} />
+                <Chip label="Challenges" icon={Target} tint={TINT.violet} dark={dark} onPress={() => router.push('/challenges')} />
+                <Chip label="Study rooms" icon={Users} tint={TINT.noor} dark={dark} onPress={() => router.push('/rooms')} />
+                <Chip label="Analytics" icon={ChartColumn} tint={TINT.accent} dark={dark} onPress={() => router.push('/analytics')} />
+                <View style={{ width: 8 }} />
+              </ScrollView>
+            </View>
+          </FadeIn>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
-
-// Shadows for the two gradient surfaces. Elevation on Android needs an opaque
-// background on the same view; the SVG fill provides it visually but not to
-// the shadow engine, so a matching solid colour is set underneath.
-const shadowLg = {
-  backgroundColor: '#0f766e',
-  shadowColor: '#0f766e',
-  shadowOffset: { width: 0, height: 10 },
-  shadowOpacity: 0.3,
-  shadowRadius: 16,
-  elevation: 8,
-} as const
-
-const shadowNoor = {
-  backgroundColor: '#14b8a6',
-  shadowColor: '#14b8a6',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.35,
-  shadowRadius: 8,
-  elevation: 4,
-} as const

@@ -17,6 +17,7 @@ import {
   View,
   type StyleProp,
   type TextInputProps,
+  type TextProps,
   type ViewStyle,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -102,8 +103,16 @@ export function Heading({ children, className }: { children: ReactNode; classNam
   )
 }
 
-export function Muted({ children, className }: { children: ReactNode; className?: string }) {
-  return <Text className={cn('text-sm text-muted-foreground', className)}>{children}</Text>
+export function Muted({
+  children,
+  className,
+  ...rest
+}: TextProps & { children: ReactNode; className?: string }) {
+  return (
+    <Text className={cn('text-sm text-muted-foreground', className)} {...rest}>
+      {children}
+    </Text>
+  )
 }
 
 /** Arabic scripture. Right-aligned, generous leading, brand-tinted as on web. */
@@ -114,7 +123,7 @@ export function Arabic({ children, className }: { children: ReactNode; className
         'text-right text-xl leading-9 text-noor-700 dark:text-noor-300',
         className,
       )}
-      style={{ writingDirection: 'rtl' }}
+      style={{ writingDirection: 'rtl', fontFamily: 'Amiri' }}
     >
       {children}
     </Text>
