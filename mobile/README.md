@@ -100,8 +100,8 @@ remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
 
 ## Navigation
 
-Four domain hubs on the tab bar, and Noor as a floating orb above all of
-them (`app/(tabs)/_layout.tsx`):
+Four domain hubs on the tab bar, with a raised Noor button in its centre
+slot (`app/(tabs)/_layout.tsx`, drawn by `components/NavBar.tsx`):
 
 | Tab | Sections (segmented control) |
 |---|---|
@@ -111,8 +111,8 @@ them (`app/(tabs)/_layout.tsx`):
 | Grow | Garden · Challenges · Workouts · Analytics |
 
 Every feature is at most two taps away and there is no "More" tab. Profile
-and Settings are stack screens behind the avatar. Noor (`app/noor.tsx`)
-opens as a modal over whichever hub the user was in.
+and Settings are stack screens behind the avatar. The Noor button
+(`app/noor.tsx`) opens it as a modal over whichever hub the user was in.
 
 The feature bodies live in `features/` and are plain components; the hubs
 under `app/(tabs)/` compose them with `components/Hub.tsx`. A deep link
