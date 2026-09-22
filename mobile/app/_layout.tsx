@@ -53,7 +53,7 @@ function AuthGate() {
   return (
     <Stack
       screenOptions={{
-        // Secondary screens are pushed onto this stack from the More sheet, so
+        // Profile and Settings are pushed onto this stack from the avatar, so
         // they need a header to get a back affordance. Android's hardware back
         // works either way, but nothing on screen said so.
         headerShown: true,
@@ -67,17 +67,11 @@ function AuthGate() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="rooms/[id]" options={{ headerShown: false }} />
+      {/* Noor is summoned from the floating orb and sits over the current hub. */}
+      <Stack.Screen name="noor" options={{ headerShown: false, presentation: 'modal' }} />
 
-      <Stack.Screen name="tasks" options={{ title: 'Tasks' }} />
-      <Stack.Screen name="quran" options={{ title: 'Quran' }} />
-      <Stack.Screen name="adhkar" options={{ title: 'Adhkar' }} />
-      <Stack.Screen name="workouts" options={{ title: 'Workouts' }} />
-      <Stack.Screen name="challenges" options={{ title: 'Challenges' }} />
-      <Stack.Screen name="garden" options={{ title: 'Garden' }} />
-      <Stack.Screen name="analytics" options={{ title: 'Analytics' }} />
       <Stack.Screen name="profile" options={{ title: 'Profile' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-      <Stack.Screen name="rooms/index" options={{ title: 'Study Rooms' }} />
     </Stack>
   )
 }

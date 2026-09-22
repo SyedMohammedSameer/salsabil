@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable } from 'react-native'
 import { Check, RotateCcw, Sunrise, Sunset, Hand } from 'lucide-react-native'
-import { Screen, Muted, Card, Button } from '~/components/ui'
+import { HubContent, Muted, Card, Button } from '~/components/ui'
 import { useAdhkarLogs, useLogAdhkarComplete } from '@/hooks/useAdhkar'
 import { localDateString } from '@/lib/dates'
 import { ADHKAR_SETS, ADHKAR_SET_LABELS, type AdhkarSet, type AdhkarItem } from '@/data/adhkar'
@@ -110,7 +110,7 @@ export default function AdhkarScreen() {
   const reset = (item: AdhkarItem) => setCounts((c) => ({ ...c, [item.id]: 0 }))
 
   return (
-    <Screen>
+    <HubContent>
       <View className="gap-1 py-4">
         <Muted>Remembrance of Allah, morning and evening.</Muted>
       </View>
@@ -179,6 +179,6 @@ export default function AdhkarScreen() {
               : 'Recite all to complete'}
         </Button>
       </View>
-    </Screen>
+    </HubContent>
   )
 }

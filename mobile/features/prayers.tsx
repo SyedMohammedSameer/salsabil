@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import {
   CheckCircle2, Clock, RotateCcw, XCircle, BellRing, MapPin,
 } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button } from '~/components/ui'
+import { HubContent, Muted, Card, Button } from '~/components/ui'
 import { useDeviceLocation } from '~/lib/location'
 import {
   requestNotificationPermission,
@@ -143,15 +143,7 @@ export default function PrayersScreen() {
   }
 
   return (
-    <Screen>
-      <View className="gap-1 py-4">
-        <Heading>Prayers</Heading>
-        {times ? (
-          <Muted>
-            {times.hijri.date} {times.hijri.month.en}
-          </Muted>
-        ) : null}
-      </View>
+    <HubContent>
 
       {/* Location gate — prayer times are astronomical, so they need coordinates. */}
       {!coords ? (
@@ -230,6 +222,6 @@ export default function PrayersScreen() {
           />
         ))}
       </View>
-    </Screen>
+    </HubContent>
   )
 }

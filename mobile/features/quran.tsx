@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { View, Text, ActivityIndicator } from 'react-native'
 import { BookOpen } from 'lucide-react-native'
-import { Screen, Muted, Card, Button, Input } from '~/components/ui'
+import { HubContent, Muted, Card, Button, Input } from '~/components/ui'
 import {
   useQuranLogsForDate,
   useTodayQuranPages,
@@ -96,7 +96,7 @@ export default function QuranScreen() {
   }
 
   return (
-    <Screen>
+    <HubContent>
       <View className="gap-1 py-4">
         <Muted>{QURAN_PER_PAGE_COINS} coins per page. May Allah accept your recitation.</Muted>
       </View>
@@ -185,6 +185,6 @@ export default function QuranScreen() {
           ))
         )}
       </View>
-    </Screen>
+    </HubContent>
   )
 }

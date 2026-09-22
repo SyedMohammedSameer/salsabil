@@ -7,7 +7,7 @@
 // the same glass-noor surface for spiritual content, the same section headers.
 
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -25,8 +25,10 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated'
+import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
 import { cn } from '@/lib/cn'
 
@@ -364,6 +366,113 @@ export function Input({
         {...props}
       />
       {error ? <Text className="text-xs text-destructive">{error}</Text> : null}
+    </View>
+  )
+}
+
+// ─── Hub content ─────────────────────────────────────────────────────────────
+// The body of a hub segment. The hub itself owns the safe area, the title and
+// the segmented control; a feature only decides whether it scrolls.
+
+export function HubContent({
+  children,
+  scroll = true,
+  className,
+}: {
+  children: ReactNode
+  scroll?: boolean
+  className?: string
+}) {
+  if (!scroll) return <View className={cn('flex-1 px-4', className)}>{children}</View>
+  return (
+    <ScrollView
+      contentContainerStyle={{ flexGrow: 1, paddingBottom: 120, paddingHorizontal: 16 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <View className={cn('flex-1', className)}>{children}</View>
+    </ScrollView>
+  )
+}
+
+// ─── Segmented control ───────────────────────────────────────────────────────
+// iOS-style segments with a sliding thumb, used by every hub for its sections.
+
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[]
+  value: T
+  onChange: (next: T) => void
+}) {
+  const { colorScheme } = useColorScheme()
+  const dark = colorScheme === 'dark'
+  const [width, setWidth] = useState(0)
+  const PAD = 4
+  const GAP = 4
+  const n = options.length
+  const slot = width > 0 ? (width - PAD * 2 - GAP * (n - 1)) / n : 0
+  const index = Math.max(0, options.findIndex((o) => o.value === value))
+  const x = useSharedValue(0)
+
+  useEffect(() => {
+    x.value = withSpring(PAD + index * (slot + GAP), { damping: 20, stiffness: 220 })
+  }, [index, slot, x])
+
+  const thumb = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
+
+  return (
+    <View
+      className="flex-row rounded-xl bg-muted"
+      style={{ padding: PAD, gap: GAP }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      accessibilityRole="tablist"
+    >
+      {slot > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: PAD,
+              bottom: PAD,
+              left: 0,
+              width: slot,
+              borderRadius: 9,
+              backgroundColor: dark ? '#070c0b' : '#ffffff',
+            },
+            SHADOW.sm,
+            thumb,
+          ]}
+        />
+      ) : null}
+      {options.map((o) => {
+        const active = o.value === value
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => {
+              if (active) return
+              void Haptics.selectionAsync()
+              onChange(o.value)
+            }}
+            className="flex-1 items-center justify-center py-2"
+          >
+            <Text
+              className={cn(
+                'text-[13px] font-semibold',
+                active ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {o.label}
+            </Text>
+          </Pressable>
+        )
+      })}
     </View>
   )
 }

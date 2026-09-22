@@ -98,6 +98,27 @@ nothing can *tell* the user it finished if the app is not running.
 `cancelByKind` exists so a finished focus session does not wipe the day's
 remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
 
+## Navigation
+
+Four domain hubs on the tab bar, and Noor as a floating orb above all of
+them (`app/(tabs)/_layout.tsx`):
+
+| Tab | Sections (segmented control) |
+|---|---|
+| Home | the dashboard |
+| Deen | Prayers · Quran · Adhkar |
+| Focus | Timer · Tasks · Rooms |
+| Grow | Garden · Challenges · Workouts · Analytics |
+
+Every feature is at most two taps away and there is no "More" tab. Profile
+and Settings are stack screens behind the avatar. Noor (`app/noor.tsx`)
+opens as a modal over whichever hub the user was in.
+
+The feature bodies live in `features/` and are plain components; the hubs
+under `app/(tabs)/` compose them with `components/Hub.tsx`. A deep link
+into a section is `hubHref('deen', 'quran')` from `lib/nav.ts`, which is
+what the Home tiles use.
+
 ## Design system
 
 `components/ui/index.tsx` is the native counterpart of the web's shadcn

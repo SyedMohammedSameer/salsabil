@@ -5,7 +5,8 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Send, Sparkles, Trash2 } from 'lucide-react-native'
+import { useRouter } from 'expo-router'
+import { Send, Sparkles, Trash2, X } from 'lucide-react-native'
 import { Muted } from '~/components/ui'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -32,6 +33,7 @@ interface Bubble {
 }
 
 export default function NoorScreen() {
+  const router = useRouter()
   const { user } = useAuth()
   const qc = useQueryClient()
   const [draft, setDraft] = useState('')
@@ -118,7 +120,7 @@ export default function NoorScreen() {
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-background">
+    <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
@@ -139,6 +141,15 @@ export default function NoorScreen() {
               <Trash2 size={18} color="#83938f" />
             </Pressable>
           ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close Noor"
+            onPress={() => router.back()}
+            hitSlop={8}
+            className="ml-2 h-8 w-8 items-center justify-center rounded-full bg-muted"
+          >
+            <X size={16} color="#83938f" />
+          </Pressable>
         </View>
 
         {isLoading ? (

@@ -43,6 +43,7 @@ import {
 } from '~/components/ui'
 import { SvgTree } from '~/components/garden/SvgTree'
 import { useDeviceLocation } from '~/lib/location'
+import { hubHref } from '~/lib/nav'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
@@ -451,7 +452,7 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Prayer reminders"
-                onPress={() => router.push('/prayers')}
+                onPress={() => router.push(hubHref('deen', 'prayers'))}
                 className="h-10 w-10 items-center justify-center rounded-full bg-white/15"
               >
                 <Bell size={20} strokeWidth={1.75} color={white} />
@@ -468,7 +469,7 @@ export default function HomeScreen() {
 
           <FadeIn index={1}>
             <PressableScale
-              onPress={() => router.push('/prayers')}
+              onPress={() => router.push(hubHref('deen', 'prayers'))}
               className="mt-4 flex-row items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-3.5 py-3"
               accessibilityLabel="Open prayers"
             >
@@ -524,14 +525,14 @@ export default function HomeScreen() {
           <FadeIn index={2} style={{ marginTop: -48 }}>
             <Card className="flex-row p-0" style={SHADOW.lg}>
               {[
-                { k: 'Coins', v: statsLoading && !profile ? '—' : coins.toLocaleString(), Icon: Coins, tint: TINT.gold, to: '/garden' },
-                { k: 'Day streak', v: String(streak), Icon: Flame, tint: TINT.warn, to: '/analytics' },
-                { k: 'Prayers', v: `${prayed}`, suffix: `/${prayerTotal}`, Icon: Moon, tint: TINT.noor, to: '/prayers' },
+                { k: 'Coins', v: statsLoading && !profile ? '—' : coins.toLocaleString(), Icon: Coins, tint: TINT.gold, to: () => hubHref('grow', 'garden') },
+                { k: 'Day streak', v: String(streak), Icon: Flame, tint: TINT.warn, to: () => hubHref('grow', 'analytics') },
+                { k: 'Prayers', v: `${prayed}`, suffix: `/${prayerTotal}`, Icon: Moon, tint: TINT.noor, to: () => hubHref('deen', 'prayers') },
               ].map((cell, i) => (
                 <Pressable
                   key={cell.k}
                   accessibilityRole="button"
-                  onPress={() => router.push(cell.to)}
+                  onPress={() => router.push(cell.to())}
                   className={cn('flex-1 items-center gap-1 px-2 py-4', i > 0 && 'border-l border-border')}
                 >
                   <cell.Icon size={18} strokeWidth={1.75} color={dark ? cell.tint.iconDark : cell.tint.icon} />
@@ -550,7 +551,7 @@ export default function HomeScreen() {
           {/* ─── Today's prayers ───────────────────────────────────────────── */}
           <FadeIn index={3}>
             <View className="gap-3">
-              <SectionHeader title="Today's prayers" action="Log" onAction={() => router.push('/prayers')} />
+              <SectionHeader title="Today's prayers" action="Log" onAction={() => router.push(hubHref('deen', 'prayers'))} />
               <View className="flex-row justify-between">
                 {FARD_ORDER.map((name) => (
                   <PrayerChip
@@ -559,7 +560,7 @@ export default function HomeScreen() {
                     time={times?.prayers[name]}
                     state={chipState(name)}
                     dark={dark}
-                    onPress={() => router.push('/prayers')}
+                    onPress={() => router.push(hubHref('deen', 'prayers'))}
                   />
                 ))}
               </View>
@@ -570,19 +571,19 @@ export default function HomeScreen() {
           <FadeIn index={4}>
             <View className="gap-3">
               <View className="flex-row gap-3">
-                <Tile title="Focus" icon={Timer} tint={TINT.noor} dark={dark} onPress={() => router.push('/focus')}>
+                <Tile title="Focus" icon={Timer} tint={TINT.noor} dark={dark} onPress={() => router.push(hubHref('focus', 'timer'))}>
                   <Big value={focusMins} unit={`/ ${FOCUS_DAILY_TARGET_MIN} min`} />
                   <Progress value={(focusMins / FOCUS_DAILY_TARGET_MIN) * 100} className="h-[5px]" />
                   <Button
                     size="sm"
-                    onPress={() => router.push('/focus')}
+                    onPress={() => router.push(hubHref('focus', 'timer'))}
                     icon={<Play size={14} color="#ffffff" />}
                     className="mt-0.5"
                   >
                     Start session
                   </Button>
                 </Tile>
-                <Tile title="Tasks" icon={CheckSquare} tint={TINT.accent} dark={dark} onPress={() => router.push('/tasks')}>
+                <Tile title="Tasks" icon={CheckSquare} tint={TINT.accent} dark={dark} onPress={() => router.push(hubHref('focus', 'tasks'))}>
                   <Big value={doneCount} unit={`/ ${todayTasks.length} done`} />
                   <Progress
                     value={todayTasks.length ? (doneCount / todayTasks.length) * 100 : 0}
@@ -603,7 +604,7 @@ export default function HomeScreen() {
                 </Tile>
               </View>
               <View className="flex-row gap-3">
-                <Tile title="Quran" icon={BookOpen} tint={TINT.gold} dark={dark} onPress={() => router.push('/quran')}>
+                <Tile title="Quran" icon={BookOpen} tint={TINT.gold} dark={dark} onPress={() => router.push(hubHref('deen', 'quran'))}>
                   <Big value={quranPages} unit={quranPages === 1 ? 'page' : 'pages'} />
                   <Muted className="text-xs">
                     {latestQuran
@@ -611,7 +612,7 @@ export default function HomeScreen() {
                       : 'Log today’s reading'}
                   </Muted>
                 </Tile>
-                <Tile title="Adhkar" icon={Moon} tint={TINT.indigo} dark={dark} onPress={() => router.push('/adhkar')}>
+                <Tile title="Adhkar" icon={Moon} tint={TINT.indigo} dark={dark} onPress={() => router.push(hubHref('deen', 'adhkar'))}>
                   <Big value={adhkarDone} unit="/ 3" />
                   <Muted className="text-xs">{adhkarHint}</Muted>
                 </Tile>
@@ -622,7 +623,7 @@ export default function HomeScreen() {
           {/* ─── Garden ────────────────────────────────────────────────────── */}
           <FadeIn index={5}>
             <Card className="p-0">
-              <Pressable accessibilityRole="button" accessibilityLabel="Open your garden" onPress={() => router.push('/garden')}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Open your garden" onPress={() => router.push(hubHref('grow', 'garden'))}>
                 <Gradient
                   colors={dark ? ['#062a27', '#070c0b'] : ['#f0fdfa', '#ffffff']}
                   start={{ x: 0, y: 0 }}
@@ -690,7 +691,7 @@ export default function HomeScreen() {
                     Water · {waterPrice}
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" onPress={() => router.push('/garden')}>
+                  <Button variant="outline" size="sm" onPress={() => router.push(hubHref('grow', 'garden'))}>
                     Visit
                   </Button>
                 )}
@@ -723,10 +724,10 @@ export default function HomeScreen() {
                 contentContainerStyle={{ gap: 8 }}
                 style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
               >
-                <Chip label="Workouts" icon={Dumbbell} tint={TINT.rose} dark={dark} onPress={() => router.push('/workouts')} />
-                <Chip label="Challenges" icon={Target} tint={TINT.violet} dark={dark} onPress={() => router.push('/challenges')} />
-                <Chip label="Study rooms" icon={Users} tint={TINT.noor} dark={dark} onPress={() => router.push('/rooms')} />
-                <Chip label="Analytics" icon={ChartColumn} tint={TINT.accent} dark={dark} onPress={() => router.push('/analytics')} />
+                <Chip label="Workouts" icon={Dumbbell} tint={TINT.rose} dark={dark} onPress={() => router.push(hubHref('grow', 'workouts'))} />
+                <Chip label="Challenges" icon={Target} tint={TINT.violet} dark={dark} onPress={() => router.push(hubHref('grow', 'challenges'))} />
+                <Chip label="Study rooms" icon={Users} tint={TINT.noor} dark={dark} onPress={() => router.push(hubHref('focus', 'rooms'))} />
+                <Chip label="Analytics" icon={ChartColumn} tint={TINT.accent} dark={dark} onPress={() => router.push(hubHref('grow', 'analytics'))} />
                 <View style={{ width: 8 }} />
               </ScrollView>
             </View>

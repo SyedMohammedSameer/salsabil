@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { Check, Trophy, Flame, ChevronLeft, Coins } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button } from '~/components/ui'
+import { HubContent, Heading, Muted, Card, Button } from '~/components/ui'
 import {
   useChallenges,
   useCreateChallenge,
@@ -104,7 +104,7 @@ function TemplateDetail({
   }
 
   return (
-    <Screen>
+    <HubContent>
       <Pressable
         accessibilityRole="button"
         onPress={onBack}
@@ -201,7 +201,7 @@ function TemplateDetail({
           Start challenge
         </Button>
       </Card>
-    </Screen>
+    </HubContent>
   )
 }
 
@@ -242,11 +242,8 @@ export default function ChallengesScreen() {
   }
 
   return (
-    <Screen>
-      <View className="gap-1 py-4">
-        <Heading>Challenges</Heading>
-        <Muted>Commit to something hard. Get rewarded properly for finishing it.</Muted>
-      </View>
+    <HubContent>
+      <Muted className="pb-3 pt-1">Commit to something hard. Get rewarded properly for finishing it.</Muted>
 
       {isLoading ? <ActivityIndicator /> : null}
 
@@ -299,6 +296,6 @@ export default function ChallengesScreen() {
           )
         })}
       </View>
-    </Screen>
+    </HubContent>
   )
 }

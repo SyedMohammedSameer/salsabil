@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { View, Text, ActivityIndicator } from 'react-native'
 import { Flame, Trophy, Coins } from 'lucide-react-native'
-import { Screen, Muted, Card } from '~/components/ui'
+import { HubContent, Muted, Card } from '~/components/ui'
 import { BarChart, LineChart } from '~/components/charts'
 import { useAllTasks } from '@/hooks/useTasks'
 import { useFocusSessions } from '@/hooks/useFocus'
@@ -133,16 +133,16 @@ export default function AnalyticsScreen() {
 
   if (isLoading) {
     return (
-      <Screen>
+      <HubContent>
         <View className="py-24">
           <ActivityIndicator />
         </View>
-      </Screen>
+      </HubContent>
     )
   }
 
   return (
-    <Screen>
+    <HubContent>
       <View className="gap-1 py-4">
         <Muted>Your growth at a glance.</Muted>
       </View>
@@ -184,6 +184,6 @@ export default function AnalyticsScreen() {
           <LineChart data={quranData} />
         </ChartCard>
       </View>
-    </Screen>
+    </HubContent>
   )
 }

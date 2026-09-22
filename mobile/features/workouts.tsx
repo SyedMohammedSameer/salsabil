@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { Dumbbell, Trash2, Plus, X } from 'lucide-react-native'
-import { Screen, Muted, Card, Button, Input } from '~/components/ui'
+import { HubContent, Muted, Card, Button, Input } from '~/components/ui'
 import { useWorkouts, useCreateWorkout, useDeleteWorkout } from '@/hooks/useWorkouts'
 import { localDateString } from '@/lib/dates'
 import { WORKOUT_COINS } from '@/lib/rewards'
@@ -62,7 +62,7 @@ export default function WorkoutsScreen() {
   }
 
   return (
-    <Screen>
+    <HubContent>
       <View className="flex-row items-center justify-between py-4">
         <View>
           <Muted>+{WORKOUT_COINS} coins each. Your body is an amanah.</Muted>
@@ -160,6 +160,6 @@ export default function WorkoutsScreen() {
           ))}
         </View>
       )}
-    </Screen>
+    </HubContent>
   )
 }

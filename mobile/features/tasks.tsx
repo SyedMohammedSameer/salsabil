@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { Check, Trash2, Plus, X } from 'lucide-react-native'
-import { Screen, Muted, Card, Button, Input } from '~/components/ui'
+import { HubContent, Muted, Card, Button, Input } from '~/components/ui'
 import {
   useTasksForDate,
   useCreateTask,
@@ -118,7 +118,7 @@ export default function TasksScreen() {
   }
 
   return (
-    <Screen>
+    <HubContent>
       <View className="flex-row items-center justify-between py-4">
         <Pressable
           accessibilityRole="button"
@@ -223,6 +223,6 @@ export default function TasksScreen() {
           ))}
         </View>
       )}
-    </Screen>
+    </HubContent>
   )
 }
