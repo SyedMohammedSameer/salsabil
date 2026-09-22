@@ -88,6 +88,7 @@ export default function RoomsScreen() {
   const trimmedCode = code.trim().toUpperCase()
   const { data: found, isFetching: findingCode } = useRoomByCode(trimmedCode.length === 6 ? trimmedCode : '')
 
+  const open = (rooms ?? []).length
   const live = (rooms ?? []).filter((r) => r.timer_state === 'running').length
 
   const submitCreate = () => {
@@ -139,8 +140,13 @@ export default function RoomsScreen() {
                 <View className="min-w-0 flex-1">
                   <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-white/80">Study rooms</Text>
                   <Text className="mt-1 text-[22px] font-bold leading-7 tracking-tight text-white">
-                    {isLoading ? 'Loading rooms…' : live === 1 ? '1 room live now' : `${live} rooms live now`}
+                    {isLoading ? 'Loading rooms…' : open === 0 ? 'No open rooms' : open === 1 ? '1 open room' : `${open} open rooms`}
                   </Text>
+                  {!isLoading && open > 0 ? (
+                    <Text className="mt-0.5 text-xs text-white/80">
+                      {live === 0 ? 'No timers running yet' : live === 1 ? '1 timer running now' : `${live} timers running now`}
+                    </Text>
+                  ) : null}
                 </View>
                 <Pressable
                   accessibilityRole="button"
@@ -160,14 +166,14 @@ export default function RoomsScreen() {
                 <TextInput
                   value={code}
                   onChangeText={setCode}
-                  placeholder="ROOM CODE"
+                  placeholder="Room code"
                   placeholderTextColor="rgba(255,255,255,0.55)"
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={6}
                   accessibilityLabel="Room code"
                   className="min-w-0 flex-1 text-base font-bold text-white"
-                  style={{ letterSpacing: 4 }}
+                  style={{ letterSpacing: code ? 4 : 0.5 }}
                 />
                 {trimmedCode.length === 6 && findingCode ? (
                   <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 12 }} />

@@ -454,14 +454,20 @@ export default function PrayersScreen() {
                       {LABEL[prayer]}
                     </Text>
                     <Muted className="text-xs" numberOfLines={1}>
-                      {times ? clock(times.prayers[prayer as FardName]) : '—'}
-                      {status
-                        ? coins
-                          ? ` · +${coins} earned`
-                          : ` · ${STATUS[status].label.toLowerCase()}`
-                        : isNext
-                          ? ' · up next'
-                          : ''}
+                      {[
+                        times ? clock(times.prayers[prayer as FardName]) : null,
+                        status
+                          ? coins
+                            ? `+${coins} earned`
+                            : STATUS[status].label
+                          : isNext
+                            ? 'Up next'
+                            : times
+                              ? null
+                              : 'Not logged yet',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </Muted>
                   </View>
                   <StatusButtons

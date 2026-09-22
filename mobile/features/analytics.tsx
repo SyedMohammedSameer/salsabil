@@ -122,13 +122,13 @@ export default function AnalyticsScreen() {
           <GrowHero
             eyebrow="All time"
             title={`${durationLabel(totalFocusMins)} focused`}
-            sub={`${totalTasks} tasks done · ${totalQuranPages} Quran pages`}
+            sub="Everything you have put in since you started"
             footer={
               <View className="flex-row">
                 {[
                   { v: durationLabel(totalFocusMins), k: 'focused' },
-                  { v: String(totalTasks), k: 'tasks done' },
-                  { v: String(totalQuranPages), k: 'Quran pages' },
+                  { v: String(totalTasks), k: totalTasks === 1 ? 'task done' : 'tasks done' },
+                  { v: String(totalQuranPages), k: totalQuranPages === 1 ? 'Quran page' : 'Quran pages' },
                 ].map((c, i) => (
                   <View key={c.k} className={cn('flex-1', i > 0 && 'border-l border-white/20 pl-3')}>
                     <Text className="text-[18px] font-bold leading-6 text-white">{c.v}</Text>
@@ -147,7 +147,7 @@ export default function AnalyticsScreen() {
                 <Flame size={15} color={dark ? '#fbbf24' : '#f59e0b'} />
                 <Text className="text-[20px] font-bold tracking-tight text-foreground">{profile?.streak ?? 0}</Text>
               </View>
-              <Muted className="text-[11px]">day streak · best {profile?.longest_streak ?? 0}</Muted>
+              <Muted className="text-[11px]">day streak · best {Math.max(profile?.longest_streak ?? 0, profile?.streak ?? 0)}</Muted>
             </Card>
             <Card className="flex-1 gap-0.5 px-3.5 py-3">
               <View className="flex-row items-center gap-1.5">

@@ -115,8 +115,8 @@ export default function TasksScreen() {
             }}
           >
             <View className="px-[18px] pb-4 pt-4">
-              <View className="flex-row items-end justify-between">
-                <View>
+              <View className="flex-row items-start justify-between gap-4">
+                <View className="min-w-0 flex-1">
                   <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-white/85">Today</Text>
                   <Text className="mt-1 text-[34px] font-bold leading-[38px] tracking-tight text-white">
                     {done.length}
@@ -263,7 +263,7 @@ export default function TasksScreen() {
         {overdue.length > 0 ? (
           <FadeIn index={2}>
             <View className="gap-3">
-              <SectionHeader title="Overdue" description={`${overdue.length} from earlier days`} />
+              <SectionHeader title="Overdue" count={overdue.length} description="From earlier days" />
               <Card className="border-danger-500/30 p-0">
                 {overdue.map((task, i) => (
                   <TaskRow
@@ -284,10 +284,7 @@ export default function TasksScreen() {
         {/* To do */}
         <FadeIn index={3}>
           <View className="gap-3">
-            <View className="flex-row items-end justify-between">
-              <SectionHeader title="To do" />
-              <Muted className="text-xs">{todo.length}</Muted>
-            </View>
+            <SectionHeader title="To do" count={todo.length} />
             {todo.length === 0 && !isLoading ? (
               <Card variant="outline-dashed" className="items-center py-6">
                 <Muted className="text-xs">{todays.length ? 'All done for today. MashaAllah.' : 'Nothing due today. Add one above.'}</Muted>
@@ -313,10 +310,7 @@ export default function TasksScreen() {
         {done.length > 0 ? (
           <FadeIn index={4}>
             <View className="gap-3">
-              <View className="flex-row items-end justify-between">
-                <SectionHeader title="Done" />
-                <Muted className="text-xs">{done.length}</Muted>
-              </View>
+              <SectionHeader title="Done" count={done.length} />
               <Card className="p-0">
                 {done.map((task, i) => (
                   <TaskRow

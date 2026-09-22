@@ -60,11 +60,14 @@ export function PressableScale({
   haptic = true,
   disabled,
   accessibilityLabel,
+  fill = false,
 }: {
   onPress?: () => void
   children: ReactNode
   className?: string
   style?: StyleProp<ViewStyle>
+  /** Stretch the content to the pressable's full height (equal-height rows). */
+  fill?: boolean
   haptic?: boolean
   disabled?: boolean
   accessibilityLabel?: string
@@ -89,8 +92,10 @@ export function PressableScale({
         onPress?.()
       }}
     >
-      <Animated.View style={animated}>
-        <View className={className}>{children}</View>
+      <Animated.View style={[animated, fill ? { flex: 1 } : null]}>
+        <View className={className} style={fill ? { flex: 1 } : undefined}>
+          {children}
+        </View>
       </Animated.View>
     </Pressable>
   )

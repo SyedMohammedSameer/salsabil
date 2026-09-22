@@ -133,10 +133,7 @@ export default function AllTasksScreen() {
 
         {groups.map((g) => (
           <View key={g.key} className="gap-3">
-            <View className="flex-row items-end justify-between">
-              <SectionHeader title={g.title} />
-              <Muted className={cn('text-xs', g.danger && 'text-danger-500')}>{g.tasks.length}</Muted>
-            </View>
+            <SectionHeader title={g.title} count={g.tasks.length} />
             <Card className={cn('p-0', g.danger && 'border-danger-500/30')}>
               {g.tasks.map((task, i) => (
                 <TaskRow

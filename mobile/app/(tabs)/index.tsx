@@ -57,6 +57,7 @@ import { SPECIES_INFO } from '@/lib/api/garden'
 import { FARD_ORDER, nextPrayer, prayerTimeToDate, type FardName } from '@/lib/api/prayerTimes'
 import { waterCost } from '@/lib/rewards'
 import { getDailyQuote } from '@/data/quotes'
+import { surahName } from '@/data/surahs'
 import { localDateString } from '@/lib/dates'
 import { cn } from '@/lib/cn'
 import type { PrayerStatus } from '@/lib/database.types'
@@ -238,7 +239,11 @@ function PrayerChip({
       >
         {PRAYER_LABEL[name]}
       </Text>
-      <Text className="text-[10px] text-muted-foreground">{clock(time)}</Text>
+      {/* Without a location there is no time to show; the row stays the same
+          height either way so the chips line up. */}
+      <Text className="text-[10px] text-muted-foreground">
+        {time ? clock(time) : state === 'done' ? 'Prayed' : state === 'missed' ? 'Missed' : ' '}
+      </Text>
     </Pressable>
   )
 }
@@ -259,8 +264,8 @@ function Tile({
   children: React.ReactNode
 }) {
   return (
-    <PressableScale onPress={onPress} style={{ flex: 1 }} accessibilityLabel={`Open ${title}`}>
-      <Card className="gap-2.5">
+    <PressableScale onPress={onPress} style={{ flex: 1 }} fill accessibilityLabel={`Open ${title}`}>
+      <Card className="flex-1 gap-2.5">
         <View className="flex-row items-center justify-between">
           <Text className="text-sm font-medium text-muted-foreground">{title}</Text>
           <IconBadge className={cn(tint.bg, 'rounded-[10px]')} size={36}>
@@ -337,8 +342,8 @@ export default function HomeScreen() {
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const displayName =
+    profile?.display_name?.split(' ')[0] ??
     profile?.username ??
-    profile?.display_name ??
     (user?.user_metadata?.full_name as string | undefined)?.split(' ')[0] ??
     user?.email?.split('@')[0] ??
     'Friend'
@@ -606,15 +611,17 @@ export default function HomeScreen() {
               <View className="flex-row gap-3">
                 <Tile title="Quran" icon={BookOpen} tint={TINT.gold} dark={dark} onPress={() => router.push(hubHref('deen', 'quran'))}>
                   <Big value={quranPages} unit={quranPages === 1 ? 'page' : 'pages'} />
-                  <Muted className="text-xs">
+                  <Muted className="text-xs" numberOfLines={2}>
                     {latestQuran
-                      ? `Surah ${latestQuran.surah_from} · from ayah ${latestQuran.ayah_from}`
+                      ? `Last: ${surahName(latestQuran.surah_to)} ${latestQuran.surah_to}:${latestQuran.ayah_to}`
                       : 'Log today’s reading'}
                   </Muted>
                 </Tile>
                 <Tile title="Adhkar" icon={Moon} tint={TINT.indigo} dark={dark} onPress={() => router.push(hubHref('deen', 'adhkar'))}>
                   <Big value={adhkarDone} unit="/ 3" />
-                  <Muted className="text-xs">{adhkarHint}</Muted>
+                  <Muted className="text-xs" numberOfLines={2}>
+                    {adhkarHint}
+                  </Muted>
                 </Tile>
               </View>
             </View>
@@ -661,7 +668,9 @@ export default function HomeScreen() {
                           species={tree.species}
                           stage={tree.stage}
                           seed={tree.id}
-                          size={i === 1 ? 96 : i === 2 ? 84 : i === 3 ? 80 : 66}
+                          // One tree stands alone and large; several step
+                          // down so the tallest sits in the middle.
+                          size={trees!.length === 1 ? 128 : i === 1 ? 96 : i === 2 ? 84 : i === 3 ? 80 : 66}
                         />
                       ))}
                     </View>

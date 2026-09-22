@@ -140,10 +140,13 @@ export function SectionHeader({
   description,
   action,
   onAction,
+  count,
   className,
 }: {
   title: string
   description?: string
+  /** A small count pill beside the title, e.g. the number of tasks left. */
+  count?: number
   /** Text for the trailing link, e.g. "View all". */
   action?: string
   onAction?: () => void
@@ -152,7 +155,14 @@ export function SectionHeader({
   return (
     <View className={cn('flex-row items-end justify-between gap-4', className)}>
       <View className="flex-1 gap-0.5">
-        <Text className="text-lg font-semibold tracking-tight text-foreground">{title}</Text>
+        <View className="flex-row items-center gap-2">
+          <Text className="text-lg font-semibold tracking-tight text-foreground">{title}</Text>
+          {count !== undefined ? (
+            <View className="h-[22px] min-w-[22px] items-center justify-center rounded-full bg-muted px-2">
+              <Text className="text-[11px] font-bold text-muted-foreground">{count}</Text>
+            </View>
+          ) : null}
+        </View>
         {description ? <Muted>{description}</Muted> : null}
       </View>
       {action ? (
@@ -514,7 +524,10 @@ export function GradientButton({
         onPress?.()
       }}
       style={({ pressed }) => [
-        { opacity: inert ? 0.45 : pressed ? 0.9 : 1 },
+        // The radius matters on Android: elevation draws its shadow from the
+        // view's own outline, and without it the shadow is a square behind a
+        // rounded button.
+        { borderRadius: 14, opacity: inert ? 0.45 : pressed ? 0.9 : 1 },
         !inert && {
           shadowColor: colors[0],
           shadowOffset: { width: 0, height: 8 },

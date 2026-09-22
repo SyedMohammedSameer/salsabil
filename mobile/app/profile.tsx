@@ -127,7 +127,7 @@ export default function ProfileScreen() {
                 {[
                   { v: (profile?.coins ?? 0).toLocaleString(), k: 'coins' },
                   { v: String(profile?.streak ?? 0), k: 'day streak' },
-                  { v: String(profile?.longest_streak ?? 0), k: 'best streak' },
+                  { v: String(Math.max(profile?.longest_streak ?? 0, profile?.streak ?? 0)), k: 'best streak' },
                 ].map((c, i) => (
                   <View key={c.k} className={cn('flex-1', i > 0 && 'border-l border-white/20 pl-3')}>
                     <Text className="text-[20px] font-bold leading-6 text-white">{c.v}</Text>

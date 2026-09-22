@@ -6,6 +6,8 @@
 // `?tab=quran` would be a no-op the second time because the param is
 // unchanged).
 
+import type { Href } from 'expo-router'
+
 export type Hub = 'deen' | 'focus' | 'grow'
 
 export const HUB_TABS = {
@@ -18,8 +20,8 @@ export type HubTab<H extends Hub> = (typeof HUB_TABS)[H][number]
 
 let nonce = 0
 
-export function hubHref<H extends Hub>(hub: H, tab?: HubTab<H>): string {
-  if (!tab) return `/${hub}`
+export function hubHref<H extends Hub>(hub: H, tab?: HubTab<H>): Href {
+  if (!tab) return `/${hub}` as Href
   nonce += 1
-  return `/${hub}?tab=${tab}&k=${nonce}`
+  return `/${hub}?tab=${tab}&k=${nonce}` as Href
 }
