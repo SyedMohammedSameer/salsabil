@@ -26,6 +26,10 @@ async function readCached(): Promise<Coordinates | null> {
   }
 }
 
+// Every mounted instance hears a fresh fix, so setting a location on the
+// Deen hub reaches the reminder scheduler in the tab layout straight away.
+const listeners = new Set<(c: Coordinates) => void>()
+
 export function useDeviceLocation() {
   const [coords, setCoords] = useState<Coordinates | null>(null)
   const [status, setStatus] = useState<LocationStatus>('idle')
@@ -46,9 +50,9 @@ export function useDeviceLocation() {
         latitude: fresh.coords.latitude,
         longitude: fresh.coords.longitude,
       }
-      setCoords(next)
       setStatus('granted')
       void storage.setItem(CACHE_KEY, JSON.stringify(next))
+      for (const l of listeners) l(next)
     } catch {
       setStatus('error')
     }
@@ -59,10 +63,12 @@ export function useDeviceLocation() {
     let cancelled = false
     void readCached().then((cached) => {
       if (cancelled || !cached) return
-      setCoords(cached)
+      setCoords((prev) => prev ?? cached)
     })
+    listeners.add(setCoords)
     return () => {
       cancelled = true
+      listeners.delete(setCoords)
     }
   }, [])
 

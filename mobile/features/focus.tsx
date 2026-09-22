@@ -1,19 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, Pressable } from 'react-native'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { View, Text, Pressable, ScrollView } from 'react-native'
+import { useRouter } from 'expo-router'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Play, Pause, RotateCcw, SkipForward, Bell, Coins } from 'lucide-react-native'
+import { Play, Pause, RotateCcw, SkipForward, Bell, Coins, Minus, Plus, Sprout } from 'lucide-react-native'
 import { HubContent, Muted, Card, Gradient, Segmented, FadeIn } from '~/components/ui'
-import { PRESETS, formatClock, type Preset } from '~/lib/focusPresets'
-import { afterStart, pauseSession, resumeSession, clearSessionEffects } from '~/lib/focusSession'
+import { SvgTree } from '~/components/garden/SvgTree'
+import {
+  PRESETS,
+  CUSTOM_MIN,
+  CUSTOM_MAX,
+  CUSTOM_QUICK,
+  customPreset,
+  describePreset,
+  presetKey,
+  formatClock,
+  type PresetKey,
+} from '~/lib/focusPresets'
+import { useFocusControl, treeName } from '~/lib/focusControl'
 import { durationLabel } from '~/lib/format'
-import { useFocusTimer } from '@/hooks/useFocusTimer'
-import { useCreateFocusSession, useCompleteFocusSession, useFocusSessions, useTodayFocusMinutes } from '@/hooks/useFocus'
-import { useGardenTrees } from '@/hooks/useGarden'
-import { SPECIES_INFO } from '@/lib/api/garden'
+import { hubHref } from '~/lib/nav'
+import { useFocusSessions, useTodayFocusMinutes } from '@/hooks/useFocus'
 import { coinsFor } from '@/lib/rewards'
 import { localDateString, daysAgo } from '@/lib/dates'
-import type { SessionType } from '@/lib/database.types'
+import { storage } from '@/lib/platform/storage'
+import { cn } from '@/lib/cn'
+import type { GardenTree } from '@/lib/database.types'
 
 // The Timer section of the Focus hub.
 //
@@ -97,84 +109,173 @@ function Control({
   )
 }
 
+// ─── Custom length ───────────────────────────────────────────────────────────
+
+const CUSTOM_KEY = 'salsabil-focus-custom-mins'
+
+function DurationPicker({ minutes, onChange }: { minutes: number; onChange: (m: number) => void }) {
+  const step = (delta: number) => {
+    void Haptics.selectionAsync()
+    onChange(Math.min(CUSTOM_MAX, Math.max(CUSTOM_MIN, minutes + delta)))
+  }
+  return (
+    <Card className="gap-3">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-[13px] font-semibold text-foreground">Session length</Text>
+        <Muted className="text-xs">
+          {CUSTOM_MIN} to {CUSTOM_MAX} min
+        </Muted>
+      </View>
+      <View className="flex-row items-center justify-between">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Five minutes shorter"
+          onPress={() => step(-5)}
+          disabled={minutes <= CUSTOM_MIN}
+          className="h-11 w-11 items-center justify-center rounded-full bg-muted"
+          style={minutes <= CUSTOM_MIN ? { opacity: 0.4 } : undefined}
+        >
+          <Minus size={18} color="#8a9793" />
+        </Pressable>
+        <View className="items-center">
+          <Text className="text-[34px] font-bold leading-[40px] tracking-tight text-foreground" style={{ fontVariant: ['tabular-nums'] }}>
+            {minutes}
+          </Text>
+          <Muted className="text-xs">minutes</Muted>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Five minutes longer"
+          onPress={() => step(5)}
+          disabled={minutes >= CUSTOM_MAX}
+          className="h-11 w-11 items-center justify-center rounded-full bg-muted"
+          style={minutes >= CUSTOM_MAX ? { opacity: 0.4 } : undefined}
+        >
+          <Plus size={18} color="#8a9793" />
+        </Pressable>
+      </View>
+      <View className="flex-row flex-wrap justify-center gap-2">
+        {CUSTOM_QUICK.map((m) => {
+          const active = m === minutes
+          return (
+            <Pressable
+              key={m}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => {
+                void Haptics.selectionAsync()
+                onChange(m)
+              }}
+              className={cn(
+                'rounded-full border px-3 py-1.5',
+                active ? 'border-violet-500 bg-violet-500/10' : 'border-transparent bg-muted',
+              )}
+            >
+              <Text className={cn('text-xs font-semibold', active ? 'text-violet-600 dark:text-violet-300' : 'text-muted-foreground')}>
+                {m < 60 ? `${m}m` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
+    </Card>
+  )
+}
+
+// ─── Which tree grows ────────────────────────────────────────────────────────
+
+function TreePicker({
+  trees,
+  selectedId,
+  onSelect,
+  xp,
+}: {
+  trees: GardenTree[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+  xp: number
+}) {
+  const router = useRouter()
+  return (
+    <Card className="gap-3 px-0">
+      <View className="flex-row items-center justify-between px-4">
+        <Text className="text-[13px] font-semibold text-foreground">This session grows</Text>
+        <Muted className="text-xs">+{xp} XP when it ends</Muted>
+      </View>
+      {trees.length === 0 ? (
+        <Pressable onPress={() => router.push(hubHref('grow', 'garden'))} className="mx-4 flex-row items-center gap-3 rounded-2xl bg-muted/60 px-3.5 py-3">
+          <Sprout size={18} color="#8a9793" />
+          <Muted className="flex-1 text-xs">No growing trees. Plant one in your garden and every session will grow it.</Muted>
+        </Pressable>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+          {trees.map((t) => {
+            const active = t.id === selectedId
+            return (
+              <Pressable
+                key={t.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Grow ${treeName(t)}`}
+                onPress={() => {
+                  void Haptics.selectionAsync()
+                  onSelect(t.id)
+                }}
+                className={cn(
+                  'w-[104px] items-center rounded-2xl border px-2 pb-2.5 pt-1.5',
+                  active ? 'border-noor-500 bg-noor-500/10' : 'border-border bg-card',
+                )}
+              >
+                <SvgTree species={t.species} stage={t.stage} seed={t.id} size={56} />
+                <Text className="text-center text-[12px] font-semibold leading-4 text-foreground" numberOfLines={2}>
+                  {treeName(t)}
+                </Text>
+                <Muted className="text-[10px] capitalize">{t.stage}</Muted>
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+      )}
+    </Card>
+  )
+}
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
 export default function FocusScreen() {
-  const timer = useFocusTimer(PRESETS[0])
-  const createSession = useCreateFocusSession()
-  const completeSession = useCompleteFocusSession()
+  const control = useFocusControl()
+  const { timer, target } = control
   const { data: todayMinutes } = useTodayFocusMinutes()
   const { data: sessions } = useFocusSessions()
-  const { data: trees } = useGardenTrees()
   const [error, setError] = useState<string | null>(null)
 
-  const { preset, remaining, state, sessionId, hydrated } = timer
+  const { preset, remaining, state, hydrated } = timer
   const total = preset.minutes * 60
-  const current: Preset = PRESETS.find((p) => p.type === preset.type) ?? PRESETS[0]
+  const current = describePreset(preset)
+  const key = presetKey(preset)
 
-  // Complete on the server when the countdown reaches zero. Guarded by a ref so
-  // a re-render during the mutation cannot fire it twice.
-  const completingRef = useRef<string | null>(null)
+  // The last custom length is remembered between sessions.
+  const [customMins, setCustomMins] = useState(40)
   useEffect(() => {
-    if (state !== 'done') return
-    if (!sessionId) {
-      timer.reset(preset)
-      return
-    }
-    if (completingRef.current === sessionId) return
-    completingRef.current = sessionId
-
-    clearSessionEffects()
-    completeSession.mutate(
-      { id: sessionId, elapsedMins: preset.minutes },
-      {
-        onSuccess: () => {
-          setError(null)
-          timer.reset(preset)
-        },
-        onError: (e) => {
-          // Leave the 'done' state visible so the session is not silently lost.
-          completingRef.current = null
-          setError(e instanceof Error ? e.message : 'Could not save session.')
-        },
-      },
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, sessionId])
+    void storage.getItem(CUSTOM_KEY).then((v) => {
+      const n = Number(v)
+      if (n >= CUSTOM_MIN && n <= CUSTOM_MAX) setCustomMins(n)
+    })
+  }, [])
+  const chooseCustom = (m: number) => {
+    setCustomMins(m)
+    void storage.setItem(CUSTOM_KEY, String(m))
+    timer.setPreset(customPreset(m))
+  }
 
   const handleStart = useCallback(async () => {
-    // Storage is async on native: before hydration the state reads 'idle' even
-    // when a session is already running, and starting here would orphan it.
-    if (!hydrated) return
-    if (state === 'paused') {
-      resumeSession(timer)
-      return
-    }
     setError(null)
     try {
-      const session = await createSession.mutateAsync({ type: preset.type, duration_mins: preset.minutes })
-      timer.start(session.id, preset)
-      afterStart({ preset, remaining: total })
+      await control.start()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start session.')
     }
-  }, [hydrated, state, preset, total, timer, createSession])
-
-  const handlePause = useCallback(() => pauseSession(timer), [timer])
-
-  const handleReset = useCallback(() => {
-    timer.reset(preset)
-    clearSessionEffects()
-  }, [timer, preset])
-
-  const handleSkip = useCallback(() => {
-    clearSessionEffects()
-    if (sessionId) {
-      // Credit only the time actually served, never the preset length.
-      const elapsedMins = Math.max(0, preset.minutes - remaining / 60)
-      completingRef.current = sessionId
-      completeSession.mutate({ id: sessionId, elapsedMins })
-    }
-    timer.reset(preset)
-  }, [sessionId, preset, remaining, completeSession, timer])
+  }, [control])
 
   const running = state === 'running'
   const locked = running || state === 'paused'
@@ -193,13 +294,10 @@ export default function FocusScreen() {
     return { todayCount, weekMins }
   }, [sessions, today, weekStart])
 
-  const newestTree = useMemo(
-    () =>
-      [...(trees ?? [])]
-        .filter((t) => t.stage !== 'ancient')
-        .sort((a, b) => (a.planted_at < b.planted_at ? 1 : -1))[0] ?? null,
-    [trees],
-  )
+  const options: { value: PresetKey; label: string }[] = [
+    ...PRESETS.map((p) => ({ value: p.type as PresetKey, label: p.short })),
+    { value: 'custom', label: 'Custom' },
+  ]
 
   return (
     <HubContent>
@@ -208,15 +306,25 @@ export default function FocusScreen() {
         <FadeIn index={0}>
           <View pointerEvents={locked ? 'none' : 'auto'} style={locked ? { opacity: 0.55 } : undefined}>
             <Segmented
-              options={PRESETS.map((p) => ({ value: p.type, label: p.short }))}
-              value={preset.type as SessionType}
-              onChange={(type) => {
-                const next = PRESETS.find((p) => p.type === type)
+              options={options}
+              value={key}
+              onChange={(k) => {
+                if (k === 'custom') {
+                  timer.setPreset(customPreset(customMins))
+                  return
+                }
+                const next = PRESETS.find((p) => p.type === k)
                 if (next) timer.setPreset(next)
               }}
             />
           </View>
         </FadeIn>
+
+        {key === 'custom' && !locked ? (
+          <FadeIn index={1}>
+            <DurationPicker minutes={preset.minutes} onChange={chooseCustom} />
+          </FadeIn>
+        ) : null}
 
         {/* The timer */}
         <FadeIn index={1}>
@@ -246,24 +354,24 @@ export default function FocusScreen() {
                 <Control
                   icon={<RotateCcw size={18} color="#ffffff" />}
                   label="Reset"
-                  onPress={handleReset}
+                  onPress={control.discard}
                   disabled={state === 'idle'}
                 />
                 {running ? (
-                  <Control icon={<Pause size={18} color="#115e59" fill="#115e59" />} label="Pause" onPress={handlePause} primary />
+                  <Control icon={<Pause size={18} color="#115e59" fill="#115e59" />} label="Pause" onPress={control.pause} primary />
                 ) : (
                   <Control
                     icon={<Play size={18} color="#115e59" fill="#115e59" />}
                     label={state === 'paused' ? 'Resume' : 'Start'}
                     onPress={() => void handleStart()}
-                    disabled={!hydrated || createSession.isPending}
+                    disabled={!hydrated || control.starting}
                     primary
                   />
                 )}
                 <Control
                   icon={<SkipForward size={18} color="#ffffff" />}
-                  label="Skip"
-                  onPress={handleSkip}
+                  label="Finish now"
+                  onPress={control.stop}
                   disabled={state === 'idle'}
                 />
               </View>
@@ -271,7 +379,7 @@ export default function FocusScreen() {
                 <Coins size={13} color="#fde68a" />
                 <Text className="text-xs text-white/85">
                   Earns {projected.coins} coins
-                  {newestTree ? ` · waters your ${SPECIES_INFO[newestTree.species].name}` : ''}
+                  {target.tree ? ` · grows your ${treeName(target.tree)}` : ''}
                 </Text>
               </View>
             </View>
@@ -284,8 +392,17 @@ export default function FocusScreen() {
           </Card>
         ) : null}
 
-        {/* Stats strip */}
         <FadeIn index={2}>
+          <TreePicker
+            trees={target.trees}
+            selectedId={target.tree?.id ?? null}
+            onSelect={target.setTreeId}
+            xp={projected.xp}
+          />
+        </FadeIn>
+
+        {/* Stats strip */}
+        <FadeIn index={3}>
           <Card className="flex-row p-0">
             {[
               { v: durationLabel(todayMinutes ?? 0), k: 'today' },
@@ -300,12 +417,13 @@ export default function FocusScreen() {
           </Card>
         </FadeIn>
 
-        <FadeIn index={3}>
+        <FadeIn index={4}>
           <Card className="flex-row items-center gap-3 px-4 py-3">
             <Bell size={16} color="#8a9793" />
             <Muted className="flex-1 text-xs">
               Runs in the background, anchored to the clock. You will hear a chime when it ends,
               and the session stays pinned above the tab bar while you use the rest of the app.
+              Finish now keeps the minutes you have done.
             </Muted>
           </Card>
         </FadeIn>

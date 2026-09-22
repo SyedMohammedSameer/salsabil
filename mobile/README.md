@@ -98,6 +98,28 @@ nothing can *tell* the user it finished if the app is not running.
 `cancelByKind` exists so a finished focus session does not wipe the day's
 remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
 
+Scheduling is app-wide, from `useNotificationSync` (`lib/notificationSync.ts`)
+in the tab layout: prayer and adhkar reminders for today and tomorrow, and a
+reminder for every open task with a due time, whoever created it. The user
+chooses which kinds they get, and how early, on the Reminders screen
+(`app/notification-settings.tsx`, preferences in `lib/notificationPrefs.ts`).
+Tapping a notification opens the section it is about. The bell on Home opens
+`app/notifications.tsx`: what is scheduled next, and account activity.
+
+## Noor
+
+Noor acts as well as talks. Each message carries the user's live data and the
+phone's list of actions (`lib/noor/context.ts`, `lib/noor/actions.ts`); the
+model ends its reply with action tags, and `lib/noor/executor.ts` runs them
+through the same hooks the screens use, so coins, reminders and the UI update
+exactly as if the user had tapped. Deleting a task, forgetting a memory and
+discarding a focus session wait for a tap. The action list travels with the
+message, so new actions need no server deploy.
+
+Focus sessions are driven from one place (`lib/focusControl.ts`) so the timer
+screen, the pinned mini-timer and Noor behave identically, and a session that
+ends on any tab is saved from the tab layout.
+
 ## Navigation
 
 Four domain hubs on the tab bar, with a raised Noor button in its centre
@@ -180,12 +202,10 @@ surface, not flipped from the light one.
 
 ## What native does not do yet
 
-Noor is conversation only. Voice is absent because `src/lib/voice.ts` records
-through MediaRecorder and plays through a shared `<audio>` element, both
-browser-only; the native equivalent is expo-audio recording plus a playback
-surface, which is its own piece of work rather than a port. Noor's tool actions
-(planting trees, adding memories) are likewise not wired up — they mutate real
-state and deserve the same care the web view gives them.
+Noor has no voice on native. `src/lib/voice.ts` records through MediaRecorder
+and plays through a shared `<audio>` element, both browser-only; the native
+equivalent is expo-audio recording plus a playback surface, which is its own
+piece of work rather than a port.
 
 `streamNoor` itself works on both platforms: React Native's fetch exposes no
 readable body, so the SSE parser is fed once from the whole response there

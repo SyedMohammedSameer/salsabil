@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/focus'
 import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { createNotification } from '@/lib/api/notifications'
+import { addXPToTree } from '@/lib/api/garden'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { notificationKeys } from './useNotifications'
@@ -57,7 +58,19 @@ export function useCompleteFocusSession() {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, elapsedMins }: { id: string; elapsedMins: number }) => {
+    mutationFn: async ({
+      id,
+      elapsedMins,
+      treeId,
+    }: {
+      id: string
+      elapsedMins: number
+      /**
+       * The tree this session grows. Omitted, the XP goes to the newest
+       * growing tree inside award_coins_once, as before.
+       */
+      treeId?: string | null
+    }) => {
       // Skip empty IDs — happens if the optimistic timer started but the
       // server-side createFocusSession failed silently.
       if (!id) {
@@ -78,12 +91,17 @@ export function useCompleteFocusSession() {
       }
       if (user) {
         await Promise.allSettled([
+          // With a chosen tree the RPC pays the coins only, and the XP goes to
+          // that tree once the award is confirmed fresh (null means this
+          // session was already paid, so its XP was too).
           awardCoinsOnce(
             user.id,
             'focus_complete',
-            reward,
+            treeId ? { ...reward, xp: 0 } : reward,
             awardKeys.focus(id),
             `${mins}m focus session`,
+          ).then((balance) =>
+            balance !== null && treeId && reward.xp > 0 ? addXPToTree(treeId, reward.xp) : null,
           ),
           createNotification({
             user_id: user.id,

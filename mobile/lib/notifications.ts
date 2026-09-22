@@ -36,15 +36,17 @@ const PRAYER_CHANNEL = 'prayers'
 const FOCUS_CHANNEL = 'focus'
 const FOCUS_RUNNING_CHANNEL = 'focus-running'
 const TASK_CHANNEL = 'tasks'
+const ADHKAR_CHANNEL = 'adhkar'
 
 const FOCUS_RUNNING_ID = 'focus-running'
 
-type NotificationKind = 'prayer' | 'focus' | 'focus-running' | 'task'
+export type NotificationKind = 'prayer' | 'adhkar' | 'focus' | 'focus-running' | 'task'
 
-interface SalsabilNotificationData extends Record<string, unknown> {
+export interface SalsabilNotificationData extends Record<string, unknown> {
   kind: NotificationKind
   prayer?: FardName
   taskId?: string
+  adhkar?: 'morning' | 'evening'
 }
 
 const PRAYER_LABEL: Record<FardName, string> = {
@@ -71,7 +73,13 @@ export async function getNotificationPermission(): Promise<NotificationPermissio
  * system drops it silently. Creating them here rather than at import time keeps
  * module load side-effect free.
  */
-export async function requestNotificationPermission(): Promise<NotificationPermission> {
+/**
+ * Create the Android channels. Idempotent, and run on every launch as well as
+ * before asking for permission: a channel added in an update (adhkar) must
+ * exist for people who granted permission before it did, or Android drops its
+ * notifications silently.
+ */
+export async function ensureNotificationChannels(): Promise<void> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(PRAYER_CHANNEL, {
       name: 'Prayer times',
@@ -98,7 +106,17 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#14b8a6',
     })
+    await Notifications.setNotificationChannelAsync(ADHKAR_CHANNEL, {
+      name: 'Adhkar reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: '#14b8a6',
+    })
   }
+
+}
+
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  await ensureNotificationChannels()
 
   // A simulator cannot grant notification permission; asking throws.
   if (!Device.isDevice) return 'undetermined'
@@ -113,59 +131,111 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return status as NotificationPermission
 }
 
-// ─── Prayer reminders ────────────────────────────────────────────────────────
+// ─── Prayer and adhkar reminders ─────────────────────────────────────────────
+
+export interface PrayerReminderOptions {
+  /** Which prayers to remind; missing means all. */
+  prayerOn?: Partial<Record<FardName, boolean>>
+  /** Remind this many minutes before the prayer time. */
+  minutesBefore?: number
+  /** Also remind morning adhkar after Fajr and evening adhkar after Asr. */
+  adhkar?: boolean
+  /** Skip prayer reminders but keep adhkar ones. */
+  prayers?: boolean
+}
+
+/** Adhkar reminders sit this long after the prayer that opens their window. */
+const ADHKAR_AFTER_MINUTES = 30
 
 /**
- * Replace all scheduled prayer reminders with ones derived from `times`.
+ * Replace all scheduled prayer and adhkar reminders with ones derived from
+ * the given days (normally today and tomorrow, so the night after Isha still
+ * has tomorrow's Fajr waiting).
  *
- * Existing prayer notifications are cancelled first so repeated calls (a new
- * day, a location change, a settings change) cannot stack duplicates. Focus
- * notifications are deliberately left alone.
- *
- * Returns the number scheduled. Times already past today are skipped — the
- * caller reschedules tomorrow's set when tomorrow's times arrive.
+ * Existing ones are cancelled first so repeated calls (a new day, a location
+ * change, a settings change) cannot stack duplicates. Focus and task
+ * notifications are left alone. Times already past are skipped.
  */
 export async function schedulePrayerReminders(
-  times: DailyPrayerTimes,
-  opts: { day?: Date; minutesBefore?: number } = {},
+  days: { day: Date; times: DailyPrayerTimes }[],
+  opts: PrayerReminderOptions = {},
 ): Promise<number> {
-  const { day = new Date(), minutesBefore = 0 } = opts
+  const { prayerOn = {}, minutesBefore = 0, adhkar = false, prayers = true } = opts
 
   await cancelByKind('prayer')
+  await cancelByKind('adhkar')
 
   const now = Date.now()
   let scheduled = 0
 
-  for (const prayer of FARD_ORDER) {
-    const at = prayerTimeToDate(day, times[prayer])
-    if (!at) continue
+  for (const { day, times } of days) {
+    if (prayers) {
+      for (const prayer of FARD_ORDER) {
+        if (prayerOn[prayer] === false) continue
+        const at = prayerTimeToDate(day, times[prayer])
+        if (!at) continue
+        const fireAt = new Date(at.getTime() - minutesBefore * 60_000)
+        if (fireAt.getTime() <= now) continue
 
-    const fireAt = new Date(at.getTime() - minutesBefore * 60_000)
-    if (fireAt.getTime() <= now) continue
+        const data: SalsabilNotificationData = { kind: 'prayer', prayer }
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: minutesBefore > 0 ? `${PRAYER_LABEL[prayer]} in ${minutesBefore} minutes` : `${PRAYER_LABEL[prayer]} · ${times[prayer]}`,
+            body:
+              minutesBefore > 0
+                ? `${PRAYER_LABEL[prayer]} is at ${times[prayer]}. Time to get ready.`
+                : `It is time for ${PRAYER_LABEL[prayer]}. Tap to log it.`,
+            data,
+            sound: 'default',
+            ...(Platform.OS === 'android' ? { channelId: PRAYER_CHANNEL } : {}),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: fireAt,
+            ...(Platform.OS === 'android' ? { channelId: PRAYER_CHANNEL } : {}),
+          },
+        })
+        scheduled++
+      }
+    }
 
-    const data: SalsabilNotificationData = { kind: 'prayer', prayer }
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `${PRAYER_LABEL[prayer]} — ${times[prayer]}`,
-        body:
-          minutesBefore > 0
-            ? `${PRAYER_LABEL[prayer]} is in ${minutesBefore} minutes.`
-            : `It is time for ${PRAYER_LABEL[prayer]}. Log it in Salsabil.`,
-        data,
-        sound: 'default',
-        ...(Platform.OS === 'android' ? { channelId: PRAYER_CHANNEL } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: fireAt,
-        ...(Platform.OS === 'android' ? { channelId: PRAYER_CHANNEL } : {}),
-      },
-    })
-    scheduled++
+    if (adhkar) {
+      const windows: { which: 'morning' | 'evening'; after: FardName; title: string; body: string }[] = [
+        { which: 'morning', after: 'fajr', title: 'Morning adhkar', body: 'Start the day with remembrance. A few minutes is enough.' },
+        { which: 'evening', after: 'asr', title: 'Evening adhkar', body: 'The evening adhkar are due before Maghrib.' },
+      ]
+      for (const w of windows) {
+        const base = prayerTimeToDate(day, times[w.after])
+        if (!base) continue
+        const fireAt = new Date(base.getTime() + ADHKAR_AFTER_MINUTES * 60_000)
+        if (fireAt.getTime() <= now) continue
+        const data: SalsabilNotificationData = { kind: 'adhkar', adhkar: w.which }
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: w.title,
+            body: w.body,
+            data,
+            sound: 'default',
+            ...(Platform.OS === 'android' ? { channelId: ADHKAR_CHANNEL } : {}),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: fireAt,
+            ...(Platform.OS === 'android' ? { channelId: ADHKAR_CHANNEL } : {}),
+          },
+        })
+        scheduled++
+      }
+    }
   }
 
   return scheduled
+}
+
+/** Withdraw every prayer and adhkar reminder (both switched off). */
+export async function cancelPrayerReminders(): Promise<void> {
+  await cancelByKind('prayer')
+  await cancelByKind('adhkar')
 }
 
 // ─── Focus session end ───────────────────────────────────────────────────────
@@ -254,20 +324,34 @@ export function taskDueAt(task: Pick<TaskReminderInput, 'due_date' | 'due_time'>
   return new Date(y, m - 1, d, hh, mm, 0, 0)
 }
 
+function clockLabel(d: Date): string {
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 /**
- * Schedule (or reschedule) a reminder at the task's due time. A task with no
- * time never gets one — a date alone is a plan, not an appointment.
+ * Schedule (or reschedule) a reminder for a task, `minutesBefore` its due
+ * time. A task with no time never gets one: a date alone is a plan, not an
+ * appointment.
  */
-export async function scheduleTaskReminder(task: TaskReminderInput): Promise<boolean> {
+export async function scheduleTaskReminder(task: TaskReminderInput, minutesBefore = 0): Promise<boolean> {
   await cancelTaskReminder(task.id)
-  const at = taskDueAt(task)
-  if (!at || at.getTime() <= Date.now()) return false
+  return scheduleTaskReminderRaw(task, minutesBefore)
+}
+
+async function scheduleTaskReminderRaw(task: TaskReminderInput, minutesBefore: number): Promise<boolean> {
+  const due = taskDueAt(task)
+  if (!due) return false
+  const at = new Date(due.getTime() - minutesBefore * 60_000)
+  if (at.getTime() <= Date.now()) return false
 
   const data: SalsabilNotificationData = { kind: 'task', taskId: task.id }
   await Notifications.scheduleNotificationAsync({
     content: {
       title: task.title,
-      body: 'It is time. Mark it done in Salsabil to earn your coins.',
+      body:
+        minutesBefore > 0
+          ? `Due at ${clockLabel(due)}, in ${minutesBefore >= 60 ? `${minutesBefore / 60} hour` : `${minutesBefore} minutes`}.`
+          : 'Due now. Mark it done in Salsabil to earn your coins.',
       data,
       sound: 'default',
       ...(Platform.OS === 'android' ? { channelId: TASK_CHANNEL } : {}),
@@ -279,6 +363,32 @@ export async function scheduleTaskReminder(task: TaskReminderInput): Promise<boo
     },
   })
   return true
+}
+
+/** iOS keeps at most 64 pending notifications per app; leave room for prayers. */
+const MAX_TASK_REMINDERS = 40
+
+/**
+ * Make the scheduled task reminders match the task list exactly: every open
+ * task with a future due time has one, nothing else does. Called whenever the
+ * tasks change, from anywhere (the Tasks screen, All tasks, Noor, the web).
+ */
+export async function syncTaskReminders(
+  tasks: (TaskReminderInput & { completed: boolean })[],
+  opts: { enabled: boolean; minutesBefore: number },
+): Promise<number> {
+  await cancelByKind('task')
+  if (!opts.enabled) return 0
+  const now = Date.now()
+  const upcoming = tasks
+    .filter((t) => !t.completed)
+    .map((t) => ({ t, due: taskDueAt(t) }))
+    .filter((x): x is { t: typeof x.t; due: Date } => !!x.due && x.due.getTime() - opts.minutesBefore * 60_000 > now)
+    .sort((a, b) => a.due.getTime() - b.due.getTime())
+    .slice(0, MAX_TASK_REMINDERS)
+  let n = 0
+  for (const { t } of upcoming) if (await scheduleTaskReminderRaw(t, opts.minutesBefore)) n++
+  return n
 }
 
 export async function cancelTaskReminder(taskId: string): Promise<void> {

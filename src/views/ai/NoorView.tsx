@@ -170,7 +170,13 @@ function parseActions(text: string): { cleanText: string; actions: NoorAction[] 
   let m: RegExpExecArray | null
   while ((m = ACTION_RE.exec(text)) !== null) {
     const name = m[1]
-    if (!KNOWN_ACTIONS.has(name)) continue
+    // Tags only the phone app understands (startTimer, completeTask, ...) share
+    // this chat history. Hide them rather than show raw tag text.
+    if (!KNOWN_ACTIONS.has(name)) {
+      if (/^[a-z][A-Za-z]+$/.test(name))
+        matches.push({ start: m.index, end: m.index + m[0].length })
+      continue
+    }
     try {
       const payload = JSON.parse(m[2]) as Record<string, unknown>
       const normalized = normalizePayload(name, payload)
@@ -331,10 +337,7 @@ function useActionExecutor() {
           return
         case 'logFocusSession': {
           const t = (action.session_type ?? 'pomodoro') as
-            | 'pomodoro'
-            | 'flow'
-            | 'short_break'
-            | 'long_break'
+            'pomodoro' | 'flow' | 'short_break' | 'long_break'
           await createFocus.mutateAsync({ type: t, duration_mins: action.duration_mins })
           return
         }

@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { View, Text, Pressable, Switch, Linking, Platform, Alert } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useCallback, useState, type ReactNode } from 'react'
+import { View, Text, Pressable, Platform, Alert } from 'react-native'
+import { useFocusEffect, useRouter, type Href } from 'expo-router'
 import { useColorScheme } from 'nativewind'
 import Constants from 'expo-constants'
 import * as Haptics from 'expo-haptics'
@@ -10,7 +10,6 @@ import {
   Sun,
   Smartphone,
   LogOut,
-  ExternalLink,
   Trash2,
   Palette,
   MapPin,
@@ -24,7 +23,6 @@ import { useTheme, type Theme } from '~/lib/theme'
 import { hubHref } from '~/lib/nav'
 import {
   getNotificationPermission,
-  requestNotificationPermission,
   listScheduled,
   type NotificationPermission,
 } from '~/lib/notifications'
@@ -112,15 +110,13 @@ export default function SettingsScreen() {
     }
   }
 
-  useEffect(() => {
-    void refresh()
-  }, [])
+  // Re-read on every visit: permission and schedule change on the Reminders screen.
+  useFocusEffect(
+    useCallback(() => {
+      void refresh()
+    }, []),
+  )
 
-  const enable = async () => {
-    const result = await requestNotificationPermission()
-    setPermission(result)
-    await refresh()
-  }
 
   // App Store Review Guideline 5.1.1(v) requires in-app account deletion for any
   // app offering account creation. Two steps, because this cannot be undone.
@@ -162,11 +158,11 @@ export default function SettingsScreen() {
   const reminderSub =
     permission === 'granted'
       ? scheduledCount !== null
-        ? `On this device, exactly on time · ${scheduledCount} scheduled`
-        : 'On this device, exactly on time'
+        ? `Prayers, adhkar, focus and tasks · ${scheduledCount} scheduled`
+        : 'Prayers, adhkar, focus and tasks'
       : permission === 'denied'
         ? `Turned off. Open ${Platform.OS === 'ios' ? 'Settings' : 'app settings'} to allow`
-        : 'Prayer times, focus sessions and task reminders'
+        : 'Off. Tap to choose what reminds you'
 
   return (
     <Screen>
@@ -208,21 +204,7 @@ export default function SettingsScreen() {
               tint="bg-warn-500/10"
               title="Reminders"
               sub={reminderSub}
-              onPress={permission === 'denied' ? () => void Linking.openSettings() : undefined}
-              trailing={
-                permission === 'denied' ? (
-                  <ExternalLink size={16} color="#8a9793" />
-                ) : (
-                  <Switch
-                    value={permission === 'granted'}
-                    // Once the OS has been answered the app cannot revoke or
-                    // re-ask; that is a Settings trip.
-                    disabled={permission === 'granted'}
-                    onValueChange={() => void enable()}
-                    trackColor={{ true: '#14b8a6', false: '#c4cfcc' }}
-                  />
-                )
-              }
+              onPress={() => router.push('/notification-settings' as Href)}
             />
             <Row
               icon={<MapPin size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}

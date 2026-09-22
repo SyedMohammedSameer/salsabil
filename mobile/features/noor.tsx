@@ -13,36 +13,107 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
-import { Send, Sparkles, Trash2, X } from 'lucide-react-native'
+import { Send, Sparkles, Trash2, X, CircleCheck, CircleAlert, Zap } from 'lucide-react-native'
+import { useColorScheme } from 'nativewind'
 import { Muted, Gradient, NOOR_GRADIENT, Card } from '~/components/ui'
 import { StackBar, BarButton } from '~/components/StackBar'
+import { parseActions, actionSummary, NEEDS_CONFIRMATION } from '~/lib/noor/actions'
+import { useNoorContext } from '~/lib/noor/context'
+import { useNoorExecutor, type ActionResult } from '~/lib/noor/executor'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { getChatHistory, saveChatMessage, clearChatHistory, streamNoor, type AiMessage } from '@/lib/api/chat'
 import { toast } from '@/lib/platform/toast'
 import { cn } from '@/lib/cn'
 
-// Noor, opened as a modal from the floating orb. Ported from
-// src/views/ai/NoorView.tsx.
+// Noor, opened from the centre of the tab bar. Ported from
+// src/views/ai/NoorView.tsx, and on the phone Noor acts as well as talks:
 //
-// Two deliberate reductions from the web view, both stated rather than hidden:
+//   * every message carries the user's live data (useNoorContext), so Noor
+//     can answer "what's left today?" or "how was my week?"
+//   * replies end with action tags, which run automatically through the same
+//     hooks the screens use (useNoorExecutor); the result of each shows as a
+//     chip under the reply. Deleting and discarding wait for a tap.
 //
-//   * Voice is not here. src/lib/voice.ts records through MediaRecorder and
-//     plays through a shared <audio> element, both browser-only. Doing it
-//     properly on native means expo-audio recording plus a playback surface,
-//     which is its own piece of work rather than a port.
-//   * Noor's tool actions (adding tasks, planting trees, memories) are not
-//     wired up yet; this is conversation only. Those actions mutate real
-//     state, so they deserve the same care the web view gives them.
+// Voice is still web-only: src/lib/voice.ts records through MediaRecorder.
 
 type Bubble = { id: string; role: 'user' | 'assistant'; content: string }
 
+/** Per reply (keyed by its full text): each action's state, in tag order. */
+type Outcome = { state: 'running' } | { state: 'confirm' } | ({ state: 'done' } & ActionResult)
+
 const SUGGESTIONS = [
+  "What's left for today?",
+  'Start a 45 minute focus session',
+  'I just prayed Asr',
+  'Remind me to call mum tomorrow at 6pm',
+  'How was my week?',
   'Plan my day',
-  'Add a task for 4 pm',
-  "Explain today's ayah",
-  "I'm feeling low",
 ]
+
+function ActionChips({
+  content,
+  outcomes,
+  onConfirm,
+  dark,
+}: {
+  content: string
+  outcomes: Outcome[] | undefined
+  onConfirm: (index: number) => void
+  dark: boolean
+}) {
+  const { actions } = parseActions(content)
+  if (!actions.length) return null
+  return (
+    <View className="mt-2 gap-1.5">
+      {actions.map((a, i) => {
+        const o = outcomes?.[i]
+        if (o?.state === 'confirm') {
+          return (
+            <View key={i} className="flex-row items-center gap-2 rounded-xl border border-warn-500/40 bg-warn-500/10 py-1.5 pl-3 pr-1.5">
+              <Text className="flex-1 text-xs font-medium text-foreground" numberOfLines={2}>
+                {actionSummary(a)}?
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onConfirm(i)}
+                className="rounded-lg bg-warn-500 px-3 py-1.5"
+              >
+                <Text className="text-xs font-bold text-white">Confirm</Text>
+              </Pressable>
+            </View>
+          )
+        }
+        const ok = o?.state === 'done' ? o.ok : null
+        return (
+          <View
+            key={i}
+            className={cn(
+              'flex-row items-center gap-2 self-start rounded-xl px-2.5 py-1.5',
+              ok === false ? 'bg-danger-500/10' : ok ? 'bg-noor-500/10' : 'bg-muted',
+            )}
+          >
+            {o?.state === 'running' ? (
+              <ActivityIndicator size="small" color={dark ? '#2dd4bf' : '#0d9488'} />
+            ) : ok === false ? (
+              <CircleAlert size={14} color="#ef4444" />
+            ) : ok ? (
+              <CircleCheck size={14} color={dark ? '#2dd4bf' : '#0d9488'} />
+            ) : (
+              <Zap size={13} color="#8a9793" />
+            )}
+            <Text
+              className={cn('text-xs font-medium', ok === false ? 'text-danger-500' : ok ? 'text-noor-700 dark:text-noor-300' : 'text-muted-foreground')}
+              numberOfLines={2}
+            >
+              {o?.state === 'done' ? o.label : actionSummary(a)}
+            </Text>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
 
 function Orb({ size = 36 }: { size?: number }) {
   return (
@@ -75,7 +146,43 @@ export default function NoorScreen() {
   const [draft, setDraft] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [live, setLive] = useState<Bubble | null>(null)
+  const [outcomes, setOutcomes] = useState<Record<string, Outcome[]>>({})
   const abortRef = useRef<AbortController | null>(null)
+  const { colorScheme } = useColorScheme()
+  const dark = colorScheme === 'dark'
+  const { context, memories } = useNoorContext()
+  const { run } = useNoorExecutor()
+
+  const setOutcome = (key: string, index: number, o: Outcome) =>
+    setOutcomes((prev) => {
+      const list = [...(prev[key] ?? [])]
+      list[index] = o
+      return { ...prev, [key]: list }
+    })
+
+  /** Run a reply's actions in order; the destructive ones wait for a tap. */
+  const runActions = async (reply: string) => {
+    const { actions } = parseActions(reply)
+    if (!actions.length) return
+    setOutcomes((prev) => ({
+      ...prev,
+      [reply]: actions.map((a) => (NEEDS_CONFIRMATION.has(a.name) ? { state: 'confirm' as const } : { state: 'running' as const })),
+    }))
+    for (let i = 0; i < actions.length; i++) {
+      if (NEEDS_CONFIRMATION.has(actions[i].name)) continue
+      const result = await run(actions[i])
+      void Haptics.notificationAsync(result.ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error)
+      setOutcome(reply, i, { state: 'done', ...result })
+    }
+  }
+
+  const confirm = async (reply: string, index: number) => {
+    const action = parseActions(reply).actions[index]
+    if (!action) return
+    setOutcome(reply, index, { state: 'running' })
+    const result = await run(action)
+    setOutcome(reply, index, { state: 'done', ...result })
+  }
 
   const firstName =
     profile?.display_name?.split(' ')[0] ?? profile?.username ?? user?.email?.split('@')[0] ?? null
@@ -128,8 +235,8 @@ export default function NoorScreen() {
         await streamNoor(
           message,
           priorHistory,
-          undefined,
-          undefined,
+          context,
+          memories,
           undefined,
           {
             onToken: (token) => {
@@ -139,7 +246,11 @@ export default function NoorScreen() {
           },
           controller.signal,
         )
-        if (full.trim()) await saveChatMessage(user.id, 'assistant', full)
+        if (full.trim()) {
+          // Saved raw, tags included, as the web does; the chips re-read them.
+          await saveChatMessage(user.id, 'assistant', full)
+          await runActions(full)
+        }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Noor is unavailable right now.')
       } finally {
@@ -149,7 +260,8 @@ export default function NoorScreen() {
         void qc.invalidateQueries({ queryKey: ['chat-history', user.id] })
       }
     },
-    [draft, user, streaming, history, qc],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, user, streaming, history, qc, context, memories, run],
   )
 
   const clear = async () => {
@@ -169,7 +281,7 @@ export default function NoorScreen() {
           How can I help today{firstName ? `, ${firstName}` : ''}?
         </Text>
         <Muted className="text-center text-xs">
-          I can plan your day, talk through a goal, explain an ayah, or just listen.
+          Ask me anything about your day, or tell me what to do: add tasks, log prayers and Quran, run your focus timer, water your garden.
         </Muted>
       </Card>
       <View className="flex-row flex-wrap justify-center gap-2">
@@ -229,10 +341,18 @@ export default function NoorScreen() {
               ) : (
                 <View className="max-w-[88%] flex-row items-end gap-2">
                   <Orb size={26} />
-                  <View className="min-w-0 flex-1 rounded-[18px] rounded-bl-md bg-muted px-3.5 py-2.5">
-                    <Text className={cn('text-[15px] leading-[21px] text-foreground', !item.content && 'text-muted-foreground')}>
-                      {item.content || 'Thinking…'}
-                    </Text>
+                  <View className="min-w-0 flex-1">
+                    <View className="rounded-[18px] rounded-bl-md bg-muted px-3.5 py-2.5">
+                      <Text className={cn('text-[15px] leading-[21px] text-foreground', !item.content && 'text-muted-foreground')}>
+                        {parseActions(item.content).clean || (item.content ? 'Done.' : 'Thinking…')}
+                      </Text>
+                    </View>
+                    <ActionChips
+                      content={item.content}
+                      outcomes={outcomes[item.content]}
+                      onConfirm={(i) => void confirm(item.content, i)}
+                      dark={dark}
+                    />
                   </View>
                 </View>
               )

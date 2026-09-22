@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { View, Text, ActivityIndicator } from 'react-native'
+import { View, Text, Pressable, ActivityIndicator } from 'react-native'
+import { useRouter, type Href } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useColorScheme } from 'nativewind'
 import {
@@ -13,6 +14,8 @@ import {
   Flame,
   Droplets,
   Award,
+  BellRing,
+  ChevronRight,
 } from 'lucide-react-native'
 import { Screen, Muted, Card, Button, Input, Gradient, FadeIn, SectionHeader } from '~/components/ui'
 import { GROW_HERO } from '~/components/GrowHero'
@@ -40,7 +43,10 @@ const ACTION_ICON: Record<CoinAction, { Icon: typeof Moon; bg: string; color: st
   achievement_bonus: { Icon: Award, bg: 'bg-gold-500/10', color: '#d97706', dark: '#fbbf24' },
 }
 
+const PREVIEW_ROWS = 4
+
 export default function ProfileScreen() {
+  const router = useRouter()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
   const { user } = useAuth()
@@ -51,6 +57,8 @@ export default function ProfileScreen() {
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [saved, setSaved] = useState(false)
+  // The ledger can run to dozens of rows; the latest few are what matter.
+  const [showAll, setShowAll] = useState(false)
 
   // Seed the form once the profile arrives, without clobbering edits in flight.
   useEffect(() => {
@@ -170,15 +178,36 @@ export default function ProfileScreen() {
         </FadeIn>
 
         <FadeIn index={2}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/notification-settings' as Href)}
+            className="flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5"
+          >
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-warn-500/10">
+              <BellRing size={18} color={dark ? '#fbbf24' : '#f59e0b'} />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="text-[14px] font-semibold text-foreground">Reminders</Text>
+              <Muted className="text-xs">Choose which notifications you get</Muted>
+            </View>
+            <ChevronRight size={18} color="#8a9793" />
+          </Pressable>
+        </FadeIn>
+
+        <FadeIn index={3}>
           <View className="gap-3">
-            <SectionHeader title="Coin activity" description="Most recent first" />
+            <SectionHeader
+              title="Coin activity"
+              action={(transactions ?? []).length > PREVIEW_ROWS ? (showAll ? 'Show less' : 'Show all') : undefined}
+              onAction={() => setShowAll((v) => !v)}
+            />
             {(transactions ?? []).length === 0 ? (
               <Card variant="outline-dashed" className="items-center py-6">
                 <Muted className="text-xs">Nothing yet. Log a prayer to get started.</Muted>
               </Card>
             ) : (
               <Card className="p-0">
-                {(transactions ?? []).slice(0, 20).map((tx, i) => {
+                {(transactions ?? []).slice(0, showAll ? 30 : PREVIEW_ROWS).map((tx, i) => {
                   const meta = ACTION_ICON[tx.action] ?? ACTION_ICON.achievement_bonus
                   const when = new Date(tx.created_at)
                   return (

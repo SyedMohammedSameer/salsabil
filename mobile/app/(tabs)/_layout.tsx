@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { House, Moon, Timer, Sprout } from 'lucide-react-native'
 import { FocusMiniBar } from '~/components/FocusMiniBar'
 import { BAR_HEIGHT, TabBar } from '~/components/NavBar'
+import { useFocusCompletion } from '~/lib/focusControl'
+import { useNotificationSync } from '~/lib/notificationSync'
 
 // Four domain hubs, and Noor in the centre of the bar between them.
 //
@@ -15,6 +17,10 @@ import { BAR_HEIGHT, TabBar } from '~/components/NavBar'
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets()
+  // A session that ends is saved from here, whichever tab is showing.
+  useFocusCompletion()
+  // Prayer, adhkar and task reminders stay scheduled from here.
+  useNotificationSync()
 
   return (
     <View style={{ flex: 1 }}>

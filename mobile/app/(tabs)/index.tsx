@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Pressable, RefreshControl, ScrollView } from 'react-native'
-import { useRouter, useIsFocused } from 'expo-router'
+import { useRouter, useIsFocused, type Href } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useColorScheme } from 'nativewind'
@@ -48,6 +48,7 @@ import { useProfile } from '@/hooks/useProfile'
 import { useDashboardStats } from '@/hooks/useDashboardStats'
 import { useAdhkarLogs } from '@/hooks/useAdhkar'
 import { useGardenTrees, useWaterTree } from '@/hooks/useGarden'
+import { useNotifications } from '@/hooks/useNotifications'
 import { useAllTasks } from '@/hooks/useTasks'
 import { usePrayersForDate } from '@/hooks/usePrayers'
 import { usePrayerTimes } from '@/hooks/usePrayerTimes'
@@ -323,6 +324,8 @@ export default function HomeScreen() {
   const { data: trees } = useGardenTrees()
   const { data: allTasks } = useAllTasks()
   const waterTree = useWaterTree()
+  const { data: notifications } = useNotifications()
+  const unreadCount = (notifications ?? []).filter((n) => !n.read).length
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -441,11 +444,14 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Prayer reminders"
-                onPress={() => router.push(hubHref('deen', 'prayers'))}
+                accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                onPress={() => router.push('/notifications' as Href)}
                 className="h-10 w-10 items-center justify-center rounded-full bg-white/15"
               >
                 <Bell size={20} strokeWidth={1.75} color={white} />
+                {unreadCount > 0 ? (
+                  <View className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-[#0b5c4c] bg-gold-400" />
+                ) : null}
               </Pressable>
             </View>
 

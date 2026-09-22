@@ -5,6 +5,7 @@ import {
   presentFocusRunning,
   dismissFocusRunning,
 } from '~/lib/notifications'
+import { currentPrefs } from '~/lib/notificationPrefs'
 
 // The notification side-effects of a focus session, in one place, so the
 // timer screen and the pinned mini-timer cannot drift apart:
@@ -15,8 +16,9 @@ import {
 
 export function afterStart(timer: Pick<UseFocusTimer, 'preset' | 'remaining'>) {
   const endsAt = new Date(Date.now() + timer.remaining * 1000)
-  void scheduleFocusSessionEnd(endsAt, timer.preset.minutes)
-  void presentFocusRunning(endsAt, timer.preset.label)
+  const prefs = currentPrefs()
+  if (prefs.focusEnd) void scheduleFocusSessionEnd(endsAt, timer.preset.minutes)
+  if (prefs.focusOngoing) void presentFocusRunning(endsAt, timer.preset.label === 'Custom' ? `${timer.preset.minutes} min session` : timer.preset.label)
 }
 
 export function pauseSession(timer: Pick<UseFocusTimer, 'pause'>) {

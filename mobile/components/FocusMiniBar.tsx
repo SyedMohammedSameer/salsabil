@@ -80,7 +80,7 @@ export function FocusMiniBar({ bottom }: { bottom: number }) {
                 {formatClock(remaining)}
               </Text>
               <Text className="text-[11px] text-white/75" numberOfLines={1}>
-                {preset.label}
+                {preset.label === 'Custom' ? `${preset.minutes} min session` : preset.label}
                 {state === 'paused' ? ' · paused' : ' · focusing'}
               </Text>
             </View>

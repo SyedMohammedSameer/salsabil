@@ -7,7 +7,6 @@ import { Plus, CalendarDays, ChevronRight, Bell } from 'lucide-react-native'
 import { HubContent, Muted, Card, Gradient, FadeIn, SectionHeader } from '~/components/ui'
 import { MonthGrid, TimeChips } from '~/components/ui/pickers'
 import { TaskRow, PRIORITY_COLOR, PRIORITY_LABEL } from '~/components/tasks/TaskRow'
-import { scheduleTaskReminder, cancelTaskReminder } from '~/lib/notifications'
 import { clock12, relativeDay, addDays } from '~/lib/format'
 import { useAllTasks, useCreateTask, useCompleteTask, useDeleteTask } from '@/hooks/useTasks'
 import { localDateString } from '@/lib/dates'
@@ -68,13 +67,14 @@ export default function TasksScreen() {
         due_time: dueTime ?? undefined,
       },
       {
-        onSuccess: (task) => {
+        onSuccess: () => {
           setTitle('')
           setPriority('medium')
           setDueDate(today)
           setDueTime(null)
           setScheduling(false)
-          if (task.due_time) void scheduleTaskReminder(task)
+          // The reminder is scheduled by useNotificationSync when the task
+          // list refreshes, the same way for tasks added anywhere.
         },
       },
     )
@@ -82,11 +82,9 @@ export default function TasksScreen() {
 
   const toggle = (id: string, completed: boolean) => {
     completeTask.mutate({ id, completed })
-    if (completed) void cancelTaskReminder(id)
   }
   const remove = (id: string) => {
     deleteTask.mutate(id)
-    void cancelTaskReminder(id)
   }
 
   const whenLabel = [

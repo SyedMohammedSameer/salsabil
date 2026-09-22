@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg'
+import { useRouter, type Href } from 'expo-router'
 import { useColorScheme } from 'nativewind'
+import { useNotificationPrefs } from '~/lib/notificationPrefs'
 import * as Haptics from 'expo-haptics'
 import { Bell, BellRing, Check, Clock, MapPin, RotateCcw, Sparkle, X } from 'lucide-react-native'
 import { HubContent, Muted, Card, Button, Gradient, FadeIn } from '~/components/ui'
@@ -9,7 +11,6 @@ import { useDeviceLocation } from '~/lib/location'
 import {
   requestNotificationPermission,
   getNotificationPermission,
-  schedulePrayerReminders,
   type NotificationPermission,
 } from '~/lib/notifications'
 import { usePrayerTimes } from '@/hooks/usePrayerTimes'
@@ -195,14 +196,14 @@ function SkyHero({
   loading,
   now,
   permission,
-  scheduled,
+  remindersOn,
   onEnableReminders,
 }: {
   times: DailyPrayerTimes | undefined
   loading: boolean
   now: Date
   permission: NotificationPermission
-  scheduled: number | null
+  remindersOn: boolean
   onEnableReminders: () => void
 }) {
   const { colorScheme } = useColorScheme()
@@ -220,11 +221,12 @@ function SkyHero({
     return Math.min(1, Math.max(0, (now.getTime() - fajr.getTime()) / (isha.getTime() - fajr.getTime())))
   }, [times, now])
 
+  const router = useRouter()
   const reminders =
     permission === 'granted'
-      ? scheduled !== null
-        ? `${scheduled} adhan reminder${scheduled === 1 ? '' : 's'} set`
-        : 'adhan reminders on'
+      ? remindersOn
+        ? 'adhan reminders on'
+        : 'adhan reminders off'
       : 'tap the bell for adhan reminders'
 
   return (
@@ -277,11 +279,11 @@ function SkyHero({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={permission === 'granted' ? 'Adhan reminders are on' : 'Enable adhan reminders'}
-        onPress={permission === 'granted' ? undefined : onEnableReminders}
+        accessibilityLabel={permission === 'granted' ? 'Reminder settings' : 'Enable adhan reminders'}
+        onPress={permission === 'granted' ? () => router.push('/notification-settings' as Href) : onEnableReminders}
         className="absolute right-4 top-4 h-[38px] w-[38px] items-center justify-center rounded-full bg-white/15"
       >
-        {permission === 'granted' ? (
+        {permission === 'granted' && remindersOn ? (
           <BellRing size={18} color="#ffffff" />
         ) : (
           <Bell size={18} color="#ffffff" />
@@ -353,7 +355,7 @@ export default function PrayersScreen() {
   const upsert = useUpsertPrayer()
 
   const [permission, setPermission] = useState<NotificationPermission>('undetermined')
-  const [scheduled, setScheduled] = useState<number | null>(null)
+  const remindersOn = useNotificationPrefs((st) => st.prefs.prayers)
 
   useEffect(() => {
     void getNotificationPermission().then(setPermission)
@@ -365,16 +367,7 @@ export default function PrayersScreen() {
     return map
   }, [logged])
 
-  // Reschedule whenever the day's times change. Keyed on the times themselves
-  // so a re-render cannot stack duplicate notifications.
-  const scheduledForRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!times || permission !== 'granted') return
-    const key = `${today}:${JSON.stringify(times.prayers)}`
-    if (scheduledForRef.current === key) return
-    scheduledForRef.current = key
-    void schedulePrayerReminders(times.prayers).then(setScheduled)
-  }, [times, permission, today])
+  // Reminders are scheduled app-wide by useNotificationSync in the tab layout.
 
   const upcoming = times ? nextPrayer(times.prayers, now) : null
 
@@ -421,7 +414,7 @@ export default function PrayersScreen() {
               loading={timesLoading}
               now={now}
               permission={permission}
-              scheduled={scheduled}
+              remindersOn={remindersOn}
               onEnableReminders={() => void enableReminders()}
             />
           </FadeIn>
