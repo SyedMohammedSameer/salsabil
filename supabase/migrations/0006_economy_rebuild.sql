@@ -18,10 +18,15 @@
 --
 -- Spend-side actions (tree purchases, watering) are deliberately NOT routed
 -- through the ledger: buying two trees is a legitimate repeat action.
+--
+-- Every statement here is idempotent, so the whole file can be re-run safely
+-- after a partial application. The Supabase SQL editor can silently truncate a
+-- large paste, which leaves an unterminated $$ block and applies nothing after
+-- it; re-running is then the fix, not a risk.
 
 -- ─── Award ledger ────────────────────────────────────────────────────────────
 
-create table public.coin_award_ledger (
+create table if not exists public.coin_award_ledger (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references public.profiles(id) on delete cascade,
   idempotency_key text not null,
@@ -32,13 +37,14 @@ create table public.coin_award_ledger (
   unique (user_id, idempotency_key)
 );
 
-create index coin_award_ledger_user_idx
+create index if not exists coin_award_ledger_user_idx
   on public.coin_award_ledger(user_id, created_at desc);
 
 alter table public.coin_award_ledger enable row level security;
 
 -- Read-only to the owner. Writes happen exclusively through the security
 -- definer function below, so there is no insert/update/delete policy.
+drop policy if exists "coin_award_ledger_select_own" on public.coin_award_ledger;
 create policy "coin_award_ledger_select_own"
   on public.coin_award_ledger for select
   using (auth.uid() = user_id);
@@ -156,8 +162,11 @@ begin
     limit  1;
 
     if v_tree_id is not null then
+      -- stage is a stored column, so it must be recomputed alongside xp or the
+      -- two silently diverge and the garden shows the wrong growth stage.
       update public.garden_trees
-      set    xp = xp + p_xp
+      set    xp = xp + p_xp,
+             stage = compute_tree_stage(xp + p_xp)
       where  id = v_tree_id;
     end if;
   end if;
