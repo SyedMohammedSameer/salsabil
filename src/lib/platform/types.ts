@@ -37,8 +37,13 @@ export type ForegroundListener = (onForeground: () => void) => () => void
  * Only the methods the hooks actually call. Keeping it narrow means the web and
  * native implementations cannot drift in ways a caller could notice.
  */
+export interface ToastOptions {
+  /** Milliseconds to stay on screen. Omit for the platform default. */
+  duration?: number
+}
+
 export interface Toaster {
-  success(message: string): void
-  error(message: string): void
-  info(message: string): void
+  success(message: string, options?: ToastOptions): void
+  error(message: string, options?: ToastOptions): void
+  info(message: string, options?: ToastOptions): void
 }

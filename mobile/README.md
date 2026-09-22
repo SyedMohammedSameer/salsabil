@@ -98,11 +98,26 @@ nothing can *tell* the user it finished if the app is not running.
 `cancelByKind` exists so a finished focus session does not wipe the day's
 remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
 
+## The garden
+
+`components/garden/SvgTree.tsx` is the one place where native deliberately
+diverges from the web implementation rather than porting it.
+
+The web version composes a Noto Emoji SVG with a per-species CSS
+`filter: hue-rotate(...) saturate(...)`. React Native has no CSS filters, and
+react-native-svg cannot apply them either, so a literal port would render
+twelve identical green trees. Each species is instead drawn directly with
+react-native-svg primitives, in the colours those filters were producing.
+
+The props, the six growth stages and the per-species accents match the web
+component, and accents are seeded from the tree's id so fruit does not jitter
+around the canopy between renders.
+
 ## Status
 
 Ported and live: dashboard, prayers (with on-device adhan reminders), focus
-(with an SVG countdown ring and background-safe timing) and tasks.
+(SVG countdown ring, background-safe timing), tasks, adhkar, quran, workouts,
+garden and challenges.
 
-Still placeholders (`components/ui/index.tsx` → `ComingSoon`): quran, adhkar,
-workouts, challenges, garden, study rooms, analytics, profile, settings and
-Noor. These are ported in the spiritual and social phases.
+Still placeholders (`components/ui/index.tsx` → `ComingSoon`): study rooms,
+analytics, profile, settings and Noor. These are ported in the social phase.

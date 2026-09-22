@@ -8,7 +8,7 @@ import { toast as sonnerNative } from 'sonner-native'
 import type { Toaster } from './types'
 
 export const toast: Toaster = {
-  success: (message) => sonnerNative.success(message),
-  error: (message) => sonnerNative.error(message),
-  info: (message) => sonnerNative.info(message),
+  success: (message, options) => sonnerNative.success(message, options),
+  error: (message, options) => sonnerNative.error(message, options),
+  info: (message, options) => sonnerNative.info(message, options),
 }

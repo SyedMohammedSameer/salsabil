@@ -10,7 +10,7 @@ import { toast as sonner } from 'sonner'
 import type { Toaster } from './types'
 
 export const toast: Toaster = {
-  success: (message) => sonner.success(message),
-  error: (message) => sonner.error(message),
-  info: (message) => sonner.info(message),
+  success: (message, options) => sonner.success(message, options),
+  error: (message, options) => sonner.error(message, options),
+  info: (message, options) => sonner.info(message, options),
 }
