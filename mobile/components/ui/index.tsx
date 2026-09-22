@@ -3,9 +3,11 @@
 // The web app builds on Radix + shadcn, neither of which exists in React
 // Native. These are the native equivalents of the primitives the ported views
 // lean on most, styled with the same NativeWind tokens so the two platforms
-// stay visually identical.
+// read as one product: the same 2xl card radius, the same tinted icon badges,
+// the same glass-noor surface for spiritual content, the same section headers.
 
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -13,11 +15,52 @@ import {
   Text,
   TextInput,
   View,
+  type StyleProp,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 import { cn } from '@/lib/cn'
+
+export { Gradient, HERO_GRADIENT, NOOR_GRADIENT } from './Gradient'
+export { FadeIn, PressableScale } from './motion'
+
+// ─── Elevation ───────────────────────────────────────────────────────────────
+//
+// NativeWind's shadow classes map unevenly between iOS (shadow*) and Android
+// (elevation), so elevation is expressed once here as plain styles. Values
+// track the web's shadow-sm / shadow-md / shadow-lg.
+
+export const SHADOW: Record<'sm' | 'md' | 'lg', ViewStyle> = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+}
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
@@ -53,7 +96,9 @@ export function Screen({
 
 export function Heading({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <Text className={cn('text-2xl font-semibold text-foreground', className)}>{children}</Text>
+    <Text className={cn('text-2xl font-bold tracking-tight text-foreground', className)}>
+      {children}
+    </Text>
   )
 }
 
@@ -61,41 +106,197 @@ export function Muted({ children, className }: { children: ReactNode; className?
   return <Text className={cn('text-sm text-muted-foreground', className)}>{children}</Text>
 }
 
+/** Arabic scripture. Right-aligned, generous leading, brand-tinted as on web. */
+export function Arabic({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <Text
+      className={cn(
+        'text-right text-xl leading-9 text-noor-700 dark:text-noor-300',
+        className,
+      )}
+      style={{ writingDirection: 'rtl' }}
+    >
+      {children}
+    </Text>
+  )
+}
+
+// ─── Section header ──────────────────────────────────────────────────────────
+
+export function SectionHeader({
+  title,
+  description,
+  action,
+  onAction,
+  className,
+}: {
+  title: string
+  description?: string
+  /** Text for the trailing link, e.g. "View all". */
+  action?: string
+  onAction?: () => void
+  className?: string
+}) {
+  return (
+    <View className={cn('flex-row items-end justify-between gap-4', className)}>
+      <View className="flex-1 gap-0.5">
+        <Text className="text-lg font-semibold tracking-tight text-foreground">{title}</Text>
+        {description ? <Muted>{description}</Muted> : null}
+      </View>
+      {action ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAction}
+          hitSlop={8}
+          className="flex-row items-center gap-1 py-1"
+        >
+          <Text className="text-sm font-medium text-noor-600 dark:text-noor-400">{action} ›</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  )
+}
+
 // ─── Card ────────────────────────────────────────────────────────────────────
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export type CardVariant = 'default' | 'elevated' | 'flat' | 'glass-noor' | 'outline-dashed'
+
+const CARD_VARIANT: Record<CardVariant, { className: string; shadow?: ViewStyle }> = {
+  default: { className: 'border border-border bg-card', shadow: SHADOW.sm },
+  elevated: { className: 'border border-border bg-card', shadow: SHADOW.md },
+  flat: { className: 'bg-muted/50' },
+  // The web's translucent teal surface. Backdrop blur is not available in RN
+  // without a native module, so the tint is carried by the fill alone.
+  'glass-noor': {
+    className: 'border border-noor-200/60 bg-noor-50 dark:border-noor-800/40 dark:bg-noor-950/40',
+    shadow: SHADOW.sm,
+  },
+  'outline-dashed': { className: 'border border-dashed border-border bg-muted/20' },
+}
+
+export function Card({
+  children,
+  className,
+  variant = 'default',
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  variant?: CardVariant
+  style?: StyleProp<ViewStyle>
+}) {
+  const v = CARD_VARIANT[variant]
   return (
-    <View className={cn('rounded-xl border border-border bg-card p-4', className)}>{children}</View>
+    <View className={cn('rounded-2xl p-4', v.className, className)} style={[v.shadow, style]}>
+      {children}
+    </View>
+  )
+}
+
+// ─── Icon badge ──────────────────────────────────────────────────────────────
+// The tinted rounded square behind an icon, as on the web StatCard.
+
+export function IconBadge({
+  children,
+  className,
+  size = 40,
+}: {
+  children: ReactNode
+  className?: string
+  size?: number
+}) {
+  return (
+    <View
+      className={cn('items-center justify-center rounded-xl bg-noor-500/10', className)}
+      style={{ width: size, height: size }}
+    >
+      {children}
+    </View>
+  )
+}
+
+// ─── Progress ────────────────────────────────────────────────────────────────
+
+export function Progress({
+  value,
+  className,
+  indicatorClassName,
+}: {
+  /** 0..100 */
+  value: number
+  className?: string
+  indicatorClassName?: string
+}) {
+  const pct = Math.max(0, Math.min(100, value))
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: pct }}
+      className={cn('h-2 w-full overflow-hidden rounded-full bg-muted', className)}
+    >
+      <View
+        className={cn('h-full rounded-full bg-primary', indicatorClassName)}
+        style={{ width: `${pct}%` }}
+      />
+    </View>
+  )
+}
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+export function Skeleton({ className, style }: { className?: string; style?: StyleProp<ViewStyle> }) {
+  const opacity = useSharedValue(1)
+  useEffect(() => {
+    opacity.value = withRepeat(withTiming(0.45, { duration: 750 }), -1, true)
+  }, [opacity])
+  const animated = useAnimatedStyle(() => ({ opacity: opacity.value }))
+
+  return (
+    <Animated.View style={[animated, style]} accessibilityElementsHidden>
+      <View className={cn('rounded-2xl bg-muted', className)} />
+    </Animated.View>
   )
 }
 
 // ─── Button ──────────────────────────────────────────────────────────────────
 
 type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive'
+type ButtonSize = 'sm' | 'md'
 
 const VARIANT: Record<ButtonVariant, { container: string; label: string }> = {
   primary: { container: 'bg-primary', label: 'text-primary-foreground' },
-  outline: { container: 'border border-border bg-transparent', label: 'text-foreground' },
+  outline: { container: 'border border-border bg-card', label: 'text-foreground' },
   ghost: { container: 'bg-transparent', label: 'text-foreground' },
   destructive: { container: 'bg-destructive', label: 'text-destructive-foreground' },
+}
+
+const SIZE: Record<ButtonSize, { container: string; label: string }> = {
+  sm: { container: 'h-9 px-3 rounded-lg', label: 'text-sm' },
+  md: { container: 'h-12 px-4 rounded-xl', label: 'text-base' },
 }
 
 export function Button({
   children,
   onPress,
   variant = 'primary',
+  size = 'md',
   disabled = false,
   loading = false,
   className,
+  icon,
 }: {
   children: ReactNode
   onPress?: () => void
   variant?: ButtonVariant
+  size?: ButtonSize
   disabled?: boolean
   loading?: boolean
   className?: string
+  /** Leading icon element. */
+  icon?: ReactNode
 }) {
   const styles = VARIANT[variant]
+  const dims = SIZE[size]
   const inert = disabled || loading
 
   return (
@@ -110,16 +311,24 @@ export function Button({
         onPress?.()
       }}
       className={cn(
-        'h-12 flex-row items-center justify-center rounded-lg px-4',
+        'flex-row items-center justify-center gap-2',
+        dims.container,
         styles.container,
         inert && 'opacity-50',
         className,
       )}
+      style={({ pressed }) => [
+        variant === 'primary' && !inert ? SHADOW.sm : null,
+        pressed ? { opacity: 0.85, transform: [{ scale: 0.98 }] } : null,
+      ]}
     >
       {loading ? (
         <ActivityIndicator size="small" />
       ) : (
-        <Text className={cn('text-base font-semibold', styles.label)}>{children}</Text>
+        <>
+          {icon}
+          <Text className={cn('font-semibold', dims.label, styles.label)}>{children}</Text>
+        </>
       )}
     </Pressable>
   )
@@ -139,7 +348,7 @@ export function Input({
       <TextInput
         placeholderTextColor="#83938f"
         className={cn(
-          'h-12 rounded-lg border border-input bg-card px-3 text-base text-foreground',
+          'h-12 rounded-xl border border-input bg-card px-3 text-base text-foreground',
           error && 'border-destructive',
           className,
         )}

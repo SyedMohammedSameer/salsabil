@@ -98,6 +98,30 @@ nothing can *tell* the user it finished if the app is not running.
 `cancelByKind` exists so a finished focus session does not wipe the day's
 remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
 
+## Design system
+
+`components/ui/index.tsx` is the native counterpart of the web's shadcn
+primitives, on the same tokens: 2xl card radius, tinted icon badges, the
+`glass-noor` surface for scripture and Noor, section headers with a trailing
+link, progress bars and pulsing skeletons. `Card` takes a `variant`
+(`default`, `elevated`, `flat`, `glass-noor`, `outline-dashed`); shadows are
+plain styles in `SHADOW` because NativeWind maps shadow classes unevenly
+between iOS and Android.
+
+Two things the web gets from the browser are built differently here:
+
+* **Gradients** (`components/ui/Gradient.tsx`) are an absolutely positioned
+  react-native-svg layer rather than expo-linear-gradient, so they ship in the
+  JS bundle and hot-reload into the existing dev client. Adding
+  expo-linear-gradient would need a new native build.
+* **Motion** (`components/ui/motion.tsx`) is Reanimated. `FadeIn` is the
+  staggered entrance the web gets from framer-motion's `stagger` variants;
+  `PressableScale` is `active:scale-[0.97]` with a haptic. `className` is
+  never placed on an Animated component; the styled View sits inside it.
+
+Lucide icons take a literal colour, so screens carry light and dark hex pairs
+for each tint rather than a class.
+
 ## The garden
 
 `components/garden/SvgTree.tsx` is the one place where native deliberately
