@@ -149,21 +149,3 @@ export function Input({
     </View>
   )
 }
-
-// ─── Placeholder ─────────────────────────────────────────────────────────────
-
-/**
- * Stands in for a view that has not been ported yet. Each is replaced in the
- * feature phases; keeping them explicit means navigation can be exercised end
- * to end before any screen exists.
- */
-export function ComingSoon({ title, note }: { title: string; note?: string }) {
-  return (
-    <Screen>
-      <View className="flex-1 items-center justify-center gap-2 py-24">
-        <Heading className="text-center">{title}</Heading>
-        <Muted className="text-center">{note ?? 'This screen is being ported to native.'}</Muted>
-      </View>
-    </Screen>
-  )
-}

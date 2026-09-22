@@ -113,11 +113,41 @@ The props, the six growth stages and the per-species accents match the web
 component, and accents are seeded from the tree's id so fruit does not jitter
 around the canopy between renders.
 
+## Charts
+
+`components/charts/index.tsx` holds the bar and line primitives. The web
+versions use framer-motion and Tailwind `fill-`/`stroke-` classes, neither of
+which react-native-svg supports, so colour is passed explicitly and the entry
+animation is dropped rather than faked.
+
+The colours were chosen against a contrast validator, not by eye. Every chart
+plots a single series named by its card title, so there is no categorical
+scale, no legend and no hue cycling — one brand hue throughout. The brand teal
+`#14b8a6` measures only 2.43:1 against the light surface, under the 3:1 a
+graphical object needs, so light mode steps down the same ramp to noor-600 and
+dark mode steps up to noor-400. The dark value is selected for its own
+surface, not flipped from the light one.
+
+## What native does not do yet
+
+Noor is conversation only. Voice is absent because `src/lib/voice.ts` records
+through MediaRecorder and plays through a shared `<audio>` element, both
+browser-only; the native equivalent is expo-audio recording plus a playback
+surface, which is its own piece of work rather than a port. Noor's tool actions
+(planting trees, adding memories) are likewise not wired up — they mutate real
+state and deserve the same care the web view gives them.
+
+`streamNoor` itself works on both platforms: React Native's fetch exposes no
+readable body, so the SSE parser is fed once from the whole response there
+instead of incrementally. Noor's reply therefore arrives all at once on native
+rather than token by token.
+
 ## Status
 
-Ported and live: dashboard, prayers (with on-device adhan reminders), focus
-(SVG countdown ring, background-safe timing), tasks, adhkar, quran, workouts,
-garden and challenges.
+Every route is a real screen. Dashboard, prayers (on-device adhan reminders),
+focus (SVG countdown ring, background-safe timing), tasks, adhkar, quran,
+workouts, garden, challenges, study rooms (realtime chat and shared timer),
+analytics, profile, settings and Noor.
 
-Still placeholders (`components/ui/index.tsx` → `ComingSoon`): study rooms,
-analytics, profile, settings and Noor. These are ported in the social phase.
+Remaining before submission: icons, splash art, store metadata and the EAS
+credential setup — the release phase.

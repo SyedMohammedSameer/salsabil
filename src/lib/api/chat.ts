@@ -71,10 +71,13 @@ export async function streamNoor(
     throw new Error((err as { error?: string }).error ?? 'Noor is unavailable right now.')
   }
 
+  // React Native's fetch does not expose a readable body, so `res.body` is
+  // undefined there and streaming is impossible. Rather than fork the parser,
+  // the SSE consumer below is fed either incrementally from a reader (web) or
+  // once from the whole response text (native). The visible difference is that
+  // Noor's reply arrives all at once on native instead of token by token.
   const reader = res.body?.getReader()
-  if (!reader) throw new Error('No response body')
 
-  const decoder = new TextDecoder()
   let buffer = ''
 
   // State for the two tag-stripping passes: <think>...</think> (reasoning,
@@ -172,18 +175,23 @@ export async function streamNoor(
     if (out) handlers.onToken(out)
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
+  /**
+   * Feed raw SSE text through the parser.
+   *
+   * Returns true when the stream signalled completion, so the caller can stop
+   * reading. `final` flushes the trailing line, which has no newline after it
+   * when the whole body arrives in one piece.
+   */
+  function consume(chunk: string, final = false): boolean {
+    buffer += chunk
 
     const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
+    buffer = final ? '' : (lines.pop() ?? '')
 
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       const data = line.slice(6).trim()
-      if (data === '[DONE]') return
+      if (data === '[DONE]') return true
       try {
         const parsed = JSON.parse(data) as {
           choices?: { delta?: { content?: string } }[]
@@ -203,5 +211,22 @@ export async function streamNoor(
         throw e
       }
     }
+    return false
+  }
+
+  if (!reader) {
+    // Native path — the whole body at once.
+    consume(await res.text(), true)
+    return
+  }
+
+  const decoder = new TextDecoder()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      consume(decoder.decode(), true)
+      break
+    }
+    if (consume(decoder.decode(value, { stream: true }))) return
   }
 }
