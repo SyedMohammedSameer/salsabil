@@ -16,6 +16,17 @@ const BRAND_BG = '#023728'
 // One step darker, for the dark-mode splash.
 const BRAND_BG_DARK = '#011f16'
 
+// EAS project id. A public identifier, not a secret.
+//
+// This must be a literal rather than only an env var: .env is gitignored, so it
+// is never uploaded to the EAS Build servers, where app.config.ts is
+// re-evaluated. Reading it solely from process.env works locally and then fails
+// the cloud build with a missing project id.
+//
+// `eas init` prints the value — paste it here. The env var stays as an override
+// for CI or a second Expo account.
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'PASTE_EAS_PROJECT_ID_HERE'
+
 const config: ExpoConfig = {
   name: 'Salsabil',
   slug: 'salsabil',
@@ -108,7 +119,7 @@ const config: ExpoConfig = {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
     authCallbackUrl: `${SCHEME}://auth-callback`,
     eas: {
-      projectId: process.env.EAS_PROJECT_ID,
+      projectId: EAS_PROJECT_ID,
     },
   },
 }
