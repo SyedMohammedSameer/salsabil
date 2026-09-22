@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Users, Plus, X, LogIn, Lock } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button, Input } from '~/components/ui'
+import { Screen, Muted, Card, Button, Input } from '~/components/ui'
 import { usePublicRooms, useCreateRoom, useRoomByCode } from '@/hooks/useStudyRooms'
 import { useAuth } from '@/hooks/useAuth'
 import { STUDY_ROOM_COINS_PER_MINUTE } from '@/lib/rewards'
@@ -65,7 +65,6 @@ export default function RoomsScreen() {
     <Screen>
       <View className="flex-row items-center justify-between py-4">
         <View className="min-w-0 flex-1">
-          <Heading>Study Rooms</Heading>
           <Muted>
             Focus together. {STUDY_ROOM_COINS_PER_MINUTE} coins a minute for the time you attend.
           </Muted>

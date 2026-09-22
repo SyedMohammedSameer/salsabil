@@ -23,6 +23,8 @@ function AuthGate() {
   const segments = useSegments()
   const router = useRouter()
   const { ready: themeReady } = useTheme()
+  const { colorScheme } = useColorScheme()
+  const dark = colorScheme === 'dark'
 
   useEffect(() => {
     if (loading) return
@@ -40,10 +42,33 @@ function AuthGate() {
   }, [loading, themeReady])
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="rooms/[id]" options={{ headerShown: true, title: 'Study Room' }} />
+    <Stack
+      screenOptions={{
+        // Secondary screens are pushed onto this stack from the More sheet, so
+        // they need a header to get a back affordance. Android's hardware back
+        // works either way, but nothing on screen said so.
+        headerShown: true,
+        headerBackTitle: 'Back',
+        headerStyle: { backgroundColor: dark ? '#070c0b' : '#ffffff' },
+        headerTintColor: '#14b8a6',
+        headerTitleStyle: { color: dark ? '#f5f5f5' : '#0a0a0a' },
+      }}
+    >
+      {/* These own their own chrome. */}
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="rooms/[id]" options={{ headerShown: false }} />
+
+      <Stack.Screen name="tasks" options={{ title: 'Tasks' }} />
+      <Stack.Screen name="quran" options={{ title: 'Quran' }} />
+      <Stack.Screen name="adhkar" options={{ title: 'Adhkar' }} />
+      <Stack.Screen name="workouts" options={{ title: 'Workouts' }} />
+      <Stack.Screen name="challenges" options={{ title: 'Challenges' }} />
+      <Stack.Screen name="garden" options={{ title: 'Garden' }} />
+      <Stack.Screen name="analytics" options={{ title: 'Analytics' }} />
+      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="rooms/index" options={{ title: 'Study Rooms' }} />
     </Stack>
   )
 }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { View, Text, ActivityIndicator } from 'react-native'
 import { Flame, Trophy, Coins } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card } from '~/components/ui'
+import { Screen, Muted, Card } from '~/components/ui'
 import { BarChart, LineChart } from '~/components/charts'
 import { useAllTasks } from '@/hooks/useTasks'
 import { useFocusSessions } from '@/hooks/useFocus'
@@ -144,7 +144,6 @@ export default function AnalyticsScreen() {
   return (
     <Screen>
       <View className="gap-1 py-4">
-        <Heading>Analytics</Heading>
         <Muted>Your growth at a glance.</Muted>
       </View>
 

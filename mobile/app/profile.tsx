@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, ActivityIndicator } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { Coins, Flame, Trophy, Calendar } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button, Input } from '~/components/ui'
+import { Screen, Muted, Card, Button, Input } from '~/components/ui'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile'
 import { getCoinTransactions } from '@/lib/api/coins'
@@ -77,7 +77,6 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <View className="gap-1 py-4">
-        <Heading>Profile</Heading>
         <Muted>{user?.email}</Muted>
       </View>
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { View, Text, Pressable, Switch, Linking, Platform, Alert } from 'react-native'
 import { BellRing, Moon, Sun, Smartphone, LogOut, ExternalLink, Trash2 } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button } from '~/components/ui'
+import { Screen, Muted, Card, Button } from '~/components/ui'
 import { useTheme, type Theme } from '~/lib/theme'
 import {
   getNotificationPermission,
@@ -98,7 +98,6 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <View className="gap-1 py-4">
-        <Heading>Settings</Heading>
         <Muted>{user?.email}</Muted>
       </View>
 

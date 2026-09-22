@@ -70,7 +70,9 @@ export default function HomeScreen() {
           />
           <StatTile
             icon={<Moon size={20} color="#14b8a6" />}
-            value={isLoading ? '—' : `${stats?.prayers ?? 0}/5`}
+            value={
+              isLoading ? '—' : `${stats?.prayers?.prayed ?? 0}/${stats?.prayers?.total ?? 5}`
+            }
             label="Prayers today"
           />
           <StatTile

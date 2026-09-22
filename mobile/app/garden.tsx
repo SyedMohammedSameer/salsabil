@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
 import { Droplets, Coins, ShoppingBag, X } from 'lucide-react-native'
-import { Screen, Heading, Muted, Card, Button } from '~/components/ui'
+import { Screen, Muted, Card, Button } from '~/components/ui'
 import { SvgTree } from '~/components/garden/SvgTree'
 import { useGardenTrees, usePlantTree, useWaterTree } from '@/hooks/useGarden'
 import { useProfile } from '@/hooks/useProfile'
@@ -62,7 +62,6 @@ export default function GardenScreen() {
     <Screen>
       <View className="flex-row items-center justify-between py-4">
         <View>
-          <Heading>Garden</Heading>
           <Muted>Real effort grows it. Prayers, focus, tasks — all of it.</Muted>
         </View>
         <View className="flex-row items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
