@@ -34,12 +34,17 @@ Notifications.setNotificationHandler({
 /** Marks our notifications so we can clear only ours when rescheduling. */
 const PRAYER_CHANNEL = 'prayers'
 const FOCUS_CHANNEL = 'focus'
+const FOCUS_RUNNING_CHANNEL = 'focus-running'
+const TASK_CHANNEL = 'tasks'
 
-type NotificationKind = 'prayer' | 'focus'
+const FOCUS_RUNNING_ID = 'focus-running'
+
+type NotificationKind = 'prayer' | 'focus' | 'focus-running' | 'task'
 
 interface SalsabilNotificationData extends Record<string, unknown> {
   kind: NotificationKind
   prayer?: FardName
+  taskId?: string
 }
 
 const PRAYER_LABEL: Record<FardName, string> = {
@@ -76,7 +81,21 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
     })
     await Notifications.setNotificationChannelAsync(FOCUS_CHANNEL, {
       name: 'Focus sessions',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 200, 100, 200],
+      lightColor: '#14b8a6',
+    })
+    // The pinned "session in progress" card: visible, but never a sound.
+    await Notifications.setNotificationChannelAsync(FOCUS_RUNNING_CHANNEL, {
+      name: 'Focus session in progress',
+      importance: Notifications.AndroidImportance.LOW,
+      sound: null,
+      vibrationPattern: [0],
+    })
+    await Notifications.setNotificationChannelAsync(TASK_CHANNEL, {
+      name: 'Task reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
       lightColor: '#14b8a6',
     })
   }
@@ -134,6 +153,7 @@ export async function schedulePrayerReminders(
             ? `${PRAYER_LABEL[prayer]} is in ${minutesBefore} minutes.`
             : `It is time for ${PRAYER_LABEL[prayer]}. Log it in Salsabil.`,
         data,
+        sound: 'default',
         ...(Platform.OS === 'android' ? { channelId: PRAYER_CHANNEL } : {}),
       },
       trigger: {
@@ -169,6 +189,7 @@ export async function scheduleFocusSessionEnd(endsAt: Date, minutes: number): Pr
       title: 'Session complete! MashaAllah.',
       body: `Your ${minutes}-minute focus session is done.`,
       data,
+      sound: 'default',
       ...(Platform.OS === 'android' ? { channelId: FOCUS_CHANNEL } : {}),
     },
     trigger: {
@@ -181,6 +202,95 @@ export async function scheduleFocusSessionEnd(endsAt: Date, minutes: number): Pr
 
 export async function cancelFocusSessionEnd(): Promise<void> {
   await cancelByKind('focus')
+}
+
+// ─── Pinned "session in progress" ────────────────────────────────────────────
+//
+// Android: an ongoing (non-dismissable) notification for as long as the timer
+// runs, so the session is visible in the shade the way a media player is. It
+// states the end time rather than counting down: updating it every second
+// would need a foreground service, which is a native module and a new build.
+// iOS has no equivalent short of a Live Activity, so nothing is shown there.
+
+export async function presentFocusRunning(endsAt: Date, label: string): Promise<void> {
+  if (Platform.OS !== 'android') return
+  const data: SalsabilNotificationData = { kind: 'focus-running' }
+  const ends = endsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  await Notifications.scheduleNotificationAsync({
+    identifier: FOCUS_RUNNING_ID,
+    content: {
+      title: `${label} in progress`,
+      body: `Ends at ${ends}. Open Salsabil to pause.`,
+      data,
+      sticky: true,
+      autoDismiss: false,
+    },
+    // An immediate notification still needs a channel on Android; the
+    // channel-only trigger is how expo-notifications expresses that.
+    trigger: { channelId: FOCUS_RUNNING_CHANNEL },
+  })
+}
+
+export async function dismissFocusRunning(): Promise<void> {
+  if (Platform.OS !== 'android') return
+  await Notifications.dismissNotificationAsync(FOCUS_RUNNING_ID)
+}
+
+// ─── Task reminders ──────────────────────────────────────────────────────────
+
+export interface TaskReminderInput {
+  id: string
+  title: string
+  due_date: string | null
+  due_time: string | null
+}
+
+/** Resolve a task's due date and "HH:MM[:SS]" time into a local Date. */
+export function taskDueAt(task: Pick<TaskReminderInput, 'due_date' | 'due_time'>): Date | null {
+  if (!task.due_date || !task.due_time) return null
+  const [y, m, d] = task.due_date.split('-').map(Number)
+  const [hh, mm] = task.due_time.split(':').map(Number)
+  if ([y, m, d, hh, mm].some((n) => Number.isNaN(n))) return null
+  return new Date(y, m - 1, d, hh, mm, 0, 0)
+}
+
+/**
+ * Schedule (or reschedule) a reminder at the task's due time. A task with no
+ * time never gets one — a date alone is a plan, not an appointment.
+ */
+export async function scheduleTaskReminder(task: TaskReminderInput): Promise<boolean> {
+  await cancelTaskReminder(task.id)
+  const at = taskDueAt(task)
+  if (!at || at.getTime() <= Date.now()) return false
+
+  const data: SalsabilNotificationData = { kind: 'task', taskId: task.id }
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: task.title,
+      body: 'It is time. Mark it done in Salsabil to earn your coins.',
+      data,
+      sound: 'default',
+      ...(Platform.OS === 'android' ? { channelId: TASK_CHANNEL } : {}),
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: at,
+      ...(Platform.OS === 'android' ? { channelId: TASK_CHANNEL } : {}),
+    },
+  })
+  return true
+}
+
+export async function cancelTaskReminder(taskId: string): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync()
+  await Promise.all(
+    scheduled
+      .filter((n) => {
+        const d = n.content.data as SalsabilNotificationData | undefined
+        return d?.kind === 'task' && d.taskId === taskId
+      })
+      .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+  )
 }
 
 // ─── Internals ───────────────────────────────────────────────────────────────

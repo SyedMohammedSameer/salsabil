@@ -12,6 +12,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics'
 import { House, Moon, Timer, Sprout, Sparkles } from 'lucide-react-native'
 import { Gradient, NOOR_GRADIENT } from '~/components/ui'
+import { FocusMiniBar } from '~/components/FocusMiniBar'
 
 // Four domain hubs, and Noor as a floating orb above every one of them.
 //
@@ -120,6 +121,9 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+      {/* A running focus session stays pinned above the bar on every other
+          tab, the way a mini player does. */}
+      <FocusMiniBar bottom={BAR_HEIGHT + insets.bottom + 16} />
       <NoorOrb bottom={BAR_HEIGHT + insets.bottom + 16} />
     </View>
   )

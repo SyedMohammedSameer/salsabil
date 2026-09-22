@@ -50,6 +50,20 @@ function saveStored(s: PersistedSession | null) {
   else void storage.setItem(STORAGE_KEY, JSON.stringify(s))
 }
 
+// ─── Cross-instance sync ────────────────────────────────────────────────────
+// Several components can mount this hook at once (the timer screen, a pinned
+// mini-timer on other tabs). Each keeps its own React state, so a pause in one
+// must reach the others without waiting for a re-read of storage. Every
+// persisted change is broadcast; receivers adopt the same object reference,
+// and setState bails out on an identical reference, so the echo stops after
+// one hop.
+
+const listeners = new Set<(s: PersistedSession) => void>()
+
+function broadcast(s: PersistedSession) {
+  for (const l of listeners) l(s)
+}
+
 function computeRemaining(s: PersistedSession): number {
   const total = s.preset.minutes * 60
   if (s.state === 'idle') return total
@@ -94,11 +108,29 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
   }))
   const [hydrated, setHydrated] = useState(false)
 
+  // A broadcast from a sibling instance that arrives before our own storage
+  // read completes is newer than storage; the read must not overwrite it.
+  const receivedRef = useRef(false)
+  useEffect(() => {
+    const listener = (s: PersistedSession) => {
+      receivedRef.current = true
+      setStored((prev) => (prev === s ? prev : s))
+      setHydrated(true)
+    }
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }, [])
+
   // Restore any session that was running when the app was last closed.
   useEffect(() => {
     let cancelled = false
     void loadStored().then((existing) => {
-      if (cancelled) return
+      if (cancelled || receivedRef.current) {
+        if (!cancelled) setHydrated(true)
+        return
+      }
       if (existing) {
         // The session may well have finished while the app was away — the
         // wall-clock math decides, not whether an interval fired.
@@ -132,6 +164,7 @@ export function useFocusTimer(defaultPreset: FocusPresetInfo): UseFocusTimer {
     } else {
       saveStored(stored)
     }
+    broadcast(stored)
   }, [stored, hydrated])
 
   // Drive UI ticks while running. Re-running this effect only when state

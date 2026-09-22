@@ -1,228 +1,359 @@
 import { useMemo, useState } from 'react'
-import { View, Text, Pressable, ActivityIndicator } from 'react-native'
-import { Check, Trash2, Plus, X } from 'lucide-react-native'
-import { HubContent, Muted, Card, Button, Input } from '~/components/ui'
-import {
-  useTasksForDate,
-  useCreateTask,
-  useCompleteTask,
-  useDeleteTask,
-} from '@/hooks/useTasks'
+import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native'
+import { useRouter } from 'expo-router'
+import { useColorScheme } from 'nativewind'
+import * as Haptics from 'expo-haptics'
+import { Plus, CalendarDays, ChevronRight, Bell } from 'lucide-react-native'
+import { HubContent, Muted, Card, Gradient, FadeIn, SectionHeader } from '~/components/ui'
+import { MonthGrid, TimeChips } from '~/components/ui/pickers'
+import { TaskRow, PRIORITY_COLOR, PRIORITY_LABEL } from '~/components/tasks/TaskRow'
+import { scheduleTaskReminder, cancelTaskReminder } from '~/lib/notifications'
+import { clock12, relativeDay, addDays } from '~/lib/format'
+import { useAllTasks, useCreateTask, useCompleteTask, useDeleteTask } from '@/hooks/useTasks'
 import { localDateString } from '@/lib/dates'
 import { TASK_COINS_BY_PRIORITY } from '@/lib/rewards'
-import type { Task, TaskPriority } from '@/lib/database.types'
+import { cn } from '@/lib/cn'
+import type { TaskPriority } from '@/lib/database.types'
 
-// Ported from src/views/tasks/TasksView.tsx. The hooks are shared unchanged, so
-// completing a task here awards coins through the same idempotent ledger path.
+// The Tasks section of the Focus hub: today's tasks, with a quick-add bar
+// that takes an optional due date and time. A task with a time gets an
+// on-device reminder. Everything not due today lives on the All tasks screen.
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
-
-const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  low: '#83938f',
-  medium: '#14b8a6',
-  high: '#f59e0b',
-  urgent: '#ef4444',
-}
-
-type Filter = 'all' | 'open' | 'done'
-
-function TaskRow({
-  task,
-  onToggle,
-  onDelete,
-  busy,
-}: {
-  task: Task
-  onToggle: () => void
-  onDelete: () => void
-  busy: boolean
-}) {
-  return (
-    <Card className="flex-row items-center gap-3">
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: task.completed }}
-        accessibilityLabel={task.completed ? `Mark ${task.title} incomplete` : `Complete ${task.title}`}
-        disabled={busy}
-        onPress={onToggle}
-        className="h-7 w-7 items-center justify-center rounded-md border"
-        style={{
-          borderColor: task.completed ? '#10b981' : '#83938f',
-          backgroundColor: task.completed ? '#10b981' : 'transparent',
-        }}
-      >
-        {task.completed ? <Check size={16} color="#ffffff" /> : null}
-      </Pressable>
-
-      <View className="min-w-0 flex-1">
-        <Text
-          className="text-base text-foreground"
-          style={task.completed ? { textDecorationLine: 'line-through', opacity: 0.5 } : undefined}
-        >
-          {task.title}
-        </Text>
-        <View className="flex-row items-center gap-2 pt-0.5">
-          <Text className="text-[11px]" style={{ color: PRIORITY_COLOR[task.priority] }}>
-            {task.priority}
-          </Text>
-          <Muted className="text-[11px]">
-            +{TASK_COINS_BY_PRIORITY[task.priority]} coins
-          </Muted>
-        </View>
-      </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Delete ${task.title}`}
-        onPress={onDelete}
-        hitSlop={8}
-      >
-        <Trash2 size={18} color="#83938f" />
-      </Pressable>
-    </Card>
-  )
-}
+const SUMMARY = ['#059669', '#047857'] as const
 
 export default function TasksScreen() {
+  const router = useRouter()
+  const { colorScheme } = useColorScheme()
+  const dark = colorScheme === 'dark'
   const today = localDateString()
-  const { data: tasks, isLoading } = useTasksForDate(today)
+
+  const { data: allTasks, isLoading } = useAllTasks()
   const createTask = useCreateTask()
   const completeTask = useCompleteTask()
   const deleteTask = useDeleteTask()
 
-  const [adding, setAdding] = useState(false)
+  // Quick add
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
-  const [filter, setFilter] = useState<Filter>('open')
+  const [dueDate, setDueDate] = useState<string | null>(today)
+  const [dueTime, setDueTime] = useState<string | null>(null)
+  const [scheduling, setScheduling] = useState(false)
 
-  const visible = useMemo(() => {
-    const all = tasks ?? []
-    if (filter === 'open') return all.filter((t) => !t.completed)
-    if (filter === 'done') return all.filter((t) => t.completed)
-    return all
-  }, [tasks, filter])
+  const tasks = allTasks ?? []
+  const todays = useMemo(() => tasks.filter((t) => t.due_date === today), [tasks, today])
+  const overdue = useMemo(
+    () => tasks.filter((t) => !t.completed && !!t.due_date && t.due_date < today),
+    [tasks, today],
+  )
+  const upcoming = useMemo(
+    () => tasks.filter((t) => !t.completed && !!t.due_date && t.due_date > today),
+    [tasks, today],
+  )
+  const todo = todays.filter((t) => !t.completed)
+  const done = todays.filter((t) => t.completed)
+  const earned = done.reduce((s, t) => s + TASK_COINS_BY_PRIORITY[t.priority], 0)
+  const available = todays.reduce((s, t) => s + TASK_COINS_BY_PRIORITY[t.priority], 0)
+  const pct = todays.length ? done.length / todays.length : 0
 
   const submit = () => {
     const trimmed = title.trim()
     if (!trimmed) return
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     createTask.mutate(
-      { title: trimmed, priority, due_date: today },
       {
-        onSuccess: () => {
+        title: trimmed,
+        priority,
+        due_date: dueDate ?? undefined,
+        due_time: dueTime ?? undefined,
+      },
+      {
+        onSuccess: (task) => {
           setTitle('')
           setPriority('medium')
-          setAdding(false)
+          setDueDate(today)
+          setDueTime(null)
+          setScheduling(false)
+          if (task.due_time) void scheduleTaskReminder(task)
         },
       },
     )
   }
 
+  const toggle = (id: string, completed: boolean) => {
+    completeTask.mutate({ id, completed })
+    if (completed) void cancelTaskReminder(id)
+  }
+  const remove = (id: string) => {
+    deleteTask.mutate(id)
+    void cancelTaskReminder(id)
+  }
+
+  const whenLabel = [
+    dueDate ? relativeDay(dueDate, today) : 'No date',
+    dueTime ? clock12(dueTime) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <HubContent>
-      <View className="flex-row items-center justify-between py-4">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={adding ? 'Cancel new task' : 'Add task'}
-          onPress={() => setAdding((v) => !v)}
-          className="h-10 w-10 items-center justify-center rounded-full bg-primary"
-        >
-          {adding ? <X size={18} color="#ffffff" /> : <Plus size={18} color="#ffffff" />}
-        </Pressable>
-      </View>
-
-      {adding ? (
-        <Card className="mb-3 gap-3">
-          <Input
-            label="Task"
-            value={title}
-            onChangeText={setTitle}
-            placeholder="What needs doing?"
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={submit}
-          />
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Priority</Text>
-            <View className="flex-row gap-2">
-              {PRIORITIES.map((p) => {
-                const active = priority === p
-                return (
-                  <Pressable
-                    key={p}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => setPriority(p)}
-                    className="flex-1 items-center rounded-lg border py-2"
-                    style={{
-                      borderColor: active ? PRIORITY_COLOR[p] : 'transparent',
-                      backgroundColor: active
-                        ? `${PRIORITY_COLOR[p]}1a`
-                        : 'rgba(127,127,127,0.08)',
-                    }}
-                  >
-                    <Text
-                      className="text-[11px]"
-                      style={{ color: active ? PRIORITY_COLOR[p] : '#83938f' }}
-                    >
-                      {p}
-                    </Text>
-                  </Pressable>
-                )
-              })}
+      <View className="gap-4 pt-1">
+        {/* Summary */}
+        <FadeIn index={0}>
+          <Gradient
+            colors={SUMMARY}
+            radius={20}
+            orbs
+            style={{
+              backgroundColor: '#059669',
+              shadowColor: '#059669',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 18,
+              elevation: 6,
+            }}
+          >
+            <View className="px-[18px] pb-4 pt-4">
+              <View className="flex-row items-end justify-between">
+                <View>
+                  <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-white/85">Today</Text>
+                  <Text className="mt-1 text-[34px] font-bold leading-[38px] tracking-tight text-white">
+                    {done.length}
+                    <Text className="text-base font-medium text-white/85"> of {todays.length} done</Text>
+                  </Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-white/85">Earned</Text>
+                  <Text className="mt-1 text-[22px] font-bold leading-[26px] text-white">+{earned}</Text>
+                  <Text className="text-xs text-white/85">of {available} coins</Text>
+                </View>
+              </View>
+              <View className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/25">
+                <View className="h-full rounded-full bg-white" style={{ width: `${pct * 100}%` }} />
+              </View>
             </View>
+          </Gradient>
+        </FadeIn>
+
+        {/* Quick add */}
+        <FadeIn index={1}>
+          <Card className="gap-3 p-2 pl-4">
+            <View className="flex-row items-center gap-2.5">
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Add a task…"
+                placeholderTextColor="#9aa8a4"
+                returnKeyType="done"
+                onSubmitEditing={submit}
+                accessibilityLabel="New task"
+                className="min-w-0 flex-1 py-2 text-[15px] text-foreground"
+              />
+              <View className="flex-row items-center gap-1.5">
+                {PRIORITIES.map((p) => {
+                  const active = priority === p
+                  return (
+                    <Pressable
+                      key={p}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${PRIORITY_LABEL[p]} priority`}
+                      accessibilityState={{ selected: active }}
+                      hitSlop={6}
+                      onPress={() => {
+                        void Haptics.selectionAsync()
+                        setPriority(p)
+                      }}
+                      className="h-5 w-5 items-center justify-center"
+                    >
+                      <View
+                        className="h-3.5 w-3.5 rounded-full"
+                        style={{
+                          backgroundColor: PRIORITY_COLOR[p],
+                          ...(active
+                            ? { borderWidth: 2, borderColor: dark ? '#070c0b' : '#ffffff', shadowColor: PRIORITY_COLOR[p], transform: [{ scale: 1.3 }] }
+                            : { opacity: 0.55 }),
+                        }}
+                      />
+                    </Pressable>
+                  )
+                })}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Set date and time"
+                accessibilityState={{ expanded: scheduling }}
+                onPress={() => setScheduling((v) => !v)}
+                className={cn(
+                  'h-9 w-9 items-center justify-center rounded-xl',
+                  scheduling || dueTime || dueDate !== today ? 'bg-noor-500/10' : 'bg-muted',
+                )}
+              >
+                <CalendarDays size={18} color={scheduling || dueTime || dueDate !== today ? (dark ? '#2dd4bf' : '#0d9488') : '#8a9793'} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add task"
+                disabled={!title.trim() || createTask.isPending}
+                onPress={submit}
+                className="h-9 w-9 items-center justify-center rounded-xl bg-primary"
+                style={!title.trim() ? { opacity: 0.45 } : undefined}
+              >
+                {createTask.isPending ? <ActivityIndicator size="small" color="#ffffff" /> : <Plus size={18} strokeWidth={2.5} color="#ffffff" />}
+              </Pressable>
+            </View>
+
+            {(scheduling || dueTime || dueDate !== today) && !scheduling ? (
+              <Pressable onPress={() => setScheduling(true)} className="flex-row items-center gap-1.5 pb-1">
+                {dueTime ? <Bell size={12} color={dark ? '#2dd4bf' : '#0d9488'} /> : <CalendarDays size={12} color={dark ? '#2dd4bf' : '#0d9488'} />}
+                <Text className="text-xs font-medium text-noor-600 dark:text-noor-400">{whenLabel}</Text>
+              </Pressable>
+            ) : null}
+
+            {scheduling ? (
+              <View className="gap-3 pb-2 pr-2">
+                <View className="flex-row flex-wrap gap-2">
+                  {[
+                    { label: 'Today', value: today },
+                    { label: 'Tomorrow', value: addDays(today, 1) },
+                    { label: 'Next week', value: addDays(today, 7) },
+                    { label: 'No date', value: null },
+                  ].map((o) => {
+                    const active = dueDate === o.value
+                    return (
+                      <Pressable
+                        key={o.label}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        onPress={() => {
+                          void Haptics.selectionAsync()
+                          setDueDate(o.value)
+                          if (!o.value) setDueTime(null)
+                        }}
+                        className={cn(
+                          'rounded-full border px-3 py-1.5',
+                          active ? 'border-noor-500 bg-noor-500/10' : 'border-transparent bg-muted',
+                        )}
+                      >
+                        <Text className={cn('text-xs font-semibold', active ? 'text-noor-600 dark:text-noor-400' : 'text-muted-foreground')}>
+                          {o.label}
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+                <MonthGrid value={dueDate} onChange={setDueDate} marks={new Set(tasks.filter((t) => !t.completed && t.due_date).map((t) => t.due_date as string))} />
+                {dueDate ? (
+                  <View className="gap-1.5">
+                    <Text className="text-xs font-semibold text-foreground">Time · a reminder fires at it</Text>
+                    <TimeChips value={dueTime} onChange={setDueTime} />
+                  </View>
+                ) : null}
+                <Pressable onPress={() => setScheduling(false)} className="items-end">
+                  <Text className="text-xs font-semibold text-noor-600 dark:text-noor-400">Done · {whenLabel}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </Card>
+        </FadeIn>
+
+        {isLoading ? <ActivityIndicator /> : null}
+
+        {/* Overdue */}
+        {overdue.length > 0 ? (
+          <FadeIn index={2}>
+            <View className="gap-3">
+              <SectionHeader title="Overdue" description={`${overdue.length} from earlier days`} />
+              <Card className="border-danger-500/30 p-0">
+                {overdue.map((task, i) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    first={i === 0}
+                    showDate
+                    busy={completeTask.isPending && completeTask.variables?.id === task.id}
+                    onToggle={() => toggle(task.id, !task.completed)}
+                    onDelete={() => remove(task.id)}
+                  />
+                ))}
+              </Card>
+            </View>
+          </FadeIn>
+        ) : null}
+
+        {/* To do */}
+        <FadeIn index={3}>
+          <View className="gap-3">
+            <View className="flex-row items-end justify-between">
+              <SectionHeader title="To do" />
+              <Muted className="text-xs">{todo.length}</Muted>
+            </View>
+            {todo.length === 0 && !isLoading ? (
+              <Card variant="outline-dashed" className="items-center py-6">
+                <Muted className="text-xs">{todays.length ? 'All done for today. MashaAllah.' : 'Nothing due today. Add one above.'}</Muted>
+              </Card>
+            ) : (
+              <Card className="p-0">
+                {todo.map((task, i) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    first={i === 0}
+                    busy={completeTask.isPending && completeTask.variables?.id === task.id}
+                    onToggle={() => toggle(task.id, true)}
+                    onDelete={() => remove(task.id)}
+                  />
+                ))}
+              </Card>
+            )}
           </View>
-          <Button onPress={submit} loading={createTask.isPending} disabled={!title.trim()}>
-            Add task
-          </Button>
-        </Card>
-      ) : null}
+        </FadeIn>
 
-      <View className="flex-row gap-2 pb-3">
-        {(['open', 'done', 'all'] as Filter[]).map((f) => {
-          const active = filter === f
-          return (
-            <Pressable
-              key={f}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              onPress={() => setFilter(f)}
-              className="rounded-full border px-3 py-1.5"
-              style={{
-                borderColor: active ? '#14b8a6' : 'transparent',
-                backgroundColor: active ? 'rgba(20,184,166,0.1)' : 'rgba(127,127,127,0.08)',
-              }}
-            >
-              <Text className="text-xs" style={{ color: active ? '#14b8a6' : '#83938f' }}>
-                {f}
-              </Text>
-            </Pressable>
-          )
-        })}
+        {/* Done */}
+        {done.length > 0 ? (
+          <FadeIn index={4}>
+            <View className="gap-3">
+              <View className="flex-row items-end justify-between">
+                <SectionHeader title="Done" />
+                <Muted className="text-xs">{done.length}</Muted>
+              </View>
+              <Card className="p-0">
+                {done.map((task, i) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    first={i === 0}
+                    busy={completeTask.isPending && completeTask.variables?.id === task.id}
+                    onToggle={() => toggle(task.id, false)}
+                    onDelete={() => remove(task.id)}
+                  />
+                ))}
+              </Card>
+            </View>
+          </FadeIn>
+        ) : null}
+
+        {/* Everything else */}
+        <FadeIn index={5}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/tasks')}
+            className="flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5"
+          >
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-noor-500/10">
+              <CalendarDays size={18} color={dark ? '#2dd4bf' : '#0d9488'} />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="text-[14px] font-semibold text-foreground">All tasks and upcoming</Text>
+              <Muted className="text-xs">
+                {upcoming.length} upcoming
+                {overdue.length ? ` · ${overdue.length} overdue` : ''} · calendar view
+              </Muted>
+            </View>
+            <ChevronRight size={18} color="#8a9793" />
+          </Pressable>
+        </FadeIn>
       </View>
-
-      {isLoading ? (
-        <ActivityIndicator />
-      ) : visible.length === 0 ? (
-        <View className="items-center py-16">
-          <Muted>
-            {filter === 'done' ? 'Nothing completed yet today.' : 'No tasks for today.'}
-          </Muted>
-        </View>
-      ) : (
-        <View className="gap-2">
-          {visible.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              busy={completeTask.isPending && completeTask.variables?.id === task.id}
-              onToggle={() =>
-                completeTask.mutate({ id: task.id, completed: !task.completed })
-              }
-              onDelete={() => deleteTask.mutate(task.id)}
-            />
-          ))}
-        </View>
-      )}
     </HubContent>
   )
 }

@@ -70,6 +70,7 @@ function AuthGate() {
       {/* Noor is summoned from the floating orb and sits over the current hub. */}
       <Stack.Screen name="noor" options={{ headerShown: false, presentation: 'modal' }} />
 
+      <Stack.Screen name="tasks/index" options={{ title: 'All tasks' }} />
       <Stack.Screen name="profile" options={{ title: 'Profile' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
     </Stack>
