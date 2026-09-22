@@ -15,9 +15,7 @@ import { hubHref } from '~/lib/nav'
 // a mini player: live countdown, preset, and a pause/resume button. Tapping
 // it opens the full timer.
 
-const ORB_SPACE = 56 + 12
-
-export function FocusMiniBar({ bottom }: { bottom: number }) {
+export function FocusMiniBar({ bottom, rightInset = 0 }: { bottom: number; rightInset?: number }) {
   const router = useRouter()
   const pathname = usePathname()
   const timer = useFocusTimer(PRESETS[0])
@@ -38,7 +36,7 @@ export function FocusMiniBar({ bottom }: { bottom: number }) {
     <Animated.View
       entering={FadeInDown.duration(220)}
       exiting={FadeOutDown.duration(180)}
-      style={{ position: 'absolute', left: 16, right: 16 + ORB_SPACE, bottom }}
+      style={{ position: 'absolute', left: 16, right: 16 + rightInset, bottom }}
     >
       <Pressable
         accessibilityRole="button"

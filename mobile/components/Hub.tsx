@@ -3,7 +3,9 @@ import { View, Text } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams } from 'expo-router'
 import { Segmented } from '~/components/ui'
+import { NoorHeaderButton } from '~/components/NavBar'
 import { HUB_TABS, type Hub as HubName, type HubTab } from '~/lib/nav'
+import { NOOR_PLACEMENT } from '~/lib/noorPlacement'
 
 // A domain hub: a title, an optional trailing element, a segmented control
 // and the selected section. Sections are the feature components under
@@ -40,7 +42,10 @@ export function Hub<H extends HubName>({
       <View className="gap-3 px-4 pb-3 pt-2">
         <View className="flex-row items-end justify-between gap-3">
           <Text className="text-[28px] font-bold tracking-tight text-foreground">{title}</Text>
-          {right}
+          <View className="flex-row items-center gap-2">
+            {right}
+            {NOOR_PLACEMENT === 'header' ? <NoorHeaderButton /> : null}
+          </View>
         </View>
         <Segmented
           options={tabs.map((t) => ({ value: t, label: labels[t] }))}

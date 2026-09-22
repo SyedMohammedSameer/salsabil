@@ -57,6 +57,8 @@ import { FARD_ORDER, nextPrayer, prayerTimeToDate, type FardName } from '@/lib/a
 import { waterCost } from '@/lib/rewards'
 import { getDailyQuote } from '@/data/quotes'
 import { surahName } from '@/data/surahs'
+import { AskNoorBar } from '~/components/NavBar'
+import { NOOR_PLACEMENT, FLOATING_BAR_HEIGHT } from '~/lib/noorPlacement'
 import { localDateString } from '@/lib/dates'
 import { cn } from '@/lib/cn'
 import type { PrayerStatus } from '@/lib/database.types'
@@ -398,7 +400,7 @@ export default function HomeScreen() {
     <View className="flex-1 bg-background">
       {focused ? <StatusBar style="light" /> : null}
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: NOOR_PLACEMENT === 'floating' ? FLOATING_BAR_HEIGHT + 40 : 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -455,6 +457,7 @@ export default function HomeScreen() {
             <Text className="mt-1 text-xs text-white/75">
               {greeting.en} · {dateLine}
             </Text>
+            {NOOR_PLACEMENT === 'header' ? <AskNoorBar /> : null}
           </FadeIn>
 
           <FadeIn index={1}>
