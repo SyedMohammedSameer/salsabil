@@ -40,3 +40,17 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path)
   return data.publicUrl
 }
+
+/**
+ * Permanently delete the signed-in user's account and everything linked to it.
+ *
+ * Required by App Store Review Guideline 5.1.1(v) and the Play equivalent: an
+ * app that offers account creation must offer deletion from inside the app.
+ * Irreversible — callers must confirm first.
+ */
+export async function deleteOwnAccount(): Promise<void> {
+  const { error } = await supabase.rpc('delete_own_account')
+  if (error) throw error
+  // The session now points at a user that no longer exists.
+  await supabase.auth.signOut()
+}

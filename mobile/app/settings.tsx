@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Pressable, Switch, Linking, Platform } from 'react-native'
-import { BellRing, Moon, Sun, Smartphone, LogOut, ExternalLink } from 'lucide-react-native'
+import { View, Text, Pressable, Switch, Linking, Platform, Alert } from 'react-native'
+import { BellRing, Moon, Sun, Smartphone, LogOut, ExternalLink, Trash2 } from 'lucide-react-native'
 import { Screen, Heading, Muted, Card, Button } from '~/components/ui'
 import { useTheme, type Theme } from '~/lib/theme'
 import {
@@ -10,6 +10,8 @@ import {
   type NotificationPermission,
 } from '~/lib/notifications'
 import { useAuth } from '@/hooks/useAuth'
+import { deleteOwnAccount } from '@/lib/api/profile'
+import { toast } from '@/lib/platform/toast'
 
 // Ported from src/views/settings/SettingsView.tsx, with one deliberate
 // substitution: the web screen manages a Web Push subscription (VAPID key,
@@ -29,6 +31,7 @@ export default function SettingsScreen() {
 
   const [permission, setPermission] = useState<NotificationPermission>('undetermined')
   const [scheduledCount, setScheduledCount] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const refresh = async () => {
     const p = await getNotificationPermission()
@@ -49,6 +52,47 @@ export default function SettingsScreen() {
     const result = await requestNotificationPermission()
     setPermission(result)
     await refresh()
+  }
+
+  // App Store Review Guideline 5.1.1(v) requires in-app account deletion for any
+  // app offering account creation — an email address to write to is explicitly
+  // not sufficient. Two steps, because this cannot be undone.
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This permanently removes your account and everything in it — prayers, ' +
+        'Quran and adhkar logs, tasks, focus sessions, your garden and your coins. ' +
+        'It cannot be undone.',
+      [
+        { text: 'Keep my account', style: 'cancel' },
+        {
+          text: 'Delete everything',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Really delete?', 'There is no way to recover this.', [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  setDeleting(true)
+                  try {
+                    // Signs out on success, which drops the route gate back to
+                    // the auth stack.
+                    await deleteOwnAccount()
+                  } catch (e) {
+                    setDeleting(false)
+                    toast.error(
+                      e instanceof Error ? e.message : 'Could not delete your account.',
+                    )
+                  }
+                },
+              },
+            ])
+          },
+        },
+      ],
+    )
   }
 
   return (
@@ -149,6 +193,20 @@ export default function SettingsScreen() {
         <LogOut size={12} color="#83938f" />
         <Muted className="text-[10px]">Your data stays in your account.</Muted>
       </View>
+
+      {/* Danger zone */}
+      <Card className="mt-8 gap-3 border-destructive/30">
+        <View className="flex-row items-center gap-2">
+          <Trash2 size={16} color="#ef4444" />
+          <Text className="flex-1 text-sm font-medium text-foreground">Delete account</Text>
+        </View>
+        <Muted className="text-xs">
+          Permanently removes your account and everything in it. This cannot be undone.
+        </Muted>
+        <Button variant="destructive" onPress={confirmDelete} loading={deleting}>
+          Delete my account
+        </Button>
+      </Card>
     </Screen>
   )
 }

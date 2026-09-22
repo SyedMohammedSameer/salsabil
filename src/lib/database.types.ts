@@ -585,6 +585,10 @@ export interface Database {
         /** New balance, or null when this event was already paid out. */
         Returns: number | null
       }
+      delete_own_account: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
       has_been_awarded: {
         Args: {
           p_user_id: string

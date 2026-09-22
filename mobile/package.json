@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "sharp": "^0.34.5",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -54,7 +55,8 @@
     "build:android": "eas build --platform android --profile production",
     "build:preview": "eas build --platform all --profile preview",
     "submit:ios": "eas submit --platform ios",
-    "submit:android": "eas submit --platform android"
+    "submit:android": "eas submit --platform android",
+    "assets": "node scripts/generate-assets.mjs"
   },
   "private": true
 }

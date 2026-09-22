@@ -44,3 +44,8 @@ yarn-error.*
 # clean machine, so an unpinned tree there means a store binary built from
 # different dependency versions than the one tested here.
 !package-lock.json
+
+# Play Console service account key — a credential with upload rights to your
+# listing. Keep it local or in EAS secrets, never in the repository.
+play-service-account.json
+*.p8

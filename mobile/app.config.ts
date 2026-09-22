@@ -9,6 +9,13 @@ import type { ExpoConfig } from 'expo/config'
 
 const SCHEME = 'salsabil'
 
+// Sampled from the brand artwork (public/salsabil-original.png). The splash
+// and adaptive-icon backgrounds must match it exactly, or a seam shows where
+// the generated mark's canvas meets the screen. See scripts/generate-assets.mjs.
+const BRAND_BG = '#023728'
+// One step darker, for the dark-mode splash.
+const BRAND_BG_DARK = '#011f16'
+
 const config: ExpoConfig = {
   name: 'Salsabil',
   slug: 'salsabil',
@@ -24,11 +31,17 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: 'app.salsabil.mobile',
     infoPlist: {
-      // Quran recitation and Noor's text-to-speech must keep playing when the
-      // screen locks — the main reason this is a native app and not a PWA.
-      UIBackgroundModes: ['audio'],
-      NSMicrophoneUsageDescription:
-        'Salsabil uses the microphone so you can speak to Noor instead of typing.',
+      // Deliberately NOT declared yet:
+      //
+      //   UIBackgroundModes: ['audio'] — for background Quran recitation and
+      //   Noor's text-to-speech. Apple verifies that a declared background mode
+      //   is actually exercised, and rejects apps that reserve one they never
+      //   use. Restore it in the same change that ships audio playback.
+      //
+      //   NSMicrophoneUsageDescription — for voice input to Noor. The native
+      //   app has no recording path yet (src/lib/voice.ts is MediaRecorder,
+      //   web-only), and a usage description for a capability the app never
+      //   invokes invites review questions. Restore it with voice input.
       NSLocationWhenInUseUsageDescription:
         'Salsabil uses your location to calculate accurate prayer times for where you are.',
       ITSAppUsesNonExemptEncryption: false,
@@ -40,17 +53,20 @@ const config: ExpoConfig = {
       foregroundImage: './assets/android-icon-foreground.png',
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
-      backgroundColor: '#0a1a19',
+      backgroundColor: BRAND_BG,
     },
     permissions: [
-      'RECORD_AUDIO',
+      // RECORD_AUDIO is omitted for the same reason as the microphone usage
+      // description above: Play asks you to justify every permission, and one
+      // with no in-app path is a rejection risk.
+      //
       // Prayer reminders are scheduled on-device and must fire at the exact
       // adhan time, not whenever Android next decides to wake the app.
       'SCHEDULE_EXACT_ALARM',
       'POST_NOTIFICATIONS',
       'VIBRATE',
-      'ACCESS_COARSE_LOCATION',
-      'ACCESS_FINE_LOCATION',
+      // Location permissions are contributed by the expo-location plugin
+      // below; listing them here too produced duplicate manifest entries.
     ],
   },
   plugins: [
@@ -68,8 +84,8 @@ const config: ExpoConfig = {
       {
         image: './assets/splash-icon.png',
         resizeMode: 'contain',
-        backgroundColor: '#0a1a19',
-        dark: { backgroundColor: '#030505' },
+        backgroundColor: BRAND_BG,
+        dark: { backgroundColor: BRAND_BG_DARK },
       },
     ],
     [
