@@ -31,8 +31,20 @@ type Mode = 'sign-in' | 'sign-up'
 const HEADER = ['#023728', '#0b5c4c', '#0f766e'] as const
 
 function StarLattice() {
+  // Measured rather than "100%": Android sizes a percentage SVG once, at the
+  // first layout, and never again when the header grows.
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   return (
-    <Svg pointerEvents="none" style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+    <View
+      pointerEvents="none"
+      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout
+        setSize((prev) => (prev && prev.w === width && prev.h === height ? prev : { w: width, h: height }))
+      }}
+    >
+      {size ? (
+    <Svg width={size.w} height={size.h}>
       <Defs>
         <Pattern id="star8" width={56} height={56} patternUnits="userSpaceOnUse">
           <Path
@@ -46,8 +58,10 @@ function StarLattice() {
           <Path d="M0 50h56M28 44v12" stroke="#ffffff" strokeWidth={0.5} strokeOpacity={0.1} />
         </Pattern>
       </Defs>
-      <Rect width="100%" height="100%" fill="url(#star8)" />
+      <Rect x={0} y={0} width={size.w} height={size.h} fill="url(#star8)" />
     </Svg>
+      ) : null}
+    </View>
   )
 }
 

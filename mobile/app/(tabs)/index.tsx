@@ -4,7 +4,6 @@ import { useRouter, useIsFocused } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useColorScheme } from 'nativewind'
-import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg'
 import {
   Bell,
   BookOpen,
@@ -176,20 +175,6 @@ const FOCUS_DAILY_TARGET_MIN = 90
 const HEADER_GRADIENT = ['#023728', '#0b5c4c', '#0f766e'] as const
 
 // ─── Pieces ──────────────────────────────────────────────────────────────────
-
-function HeaderDots() {
-  // The faint dot grid under the header, as on web hero surfaces.
-  return (
-    <Svg pointerEvents="none" style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-      <Defs>
-        <Pattern id="dots" width={14} height={14} patternUnits="userSpaceOnUse">
-          <Circle cx={1} cy={1} r={1} fill="#ffffff" fillOpacity={0.07} />
-        </Pattern>
-      </Defs>
-      <Rect width="100%" height="100%" fill="url(#dots)" />
-    </Svg>
-  )
-}
 
 type ChipState = 'done' | 'missed' | 'next' | 'todo'
 
@@ -431,9 +416,9 @@ export default function HomeScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           orbs
+          dots
           style={{ paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 64 }}
         >
-          <HeaderDots />
           <FadeIn index={0}>
             <View className="flex-row items-center justify-between">
               <Pressable
@@ -541,7 +526,7 @@ export default function HomeScreen() {
                   className={cn('flex-1 items-center gap-1 px-2 py-4', i > 0 && 'border-l border-border')}
                 >
                   <cell.Icon size={18} strokeWidth={1.75} color={dark ? cell.tint.iconDark : cell.tint.icon} />
-                  <Text className="text-[22px] font-bold tracking-tight text-foreground">
+                  <Text className="text-[22px] font-bold leading-7 tracking-tight text-foreground">
                     {cell.v}
                     {cell.suffix ? (
                       <Text className="text-sm font-medium tracking-normal text-muted-foreground">{cell.suffix}</Text>
