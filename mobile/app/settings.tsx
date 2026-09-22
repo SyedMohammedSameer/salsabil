@@ -1,8 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { View, Text, Pressable, Switch, Linking, Platform, Alert } from 'react-native'
-import { BellRing, Moon, Sun, Smartphone, LogOut, ExternalLink, Trash2 } from 'lucide-react-native'
-import { Screen, Muted, Card, Button } from '~/components/ui'
+import { useRouter } from 'expo-router'
+import { useColorScheme } from 'nativewind'
+import Constants from 'expo-constants'
+import * as Haptics from 'expo-haptics'
+import {
+  BellRing,
+  Moon,
+  Sun,
+  Smartphone,
+  LogOut,
+  ExternalLink,
+  Trash2,
+  Palette,
+  MapPin,
+  User,
+  Shield,
+  Info,
+  ChevronRight,
+} from 'lucide-react-native'
+import { Screen, Muted, Card, FadeIn } from '~/components/ui'
 import { useTheme, type Theme } from '~/lib/theme'
+import { hubHref } from '~/lib/nav'
 import {
   getNotificationPermission,
   requestNotificationPermission,
@@ -10,24 +29,73 @@ import {
   type NotificationPermission,
 } from '~/lib/notifications'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { deleteOwnAccount } from '@/lib/api/profile'
 import { toast } from '@/lib/platform/toast'
+import { cn } from '@/lib/cn'
 
-// Ported from src/views/settings/SettingsView.tsx, with one deliberate
-// substitution: the web screen manages a Web Push subscription (VAPID key,
-// service worker, push_subscriptions row). None of that exists on native, where
-// reminders are scheduled on-device, so this exposes the OS permission and what
-// is currently scheduled instead.
+// Settings as grouped lists. Ported from src/views/settings/SettingsView.tsx
+// with one substitution: the web manages a Web Push subscription; native
+// schedules reminders on the device, so this exposes the OS permission and
+// what is scheduled instead.
 
 const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'light', label: 'Light', Icon: Sun },
   { value: 'dark', label: 'Dark', Icon: Moon },
-  { value: 'system', label: 'System', Icon: Smartphone },
+  { value: 'system', label: 'Auto', Icon: Smartphone },
 ]
 
+function Row({
+  icon,
+  tint,
+  title,
+  sub,
+  onPress,
+  trailing,
+  first,
+  danger,
+}: {
+  icon: ReactNode
+  tint: string
+  title: string
+  sub?: string
+  onPress?: () => void
+  trailing?: ReactNode
+  first?: boolean
+  danger?: boolean
+}) {
+  const body = (
+    <View className={cn('flex-row items-center gap-3 px-3.5 py-3', !first && 'border-t border-border')}>
+      <View className={cn('h-[34px] w-[34px] items-center justify-center rounded-[10px]', tint)}>{icon}</View>
+      <View className="min-w-0 flex-1">
+        <Text className={cn('text-[14px] font-medium', danger ? 'text-danger-500' : 'text-foreground')}>{title}</Text>
+        {sub ? <Muted className="text-[11px]">{sub}</Muted> : null}
+      </View>
+      {trailing ?? (onPress ? <ChevronRight size={18} color="#8a9793" /> : null)}
+    </View>
+  )
+  if (!onPress) return body
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={() => {
+        void Haptics.selectionAsync()
+        onPress()
+      }}
+    >
+      {body}
+    </Pressable>
+  )
+}
+
 export default function SettingsScreen() {
+  const router = useRouter()
+  const { colorScheme } = useColorScheme()
+  const dark = colorScheme === 'dark'
   const { theme, setTheme } = useTheme()
   const { signOut, user } = useAuth()
+  const { data: profile } = useProfile()
 
   const [permission, setPermission] = useState<NotificationPermission>('undetermined')
   const [scheduledCount, setScheduledCount] = useState<number | null>(null)
@@ -55,14 +123,11 @@ export default function SettingsScreen() {
   }
 
   // App Store Review Guideline 5.1.1(v) requires in-app account deletion for any
-  // app offering account creation — an email address to write to is explicitly
-  // not sufficient. Two steps, because this cannot be undone.
+  // app offering account creation. Two steps, because this cannot be undone.
   const confirmDelete = () => {
     Alert.alert(
       'Delete your account?',
-      'This permanently removes your account and everything in it — prayers, ' +
-        'Quran and adhkar logs, tasks, focus sessions, your garden and your coins. ' +
-        'It cannot be undone.',
+      'This permanently removes your account and everything in it: prayers, Quran and adhkar logs, tasks, focus sessions, your garden and your coins. It cannot be undone.',
       [
         { text: 'Keep my account', style: 'cancel' },
         {
@@ -82,9 +147,7 @@ export default function SettingsScreen() {
                     await deleteOwnAccount()
                   } catch (e) {
                     setDeleting(false)
-                    toast.error(
-                      e instanceof Error ? e.message : 'Could not delete your account.',
-                    )
+                    toast.error(e instanceof Error ? e.message : 'Could not delete your account.')
                   }
                 },
               },
@@ -95,117 +158,136 @@ export default function SettingsScreen() {
     )
   }
 
+  const version = Constants.expoConfig?.version ?? '1.0.0'
+  const reminderSub =
+    permission === 'granted'
+      ? scheduledCount !== null
+        ? `On this device, exactly on time · ${scheduledCount} scheduled`
+        : 'On this device, exactly on time'
+      : permission === 'denied'
+        ? `Turned off. Open ${Platform.OS === 'ios' ? 'Settings' : 'app settings'} to allow`
+        : 'Prayer times, focus sessions and task reminders'
+
   return (
     <Screen>
-      <View className="gap-1 py-4">
-        <Muted>{user?.email}</Muted>
+      <View className="gap-4 pb-8 pt-2">
+        <FadeIn index={0}>
+          <Card className="p-0">
+            <Row
+              first
+              icon={<Palette size={17} color={dark ? '#818cf8' : '#6366f1'} />}
+              tint="bg-indigo-500/10"
+              title="Appearance"
+              trailing={
+                <View className="flex-row rounded-[10px] bg-muted p-[3px]" style={{ gap: 3 }}>
+                  {THEMES.map(({ value, label, Icon }) => {
+                    const active = theme === value
+                    return (
+                      <Pressable
+                        key={value}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`${label} theme`}
+                        onPress={() => {
+                          void Haptics.selectionAsync()
+                          setTheme(value)
+                        }}
+                        className={cn('flex-row items-center gap-1 rounded-lg px-2.5 py-1.5', active && 'bg-card')}
+                        style={active ? { elevation: 1, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } } : undefined}
+                      >
+                        <Icon size={12} color={active ? (dark ? '#f5f5f5' : '#0a0a0a') : '#8a9793'} />
+                        <Text className={cn('text-[11px] font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{label}</Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+              }
+            />
+            <Row
+              icon={<BellRing size={17} color={dark ? '#fbbf24' : '#f59e0b'} />}
+              tint="bg-warn-500/10"
+              title="Reminders"
+              sub={reminderSub}
+              onPress={permission === 'denied' ? () => void Linking.openSettings() : undefined}
+              trailing={
+                permission === 'denied' ? (
+                  <ExternalLink size={16} color="#8a9793" />
+                ) : (
+                  <Switch
+                    value={permission === 'granted'}
+                    // Once the OS has been answered the app cannot revoke or
+                    // re-ask; that is a Settings trip.
+                    disabled={permission === 'granted'}
+                    onValueChange={() => void enable()}
+                    trackColor={{ true: '#14b8a6', false: '#c4cfcc' }}
+                  />
+                )
+              }
+            />
+            <Row
+              icon={<MapPin size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}
+              tint="bg-noor-500/10"
+              title="Prayer times"
+              sub="From your location · ISNA calculation"
+              onPress={() => router.push(hubHref('deen', 'prayers'))}
+            />
+          </Card>
+        </FadeIn>
+
+        <FadeIn index={1}>
+          <Card className="p-0">
+            <Row
+              first
+              icon={<User size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}
+              tint="bg-noor-500/10"
+              title="Profile"
+              sub={[profile?.display_name, profile?.username ? `@${profile.username}` : null].filter(Boolean).join(' · ') || user?.email}
+              onPress={() => router.push('/profile')}
+            />
+            <Row
+              icon={<Shield size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}
+              tint="bg-noor-500/10"
+              title="Privacy policy"
+              sub="What we store and why"
+              onPress={() => router.push('/privacy')}
+            />
+            <Row
+              icon={<Info size={17} color="#8a9793" />}
+              tint="bg-muted"
+              title="About Salsabil"
+              sub={`Version ${version} · Focus meets faith`}
+            />
+          </Card>
+        </FadeIn>
+
+        <FadeIn index={2}>
+          <Card className="p-0">
+            <Row
+              first
+              icon={<LogOut size={17} color="#8a9793" />}
+              tint="bg-muted"
+              title="Sign out"
+              sub="Your data stays in your account"
+              onPress={() => {
+                Alert.alert('Sign out?', undefined, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign out', onPress: () => void signOut() },
+                ])
+              }}
+              trailing={<View />}
+            />
+            <Row
+              icon={<Trash2 size={17} color="#ef4444" />}
+              tint="bg-danger-500/10"
+              title={deleting ? 'Deleting…' : 'Delete account'}
+              sub="Permanent. Cannot be undone."
+              onPress={deleting ? undefined : confirmDelete}
+              trailing={<View />}
+              danger
+            />
+          </Card>
+        </FadeIn>
       </View>
-
-      {/* Appearance */}
-      <Card className="gap-3">
-        <Text className="text-sm font-medium text-foreground">Appearance</Text>
-        <View className="flex-row gap-2">
-          {THEMES.map(({ value, label, Icon }) => {
-            const active = theme === value
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => setTheme(value)}
-                className="flex-1 items-center gap-1.5 rounded-lg border py-3"
-                style={{
-                  borderColor: active ? '#14b8a6' : 'transparent',
-                  backgroundColor: active ? 'rgba(20,184,166,0.1)' : 'rgba(127,127,127,0.08)',
-                }}
-              >
-                <Icon size={16} color={active ? '#14b8a6' : '#83938f'} />
-                <Text
-                  className="text-[11px]"
-                  style={{ color: active ? '#14b8a6' : '#83938f' }}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
-      </Card>
-
-      {/* Notifications */}
-      <Card className="mt-3 gap-3">
-        <View className="flex-row items-center gap-2">
-          <BellRing size={16} color="#f59e0b" />
-          <Text className="flex-1 text-sm font-medium text-foreground">Reminders</Text>
-          <Switch
-            value={permission === 'granted'}
-            // Once the OS has been answered the app cannot revoke or re-ask;
-            // that is a Settings trip, so do not pretend the switch can undo it.
-            disabled={permission === 'granted' || permission === 'denied'}
-            onValueChange={() => void enable()}
-            trackColor={{ true: '#14b8a6', false: '#83938f' }}
-          />
-        </View>
-
-        <Muted className="text-xs">
-          Prayer times and focus sessions are scheduled on this device, so they arrive exactly on
-          time — even with no connection.
-        </Muted>
-
-        {permission === 'granted' && scheduledCount !== null ? (
-          <Muted className="text-xs">
-            {scheduledCount} notification{scheduledCount === 1 ? '' : 's'} scheduled.
-          </Muted>
-        ) : null}
-
-        {permission === 'denied' ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              void Linking.openSettings()
-            }}
-            className="flex-row items-center gap-1.5"
-          >
-            <Text className="text-xs text-primary">
-              Notifications are turned off. Open {Platform.OS === 'ios' ? 'Settings' : 'app settings'}
-            </Text>
-            <ExternalLink size={12} color="#14b8a6" />
-          </Pressable>
-        ) : null}
-      </Card>
-
-      {/* About */}
-      <Card className="mt-3 gap-1">
-        <Text className="text-sm font-medium text-foreground">Salsabil</Text>
-        <Muted className="text-xs">
-          Focus meets faith. Prayers, Quran, adhkar, focus and tasks all grow the same garden.
-        </Muted>
-      </Card>
-
-      <View className="pt-6">
-        <Button variant="outline" onPress={signOut}>
-          Sign out
-        </Button>
-      </View>
-
-      <View className="flex-row items-center justify-center gap-1.5 pt-4">
-        <LogOut size={12} color="#83938f" />
-        <Muted className="text-[10px]">Your data stays in your account.</Muted>
-      </View>
-
-      {/* Danger zone */}
-      <Card className="mt-8 gap-3 border-destructive/30">
-        <View className="flex-row items-center gap-2">
-          <Trash2 size={16} color="#ef4444" />
-          <Text className="flex-1 text-sm font-medium text-foreground">Delete account</Text>
-        </View>
-        <Muted className="text-xs">
-          Permanently removes your account and everything in it. This cannot be undone.
-        </Muted>
-        <Button variant="destructive" onPress={confirmDelete} loading={deleting}>
-          Delete my account
-        </Button>
-      </Card>
     </Screen>
   )
 }
