@@ -32,6 +32,7 @@ import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
 import { cn } from '@/lib/cn'
 
+import { Gradient } from './Gradient'
 export { Gradient, HERO_GRADIENT, NOOR_GRADIENT } from './Gradient'
 export { FadeIn, PressableScale } from './motion'
 
@@ -474,5 +475,78 @@ export function Segmented<T extends string>({
         )
       })}
     </View>
+  )
+}
+
+// ─── Gradient button ─────────────────────────────────────────────────────────
+// The primary action on hero surfaces (log a reading, complete adhkar).
+
+export const GRADIENT_BUTTON = {
+  noor: ['#14b8a6', '#0f766e'],
+  gold: ['#d97706', '#b8860b'],
+} as const
+
+export function GradientButton({
+  children,
+  onPress,
+  colors = GRADIENT_BUTTON.noor,
+  disabled = false,
+  loading = false,
+  icon,
+  className,
+}: {
+  children: ReactNode
+  onPress?: () => void
+  colors?: readonly string[]
+  disabled?: boolean
+  loading?: boolean
+  icon?: ReactNode
+  className?: string
+}) {
+  const inert = disabled || loading
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: inert, busy: loading }}
+      disabled={inert}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+        onPress?.()
+      }}
+      style={({ pressed }) => [
+        { opacity: inert ? 0.45 : pressed ? 0.9 : 1 },
+        !inert && {
+          shadowColor: colors[0],
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.3,
+          shadowRadius: 14,
+          elevation: 4,
+        },
+      ]}
+    >
+      <Gradient colors={colors} radius={14} style={{ backgroundColor: colors[0] }}>
+        <View className={cn('h-12 flex-row items-center justify-center gap-2 px-4', className)}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <>
+              {icon}
+              <Text className="text-[15px] font-semibold text-white">{children}</Text>
+            </>
+          )}
+        </View>
+      </Gradient>
+    </Pressable>
+  )
+}
+
+/** Small uppercase label above a block, e.g. "NEXT PRAYER". */
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <Text
+      className={cn('text-[11px] font-semibold uppercase tracking-[1.5px] text-muted-foreground', className)}
+    >
+      {children}
+    </Text>
   )
 }
