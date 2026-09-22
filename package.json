@@ -6,6 +6,7 @@
   "description": "Productivity and spiritual growth companion",
   "scripts": {
     "dev": "netlify dev",
+    "dev:clean": "rm -rf node_modules/.vite && netlify dev",
     "generate-vapid": "node scripts/generate-vapid.js",
     "migrate-users": "node scripts/migrate-firebase-users.js",
     "dev:vite": "vite",
