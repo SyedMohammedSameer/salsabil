@@ -25,6 +25,8 @@ files resolved by extension — Metro and `tsc` both prefer `.native.ts`:
 
 - `../src/lib/platform/env.ts` — Vite's `import.meta.env` vs `expo-constants`
 - `../src/lib/platform/storage.ts` — `localStorage` vs `AsyncStorage`
+- `../src/lib/platform/appState.ts` — `visibilitychange` vs `AppState`
+- `../src/lib/platform/toast.ts` — `sonner` vs `sonner-native`
 - `lib/theme.ts` — the web's DOM class toggling vs NativeWind's `colorScheme`
 - `lib/auth.ts` — OAuth page redirect vs deep link through the system browser
 
@@ -81,9 +83,26 @@ eas secret:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://…"
 the native projects are derived from `app.config.ts`, which is the single
 source of truth for bundle identifiers, permissions and the deep-link scheme.
 
+## Notifications
+
+Prayer reminders are scheduled **on the device** (`lib/notifications.ts`), not
+pushed from a server. They fire at the exact minute, offline, with no VAPID
+subscription, no Netlify function and no service worker — which is the single
+biggest reason this app is native rather than a PWA, since iOS Web Push only
+works for a manually home-screened site and never guarantees delivery.
+
+Focus sessions schedule an end-of-session notification the same way. The timer
+itself is already correct while suspended because it reads the wall clock, but
+nothing can *tell* the user it finished if the app is not running.
+
+`cancelByKind` exists so a finished focus session does not wipe the day's
+remaining prayer reminders — `cancelAllScheduledNotificationsAsync` would.
+
 ## Status
 
-Navigation, theming, auth and the shared data layer are in place; the home
-screen reads live profile data end to end. Individual feature screens are
-placeholders (`components/ui/index.tsx` → `ComingSoon`) and are ported in the
-following phases.
+Ported and live: dashboard, prayers (with on-device adhan reminders), focus
+(with an SVG countdown ring and background-safe timing) and tasks.
+
+Still placeholders (`components/ui/index.tsx` → `ComingSoon`): quran, adhkar,
+workouts, challenges, garden, study rooms, analytics, profile, settings and
+Noor. These are ported in the spiritual and social phases.

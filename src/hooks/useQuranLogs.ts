@@ -11,7 +11,7 @@ import { coinsFor } from '@/lib/rewards'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { useAuth } from './useAuth'
-import { toast } from 'sonner'
+import { toast } from '@/lib/platform/toast'
 
 export const quranKeys = {
   all: (userId: string) => ['quran', userId] as const,

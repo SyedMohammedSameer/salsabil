@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/platform/toast'
 import { getAdhkarLogsForDate, logAdhkarComplete } from '@/lib/api/adhkar'
 import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { coinsFor } from '@/lib/rewards'

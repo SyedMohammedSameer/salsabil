@@ -20,3 +20,25 @@ export interface KeyValueStore {
   setItem(key: string, value: string): Promise<void>
   removeItem(key: string): Promise<void>
 }
+
+/**
+ * Notification that the app has come back to the foreground.
+ *
+ * The focus timer computes its remaining time from the wall clock, so it stays
+ * correct while suspended — but it still needs a nudge on return to notice it
+ * crossed the finish line, because browsers throttle timers in background tabs
+ * and React Native suspends them outright.
+ */
+export type ForegroundListener = (onForeground: () => void) => () => void
+
+/**
+ * Minimal toast surface used by the shared hooks.
+ *
+ * Only the methods the hooks actually call. Keeping it narrow means the web and
+ * native implementations cannot drift in ways a caller could notice.
+ */
+export interface Toaster {
+  success(message: string): void
+  error(message: string): void
+  info(message: string): void
+}

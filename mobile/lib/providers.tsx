@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { Toaster } from 'sonner-native'
 import { AuthProvider } from '@/hooks/useAuth'
 import { queryClient } from '@/lib/query'
 
@@ -16,6 +17,9 @@ export function Providers({ children }: { children: ReactNode }) {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>{children}</AuthProvider>
+          {/* Backs the shared toast adapter (../src/lib/platform/toast.native.ts),
+              which the reward hooks use to announce coin awards. */}
+          <Toaster />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

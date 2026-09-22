@@ -29,6 +29,8 @@ const config: ExpoConfig = {
       UIBackgroundModes: ['audio'],
       NSMicrophoneUsageDescription:
         'Salsabil uses the microphone so you can speak to Noor instead of typing.',
+      NSLocationWhenInUseUsageDescription:
+        'Salsabil uses your location to calculate accurate prayer times for where you are.',
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -47,11 +49,20 @@ const config: ExpoConfig = {
       'SCHEDULE_EXACT_ALARM',
       'POST_NOTIFICATIONS',
       'VIBRATE',
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_FINE_LOCATION',
     ],
   },
   plugins: [
     'expo-router',
     'expo-localization',
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'Salsabil uses your location to calculate accurate prayer times for where you are.',
+      },
+    ],
     [
       'expo-splash-screen',
       {

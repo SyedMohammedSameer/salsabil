@@ -225,6 +225,9 @@ export default function FocusView() {
   }, [timerState, sessionId])
 
   const handleStart = useCallback(async () => {
+    // Storage is async, so before hydration the state still reads 'idle' even
+    // when a session is already running — starting here would orphan it.
+    if (!timer.hydrated) return
     if (timerState === 'paused') {
       timer.resume()
       return
@@ -485,7 +488,7 @@ export default function FocusView() {
                       size="lg"
                       className="rounded-full h-14 w-14 p-0"
                       onClick={handleStart}
-                      disabled={timerState === 'done' || createSession.isPending}
+                      disabled={timerState === 'done' || createSession.isPending || !timer.hydrated}
                     >
                       <Play className="h-6 w-6 ml-0.5" />
                     </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchNotifications,
@@ -6,10 +6,7 @@ import {
   markAllNotificationsRead,
   createNotification,
 } from '@/lib/api/notifications'
-import { savePushSubscription, deletePushSubscription } from '@/lib/api/notifications'
-import { registerSW, subscribeToPush, unsubscribeFromPush } from '@/lib/registerSW'
 import { supabase } from '@/lib/supabase'
-import { env } from '@/lib/platform/env'
 import { useAuth } from './useAuth'
 import type { Notification } from '@/lib/database.types'
 
@@ -90,67 +87,4 @@ export function useCreateNotification() {
   return useMutation({
     mutationFn: createNotification,
   })
-}
-
-// ─── Push permission + subscription ──────────────────────────────────────────
-
-type PushStatus = 'unsupported' | 'default' | 'granted' | 'denied'
-
-export function usePushNotifications() {
-  const { user } = useAuth()
-  const swRegRef = useRef<ServiceWorkerRegistration | null>(null)
-
-  const getStatus = (): PushStatus => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return 'unsupported'
-    return Notification.permission as PushStatus
-  }
-
-  const [status, setStatus] = useState<PushStatus>(getStatus)
-
-  const requestPermission = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) throw new Error('Not authenticated')
-
-      const permission = await Notification.requestPermission()
-      setStatus(permission as PushStatus)
-      if (permission !== 'granted') throw new Error('Permission denied')
-
-      const vapidKey = env.vapidPublicKey
-      if (!vapidKey) throw new Error('VAPID key not configured')
-
-      let reg = swRegRef.current
-      if (!reg) {
-        reg = await registerSW()
-        swRegRef.current = reg
-      }
-      if (!reg) throw new Error('Service worker registration failed')
-
-      const sub = await subscribeToPush(reg, vapidKey)
-      if (!sub) throw new Error('Push subscription failed')
-
-      await savePushSubscription(user.id, sub)
-      return sub
-    },
-  })
-
-  const disablePush = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) throw new Error('Not authenticated')
-
-      let reg = swRegRef.current
-      if (!reg) {
-        reg = (await navigator.serviceWorker.getRegistration('/sw.js')) ?? null
-        swRegRef.current = reg
-      }
-      if (!reg) return
-
-      const sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        await deletePushSubscription(user.id, sub.endpoint)
-        await unsubscribeFromPush(reg)
-      }
-    },
-  })
-
-  return { status, requestPermission, disablePush }
 }
