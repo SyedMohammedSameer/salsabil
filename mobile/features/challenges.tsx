@@ -1,83 +1,106 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, ActivityIndicator } from 'react-native'
-import { Check, Trophy, Flame, ChevronLeft, Coins } from 'lucide-react-native'
-import { HubContent, Heading, Muted, Card, Button } from '~/components/ui'
-import {
-  useChallenges,
-  useCreateChallenge,
-  useIncrementChallenge,
-} from '@/hooks/useChallenges'
+import Svg, { Circle } from 'react-native-svg'
+import * as Haptics from 'expo-haptics'
+import { Check, Trophy, ChevronLeft, Coins } from 'lucide-react-native'
+import { HubContent, Muted, Card, GradientButton, FadeIn, SectionHeader, PressableScale } from '~/components/ui'
+import { GrowHero, HeroAction } from '~/components/GrowHero'
+import { useChallenges, useCreateChallenge, useIncrementChallenge } from '@/hooks/useChallenges'
 import { localDateString } from '@/lib/dates'
 import {
   CHALLENGE_TEMPLATES,
   DIFFICULTY_META,
   encodeChallengeCategory,
   getChallengeRewards,
-  parseChallengeCategory,
   type ChallengeDifficulty,
   type ChallengeTemplate,
 } from '@/data/challengeTemplates'
+import { cn } from '@/lib/cn'
 import type { Challenge } from '@/lib/database.types'
 
-// Ported from src/views/challenges/ChallengesView.tsx. The templates and their
-// per-level rewards come from the shared src/data/challengeTemplates.ts, and
-// ticking a day goes through useIncrementChallenge — whose daily and completion
-// awards are now separately keyed in the ledger, so a retry cannot pay twice.
+// The Challenges section of the Grow hub. Templates and per-level rewards
+// come from the shared src/data/challengeTemplates.ts; ticking a day goes
+// through useIncrementChallenge, whose daily and completion awards are
+// separately keyed in the ledger so a retry cannot pay twice.
 
 const DIFFICULTY_COLOR: Record<ChallengeDifficulty, string> = {
   easy: '#10b981',
   medium: '#f59e0b',
   hard: '#ef4444',
 }
-
 const DIFFICULTIES: ChallengeDifficulty[] = ['easy', 'medium', 'hard']
 
-function ActiveChallenge({
-  challenge,
-  onTick,
-  busy,
-}: {
-  challenge: Challenge
-  onTick: () => void
-  busy: boolean
-}) {
+function tickedToday(c: Challenge, today: string) {
+  // updated_at moves whenever a day is ticked, so same-day means already done.
+  return c.updated_at.slice(0, 10) === today && c.current_days > 0
+}
+
+function DayRing({ current, target }: { current: number; target: number }) {
+  const size = 72
+  const stroke = 7
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const pct = target > 0 ? Math.min(1, current / target) : 0
+  return (
+    <View style={{ width: size, height: size }} className="items-center justify-center">
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#ffffff" strokeOpacity={0.22} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="#ffffff"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={`${c} ${c}`}
+          strokeDashoffset={c * (1 - pct)}
+          rotation={-90}
+          origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <Text className="text-[18px] font-bold leading-5 text-white">{current}</Text>
+      <Text className="text-[9px] text-white/80">of {target}</Text>
+    </View>
+  )
+}
+
+function ActiveRow({ challenge, onTick, busy }: { challenge: Challenge; onTick: () => void; busy: boolean }) {
   const today = localDateString()
   const { coinsPerDay } = getChallengeRewards(challenge.category)
   const pct = Math.min(1, challenge.current_days / Math.max(1, challenge.target_days))
   const complete = challenge.status === 'completed'
-
-  // updated_at moves whenever a day is ticked, so same-day means already done.
-  const tickedToday = challenge.updated_at.slice(0, 10) === today && challenge.current_days > 0
-
+  const done = tickedToday(challenge, today)
   return (
-    <Card className="gap-3">
-      <View className="flex-row items-start justify-between gap-2">
+    <Card className="gap-2.5">
+      <View className="flex-row items-center justify-between gap-2">
         <View className="min-w-0 flex-1">
-          <Text className="text-base font-semibold text-foreground">{challenge.title}</Text>
+          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{challenge.title}</Text>
           <Muted className="text-xs">
-            Day {challenge.current_days} of {challenge.target_days}
+            {complete ? 'Completed. Alhamdulillah.' : `Day ${challenge.current_days} of ${challenge.target_days}`}
           </Muted>
         </View>
-        {complete ? <Trophy size={18} color="#f59e0b" /> : <Flame size={18} color="#f87171" />}
+        {complete ? (
+          <Trophy size={18} color="#f59e0b" />
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            disabled={done || busy}
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+              onTick()
+            }}
+            className={cn('rounded-full px-3 py-1.5', done ? 'bg-accentGreen-500/10' : 'bg-violet-500/10')}
+          >
+            <Text className={cn('text-xs font-semibold', done ? 'text-accentGreen-600 dark:text-accentGreen-400' : 'text-violet-600 dark:text-violet-400')}>
+              {done ? 'Done today' : `Mark done · +${coinsPerDay}`}
+            </Text>
+          </Pressable>
+        )}
       </View>
-
-      <View className="h-2 overflow-hidden rounded-full bg-muted">
-        <View
-          className="h-full rounded-full"
-          style={{ width: `${pct * 100}%`, backgroundColor: complete ? '#f59e0b' : '#14b8a6' }}
-        />
+      <View className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <View className="h-full rounded-full" style={{ width: `${pct * 100}%`, backgroundColor: complete ? '#f59e0b' : '#8b5cf6' }} />
       </View>
-
-      {complete ? (
-        <View className="flex-row items-center gap-2">
-          <Trophy size={14} color="#f59e0b" />
-          <Text className="text-sm text-foreground">Completed. Alhamdulillah.</Text>
-        </View>
-      ) : (
-        <Button onPress={onTick} loading={busy} disabled={tickedToday}>
-          {tickedToday ? 'Done for today' : `Mark today done — +${coinsPerDay} coins`}
-        </Button>
-      )}
     </Card>
   )
 }
@@ -96,7 +119,6 @@ function TemplateDetail({
   const [difficulty, setDifficulty] = useState<ChallengeDifficulty>('easy')
   const level = template.levels[difficulty]
   const [days, setDays] = useState(level.defaultDays)
-
   // Day options are per level, so switching level must re-seed the choice.
   const selectLevel = (d: ChallengeDifficulty) => {
     setDifficulty(d)
@@ -105,62 +127,51 @@ function TemplateDetail({
 
   return (
     <HubContent>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onBack}
-        className="flex-row items-center gap-1 py-4"
-      >
-        <ChevronLeft size={18} color="#14b8a6" />
-        <Text className="text-sm text-primary">All challenges</Text>
-      </Pressable>
+      <View className="gap-4 pt-1">
+        <Pressable accessibilityRole="button" onPress={onBack} className="flex-row items-center gap-1 self-start py-1">
+          <ChevronLeft size={18} color="#14b8a6" />
+          <Text className="text-sm font-medium text-noor-600 dark:text-noor-400">All challenges</Text>
+        </Pressable>
 
-      <View className="gap-1 pb-4">
-        <Text className="text-4xl">{template.emoji}</Text>
-        <Heading>{template.name}</Heading>
-        <Muted>{template.tagline}</Muted>
-      </View>
+        <GrowHero eyebrow="Challenge" title={`${template.emoji} ${template.name}`} sub={template.tagline} />
 
-      <View className="gap-1.5 pb-4">
-        <Text className="text-sm font-medium text-foreground">Difficulty</Text>
-        <View className="flex-row gap-2">
-          {DIFFICULTIES.map((d) => {
-            const active = difficulty === d
-            const color = DIFFICULTY_COLOR[d]
-            return (
-              <Pressable
-                key={d}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => selectLevel(d)}
-                className="flex-1 items-center rounded-lg border py-2.5"
-                style={{
-                  borderColor: active ? color : 'transparent',
-                  backgroundColor: active ? `${color}1a` : 'rgba(127,127,127,0.08)',
-                }}
-              >
-                <Text className="text-xs" style={{ color: active ? color : '#83938f' }}>
-                  {DIFFICULTY_META[d].label}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
-      </View>
+        <Card className="gap-3">
+          <Text className="text-[13px] font-semibold text-foreground">Difficulty</Text>
+          <View className="flex-row gap-2">
+            {DIFFICULTIES.map((d) => {
+              const active = difficulty === d
+              const color = DIFFICULTY_COLOR[d]
+              return (
+                <Pressable
+                  key={d}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    void Haptics.selectionAsync()
+                    selectLevel(d)
+                  }}
+                  className="flex-1 items-center rounded-xl border py-2.5"
+                  style={{ borderColor: active ? color : 'transparent', backgroundColor: active ? `${color}1f` : 'rgba(127,127,127,0.08)' }}
+                >
+                  <Text className="text-xs font-semibold" style={{ color: active ? color : '#8a9793' }}>
+                    {DIFFICULTY_META[d].label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
 
-      <Card className="gap-3">
-        <Text className="text-sm font-semibold text-foreground">{level.label}</Text>
+          <Text className="pt-1 text-[13px] font-semibold text-foreground">{level.label}</Text>
+          <View className="gap-1.5">
+            {level.tasks.map((task) => (
+              <View key={task} className="flex-row items-start gap-2">
+                <Check size={14} color="#10b981" style={{ marginTop: 2 }} />
+                <Text className="flex-1 text-sm text-foreground/85">{task}</Text>
+              </View>
+            ))}
+          </View>
 
-        <View className="gap-1.5">
-          {level.tasks.map((task) => (
-            <View key={task} className="flex-row items-start gap-2">
-              <Check size={14} color="#10b981" style={{ marginTop: 2 }} />
-              <Text className="flex-1 text-sm text-foreground/80">{task}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View className="gap-1.5 pt-1">
-          <Text className="text-sm font-medium text-foreground">How many days?</Text>
+          <Text className="pt-1 text-[13px] font-semibold text-foreground">How many days?</Text>
           <View className="flex-row flex-wrap gap-2">
             {level.suggestedDays.map((d) => {
               const active = days === d
@@ -169,52 +180,51 @@ function TemplateDetail({
                   key={d}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
-                  onPress={() => setDays(d)}
-                  className="rounded-lg border px-4 py-2"
-                  style={{
-                    borderColor: active ? '#14b8a6' : 'transparent',
-                    backgroundColor: active ? 'rgba(20,184,166,0.1)' : 'rgba(127,127,127,0.08)',
+                  onPress={() => {
+                    void Haptics.selectionAsync()
+                    setDays(d)
                   }}
+                  className={cn('rounded-full border px-4 py-2', active ? 'border-noor-500 bg-noor-500/10' : 'border-transparent bg-muted')}
                 >
-                  <Text
-                    className="text-xs"
-                    style={{ color: active ? '#14b8a6' : '#83938f' }}
-                  >
+                  <Text className={cn('text-xs font-semibold', active ? 'text-noor-600 dark:text-noor-400' : 'text-muted-foreground')}>
                     {d} days
                   </Text>
                 </Pressable>
               )
             })}
           </View>
-        </View>
 
-        <View className="flex-row items-center gap-2 rounded-lg bg-muted p-3">
-          <Coins size={14} color="#f59e0b" />
-          <Muted className="flex-1 text-xs">
-            {level.coinsPerDay} coins a day, plus {level.completionBonus.toLocaleString()} on
-            completion — {(level.coinsPerDay * days + level.completionBonus).toLocaleString()} in
-            total.
-          </Muted>
-        </View>
+          <View className="flex-row items-center gap-2 rounded-xl bg-muted p-3">
+            <Coins size={14} color="#d97706" />
+            <Muted className="flex-1 text-xs">
+              {level.coinsPerDay} coins a day, plus {level.completionBonus.toLocaleString()} on completion:{' '}
+              {(level.coinsPerDay * days + level.completionBonus).toLocaleString()} in total.
+            </Muted>
+          </View>
 
-        <Button onPress={() => onStart(difficulty, days)} loading={starting}>
-          Start challenge
-        </Button>
-      </Card>
+          <GradientButton onPress={() => onStart(difficulty, days)} loading={starting}>
+            Start challenge
+          </GradientButton>
+        </Card>
+      </View>
     </HubContent>
   )
 }
 
 export default function ChallengesScreen() {
+  const today = localDateString()
   const { data: challenges, isLoading } = useChallenges()
   const createChallenge = useCreateChallenge()
   const increment = useIncrementChallenge()
   const [openTemplate, setOpenTemplate] = useState<ChallengeTemplate | null>(null)
 
-  const active = useMemo(
-    () => (challenges ?? []).filter((c) => c.status === 'active' || c.status === 'completed'),
-    [challenges],
-  )
+  const active = useMemo(() => (challenges ?? []).filter((c) => c.status === 'active'), [challenges])
+  const completed = useMemo(() => (challenges ?? []).filter((c) => c.status === 'completed'), [challenges])
+  const lead = active[0] ?? null
+  const rest = active.slice(1)
+
+  const tick = (c: Challenge) =>
+    increment.mutate({ id: c.id, currentDays: c.current_days, targetDays: c.target_days, category: c.category })
 
   if (openTemplate) {
     return (
@@ -229,7 +239,7 @@ export default function ChallengesScreen() {
               title: `${openTemplate.name} — ${level.label}`,
               description: level.tasks.join(' · '),
               target_days: days,
-              start_date: localDateString(),
+              start_date: today,
               // The category encodes template + difficulty, which is how
               // getChallengeRewards recovers the per-level payout later.
               category: encodeChallengeCategory(openTemplate.id, difficulty),
@@ -241,60 +251,75 @@ export default function ChallengesScreen() {
     )
   }
 
+  const leadRewards = lead ? getChallengeRewards(lead.category) : null
+  const leadDone = lead ? tickedToday(lead, today) : false
+
   return (
     <HubContent>
-      <Muted className="pb-3 pt-1">Commit to something hard. Get rewarded properly for finishing it.</Muted>
-
-      {isLoading ? <ActivityIndicator /> : null}
-
-      {active.length > 0 ? (
-        <View className="gap-3 pb-6">
-          <Muted>In progress</Muted>
-          {active.map((c) => (
-            <ActiveChallenge
-              key={c.id}
-              challenge={c}
-              busy={increment.isPending && increment.variables?.id === c.id}
-              onTick={() =>
-                increment.mutate({
-                  id: c.id,
-                  currentDays: c.current_days,
-                  targetDays: c.target_days,
-                  category: c.category,
-                })
+      <View className="gap-4 pt-1">
+        <FadeIn index={0}>
+          {lead && leadRewards ? (
+            <GrowHero
+              eyebrow="In progress"
+              title={lead.title.split(' — ')[0]}
+              sub={`${lead.target_days - lead.current_days} days to go · ${leadRewards.coinsPerDay} a day, ${leadRewards.completionBonus.toLocaleString()} on completion`}
+              right={<DayRing current={lead.current_days} target={lead.target_days} />}
+              footer={
+                <HeroAction
+                  icon={<Check size={14} strokeWidth={2.5} color="#115e59" />}
+                  disabled={leadDone || (increment.isPending && increment.variables?.id === lead.id)}
+                  onPress={() => tick(lead)}
+                >
+                  {leadDone ? 'Done for today' : `Mark today done · +${leadRewards.coinsPerDay}`}
+                </HeroAction>
               }
             />
-          ))}
-        </View>
-      ) : null}
+          ) : (
+            <GrowHero
+              eyebrow="Challenges"
+              title={isLoading ? 'Loading…' : 'Nothing running'}
+              sub="Commit to something hard. Get rewarded properly for finishing it."
+            />
+          )}
+        </FadeIn>
 
-      <View className="gap-3">
-        <Muted>Start something new</Muted>
-        {CHALLENGE_TEMPLATES.map((template) => {
-          const easy = template.levels.easy
-          return (
-            <Pressable
-              key={template.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${template.name}. ${template.tagline}`}
-              onPress={() => setOpenTemplate(template)}
-            >
-              <Card className="flex-row items-center gap-3">
-                <Text className="text-3xl">{template.emoji}</Text>
-                <View className="min-w-0 flex-1">
-                  <Text className="text-base font-semibold text-foreground">{template.name}</Text>
-                  <Muted className="text-xs">{template.tagline}</Muted>
-                </View>
-                <View className="items-end">
-                  <Text className="text-[11px] text-muted-foreground">from</Text>
-                  <Text className="text-xs font-medium text-foreground">
-                    {easy.suggestedDays[0]} days
-                  </Text>
-                </View>
-              </Card>
-            </Pressable>
-          )
-        })}
+        {rest.length > 0 || completed.length > 0 ? (
+          <FadeIn index={1}>
+            <View className="gap-3">
+              {rest.map((c) => (
+                <ActiveRow key={c.id} challenge={c} busy={increment.isPending && increment.variables?.id === c.id} onTick={() => tick(c)} />
+              ))}
+              {completed.slice(0, 3).map((c) => (
+                <ActiveRow key={c.id} challenge={c} busy={false} onTick={() => undefined} />
+              ))}
+            </View>
+          </FadeIn>
+        ) : null}
+
+        <FadeIn index={2}>
+          <View className="gap-3">
+            <SectionHeader title="Start something new" description={`${CHALLENGE_TEMPLATES.length} templates`} />
+            {CHALLENGE_TEMPLATES.map((template) => {
+              const easy = template.levels.easy
+              return (
+                <PressableScale key={template.id} onPress={() => setOpenTemplate(template)} accessibilityLabel={`${template.name}. ${template.tagline}`}>
+                  <Card className="flex-row items-center gap-3">
+                    <View className="h-11 w-11 items-center justify-center rounded-xl bg-muted">
+                      <Text className="text-[24px] leading-7">{template.emoji}</Text>
+                    </View>
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-[15px] font-semibold text-foreground">{template.name}</Text>
+                      <Muted className="text-xs" numberOfLines={2}>{template.tagline}</Muted>
+                    </View>
+                    <View className="rounded-full bg-violet-500/10 px-2.5 py-1">
+                      <Text className="text-[11px] font-semibold text-violet-600 dark:text-violet-400">{easy.suggestedDays[0]}d+</Text>
+                    </View>
+                  </Card>
+                </PressableScale>
+              )
+            })}
+          </View>
+        </FadeIn>
       </View>
     </HubContent>
   )
