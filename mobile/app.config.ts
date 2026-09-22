@@ -25,7 +25,12 @@ const BRAND_BG_DARK = '#011f16'
 //
 // `eas init` prints the value — paste it here. The env var stays as an override
 // for CI or a second Expo account.
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'PASTE_EAS_PROJECT_ID_HERE'
+//
+// Note the `||` rather than `??`: .env.example ships EAS_PROJECT_ID with an
+// empty value, so a copied .env sets it to '', which `??` would accept as a
+// real override and resolve the project id to nothing.
+const EAS_PROJECT_ID =
+  process.env.EAS_PROJECT_ID || '85744519-5af5-4cda-99a3-325bc0485e10'
 
 const config: ExpoConfig = {
   name: 'Salsabil',
