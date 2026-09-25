@@ -596,6 +596,12 @@ export interface Database {
         }
         Returns: boolean
       }
+      find_room_by_code: {
+        Args: {
+          p_code: string
+        }
+        Returns: Database['public']['Tables']['study_rooms']['Row'][]
+      }
       add_tree_xp: {
         Args: {
           p_tree_id: string

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native'
-import { useRouter } from 'expo-router'
+import { View, Text, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native'
+import { useRouter, type Href } from 'expo-router'
 import Svg, { Circle } from 'react-native-svg'
 import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
-import { Users, Plus, X, Lock } from 'lucide-react-native'
-import { HubContent, Muted, Card, Button, Input, Gradient, FadeIn, PressableScale } from '~/components/ui'
-import { usePublicRooms, useCreateRoom, useRoomByCode } from '@/hooks/useStudyRooms'
+import { Users, Plus, X, Lock, Settings2 } from 'lucide-react-native'
+import { HubContent, Muted, Card, Gradient, FadeIn, PressableScale, SectionHeader } from '~/components/ui'
+import { RoomForm, ROOM_DEFAULTS } from '~/components/rooms/RoomForm'
+import { usePublicRooms, useMyRooms, useCreateRoom, useDeleteRoom, useRoomByCode } from '@/hooks/useStudyRooms'
+import type { RoomWithCount } from '@/lib/api/studyRooms'
+import { toast } from '@/lib/platform/toast'
 import { useAuth } from '@/hooks/useAuth'
 import { STUDY_ROOM_COINS_PER_MINUTE } from '@/lib/rewards'
 import { cn } from '@/lib/cn'
@@ -74,46 +77,107 @@ export default function RoomsScreen() {
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
   const { user } = useAuth()
-  const { data: rooms, isLoading } = usePublicRooms()
+  const { data: publicRooms, isLoading } = usePublicRooms()
+  const { data: myRooms } = useMyRooms()
   const createRoom = useCreateRoom()
+  const deleteRoom = useDeleteRoom()
+  // Your own rooms get their own section (private ones included), so the
+  // public list leaves them out rather than showing them twice.
+  const rooms = (publicRooms ?? []).filter((r) => r.owner_id !== user?.id)
   const now = useNow()
 
   const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
-  const [duration, setDuration] = useState('25')
   const [code, setCode] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
   // Only queried once a full six-character code has been typed.
   const trimmedCode = code.trim().toUpperCase()
   const { data: found, isFetching: findingCode } = useRoomByCode(trimmedCode.length === 6 ? trimmedCode : '')
 
-  const open = (rooms ?? []).length
-  const live = (rooms ?? []).filter((r) => r.timer_state === 'running').length
+  const everyRoom = [...(myRooms ?? []).filter((r) => r.is_public), ...rooms]
+  const open = everyRoom.length
+  const live = everyRoom.filter((r) => r.timer_state === 'running').length
 
-  const submitCreate = () => {
-    setError(null)
-    const trimmed = name.trim()
-    const mins = Number(duration.trim())
-    if (!trimmed) {
-      setError('Give the room a name.')
-      return
-    }
-    if (!Number.isFinite(mins) || mins <= 0) {
-      setError('Enter a session length in minutes.')
-      return
-    }
-    if (!user) return
-    createRoom.mutate(
-      { name: trimmed, owner_id: user.id, timer_duration: Math.round(mins), is_public: true },
+  const manage = (room: RoomWithCount) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    Alert.alert(room.name, `Code ${room.code}`, [
+      { text: 'Room settings', onPress: () => router.push(`/room-settings/${room.id}` as Href) },
       {
-        onSuccess: (room) => {
-          setName('')
-          setCreating(false)
-          router.push(`/rooms/${room.id}`)
-        },
-        onError: (e) => setError(e instanceof Error ? e.message : 'Could not create the room.'),
+        text: 'Delete room',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Delete this room?', 'Everyone in it is removed and its chat is deleted.', [
+            { text: 'Keep room', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () =>
+                deleteRoom.mutate(room.id, {
+                  onSuccess: () => toast.success('Room deleted'),
+                  onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not delete the room.'),
+                }),
+            },
+          ]),
       },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+
+  const renderRoom = (room: RoomWithCount, i: number, mine: boolean) => {
+    const full = !mine && room.participant_count >= room.max_participants
+    const total = room.timer_duration * 60
+    const remaining = remainingSeconds(room, now)
+    const running = room.timer_state === 'running'
+    return (
+      <FadeIn key={room.id} index={Math.min(1 + i, 6)}>
+        <PressableScale
+          disabled={full}
+          accessibilityLabel={`${room.name}, ${room.participant_count} of ${room.max_participants} participants`}
+          onPress={() => router.push(`/rooms/${room.id}`)}
+          onLongPress={mine ? () => manage(room) : undefined}
+        >
+          <Card className={cn('flex-row items-center gap-3', full && 'opacity-55')}>
+            {full ? (
+              <View className="h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Lock size={18} color="#8a9793" />
+              </View>
+            ) : (
+              <TimerRing remaining={remaining} total={total} live={running} dark={dark} />
+            )}
+            <View className="min-w-0 flex-1">
+              <View className="flex-row items-center gap-1.5">
+                {running ? <View className="h-1.5 w-1.5 rounded-full bg-accentGreen-500" /> : null}
+                <Text className="shrink text-[15px] font-semibold text-foreground" numberOfLines={1}>
+                  {room.name}
+                </Text>
+                {mine && !room.is_public ? <Lock size={12} color="#8a9793" /> : null}
+              </View>
+              <Muted className="text-xs" numberOfLines={1}>
+                {room.timer_duration} min
+                {running ? ` · ${Math.ceil(remaining / 60)} min left` : room.timer_state === 'paused' ? ' · paused' : ''}
+                {full ? ' · full' : ` · ${room.code}`}
+              </Muted>
+            </View>
+            {mine ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Settings for ${room.name}`}
+                hitSlop={8}
+                onPress={() => router.push(`/room-settings/${room.id}` as Href)}
+                className="h-9 w-9 items-center justify-center rounded-full bg-muted"
+              >
+                <Settings2 size={16} color="#8a9793" />
+              </Pressable>
+            ) : (
+              <View className="items-end gap-0.5">
+                <Users size={16} color={dark ? '#2dd4bf' : '#0d9488'} />
+                <Muted className="text-[11px]">
+                  {room.participant_count} / {room.max_participants}
+                </Muted>
+              </View>
+            )}
+          </Card>
+        </PressableScale>
+      </FadeIn>
     )
   }
 
@@ -202,74 +266,53 @@ export default function RoomsScreen() {
         </FadeIn>
 
         {creating ? (
-          <Card className="gap-3">
-            <Input label="Room name" value={name} onChangeText={setName} placeholder="Maghrib study circle" autoFocus />
-            <Input
-              label="Session length (minutes)"
-              value={duration}
-              onChangeText={setDuration}
-              keyboardType="number-pad"
-              error={error}
+          <Card>
+            <RoomForm
+              initial={ROOM_DEFAULTS}
+              submitLabel="Create room"
+              busy={createRoom.isPending}
+              onSubmit={(v) => {
+                if (!user) return
+                createRoom.mutate(
+                  {
+                    name: v.name,
+                    description: v.description || null,
+                    owner_id: user.id,
+                    timer_duration: v.timer_duration,
+                    max_participants: v.max_participants,
+                    is_public: v.is_public,
+                  },
+                  {
+                    onSuccess: (room) => {
+                      setCreating(false)
+                      router.push(`/rooms/${room.id}`)
+                    },
+                    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not create the room.'),
+                  },
+                )
+              }}
             />
-            <Button onPress={submitCreate} loading={createRoom.isPending}>
-              Create room
-            </Button>
           </Card>
+        ) : null}
+
+        {(myRooms ?? []).length > 0 ? (
+          <View className="gap-3">
+            <SectionHeader title="Your rooms" description="Long-press or tap the gear to edit" />
+            {(myRooms ?? []).map((room, i) => renderRoom(room, i, true))}
+          </View>
         ) : null}
 
         {isLoading ? (
           <ActivityIndicator />
-        ) : (rooms ?? []).length === 0 ? (
+        ) : rooms.length === 0 ? (
           <Card variant="outline-dashed" className="items-center gap-1 py-10">
             <Users size={28} strokeWidth={1.25} color={dark ? '#3f4f4a' : '#c4cfcc'} />
-            <Muted className="text-center">No public rooms right now. Create the first one.</Muted>
+            <Muted className="text-center">No other public rooms right now. Create one and share its code.</Muted>
           </Card>
         ) : (
           <View className="gap-3">
-            {(rooms ?? []).map((room, i) => {
-              const full = room.participant_count >= room.max_participants
-              const total = room.timer_duration * 60
-              const remaining = remainingSeconds(room, now)
-              const running = room.timer_state === 'running'
-              return (
-                <FadeIn key={room.id} index={Math.min(1 + i, 6)}>
-                  <PressableScale
-                    disabled={full}
-                    accessibilityLabel={`${room.name}, ${room.participant_count} of ${room.max_participants} participants`}
-                    onPress={() => router.push(`/rooms/${room.id}`)}
-                  >
-                    <Card className={cn('flex-row items-center gap-3', full && 'opacity-55')}>
-                      {full ? (
-                        <View className="h-12 w-12 items-center justify-center rounded-full bg-muted">
-                          <Lock size={18} color="#8a9793" />
-                        </View>
-                      ) : (
-                        <TimerRing remaining={remaining} total={total} live={running} dark={dark} />
-                      )}
-                      <View className="min-w-0 flex-1">
-                        <View className="flex-row items-center gap-1.5">
-                          {running ? <View className="h-1.5 w-1.5 rounded-full bg-accentGreen-500" /> : null}
-                          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                            {room.name}
-                          </Text>
-                        </View>
-                        <Muted className="text-xs" numberOfLines={1}>
-                          {room.timer_duration} min
-                          {running ? ` · ${Math.ceil(remaining / 60)} min left` : room.timer_state === 'paused' ? ' · paused' : ''}
-                          {full ? ' · full' : ` · ${room.code}`}
-                        </Muted>
-                      </View>
-                      <View className="items-end gap-0.5">
-                        <Users size={16} color={dark ? '#2dd4bf' : '#0d9488'} />
-                        <Muted className="text-[11px]">
-                          {room.participant_count} / {room.max_participants}
-                        </Muted>
-                      </View>
-                    </Card>
-                  </PressableScale>
-                </FadeIn>
-              )
-            })}
+            {(myRooms ?? []).length > 0 ? <SectionHeader title="Open rooms" /> : null}
+            {rooms.map((room, i) => renderRoom(room, i, false))}
           </View>
         )}
       </View>

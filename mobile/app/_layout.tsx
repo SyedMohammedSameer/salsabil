@@ -75,6 +75,7 @@ function AuthGate() {
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="room-settings/[id]" options={{ title: 'Room settings' }} />
       <Stack.Screen name="notification-settings" options={{ title: 'Reminders' }} />
     </Stack>
   )

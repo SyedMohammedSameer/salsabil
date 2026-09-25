@@ -4,24 +4,29 @@ import { supabase } from '@/lib/supabase'
 import type { StudyRoom, RoomMessage, TimerState } from '@/lib/database.types'
 import {
   fetchPublicRooms,
+  fetchMyRooms,
   fetchRoom,
   fetchRoomByCode,
   fetchParticipants,
   fetchMessages,
   createRoom,
   deleteRoom,
+  updateRoom,
   joinRoom,
   leaveRoom,
   sendMessage,
   updateTimerState,
   type RoomWithCount,
+  type RoomUpdate,
 } from '@/lib/api/studyRooms'
+import { useAuth } from './useAuth'
 
 // ─── Query key factory ────────────────────────────────────────────────────────
 
 export const roomKeys = {
   all: ['rooms'] as const,
   list: () => [...roomKeys.all, 'list'] as const,
+  mine: (userId: string) => [...roomKeys.all, 'mine', userId] as const,
   room: (id: string) => [...roomKeys.all, id] as const,
   participants: (id: string) => [...roomKeys.all, id, 'participants'] as const,
   messages: (id: string) => [...roomKeys.all, id, 'messages'] as const,
@@ -33,6 +38,17 @@ export function usePublicRooms() {
   return useQuery({
     queryKey: roomKeys.list(),
     queryFn: fetchPublicRooms,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useMyRooms() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: roomKeys.mine(user?.id ?? ''),
+    queryFn: () => fetchMyRooms(user!.id),
+    enabled: !!user?.id,
     staleTime: 15_000,
     refetchInterval: 30_000,
   })
@@ -67,6 +83,15 @@ export function useRoom(roomId: string | undefined) {
         { event: 'UPDATE', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` },
         (payload) => {
           qc.setQueryData(roomKeys.room(roomId), payload.new as StudyRoom)
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'study_rooms', filter: `id=eq.${roomId}` },
+        () => {
+          // The host closed the room: let the screen say so instead of spinning.
+          qc.setQueryData(roomKeys.room(roomId), null)
+          qc.invalidateQueries({ queryKey: roomKeys.list() })
         },
       )
       .subscribe()
@@ -157,7 +182,10 @@ export function useCreateRoom() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (vars: Parameters<typeof createRoom>[0]) => createRoom(vars),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roomKeys.list() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roomKeys.list() })
+      qc.invalidateQueries({ queryKey: [...roomKeys.all, 'mine'] })
+    },
   })
 }
 
@@ -165,7 +193,22 @@ export function useDeleteRoom() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteRoom(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: roomKeys.list() }),
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: roomKeys.room(id) })
+      qc.invalidateQueries({ queryKey: roomKeys.all })
+    },
+  })
+}
+
+export function useUpdateRoom() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { id: string; updates: RoomUpdate }) => updateRoom(vars.id, vars.updates),
+    onSuccess: (room) => {
+      qc.setQueryData(roomKeys.room(room.id), room)
+      qc.invalidateQueries({ queryKey: roomKeys.list() })
+      qc.invalidateQueries({ queryKey: [...roomKeys.all, 'mine'] })
+    },
   })
 }
 

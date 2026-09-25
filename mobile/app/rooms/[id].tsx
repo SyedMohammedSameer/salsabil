@@ -3,20 +3,21 @@ import {
   View,
   Text,
   Pressable,
+  Share,
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   TextInput,
 } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQueryClient } from '@tanstack/react-query'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Send, Users, Pause, Play, RotateCcw } from 'lucide-react-native'
-import { Muted, Gradient } from '~/components/ui'
-import { StackBar } from '~/components/StackBar'
+import { Send, Users, Pause, Play, RotateCcw, Settings2, Share2, DoorClosed } from 'lucide-react-native'
+import { Muted, Gradient, Button } from '~/components/ui'
+import { StackBar, BarButton } from '~/components/StackBar'
 import { formatClock } from '~/lib/focusPresets'
 import {
   useRoom,
@@ -55,6 +56,7 @@ function initialsOf(name: string | null | undefined) {
 
 export default function RoomDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const qc = useQueryClient()
   const { user } = useAuth()
   const { data: profile } = useProfile()
@@ -161,10 +163,27 @@ export default function RoomDetailScreen() {
     .slice(0, 4)
     .join(', ')
 
-  if (isLoading || !room) {
+  if (isLoading) {
     return (
       <SafeAreaView edges={['top']} className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator />
+      </SafeAreaView>
+    )
+  }
+
+  // Deleted by its host while we were in it, or a stale link.
+  if (!room) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
+        <StackBar title="Study room" />
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <DoorClosed size={36} strokeWidth={1.5} color="#8a9793" />
+          <Text className="text-center text-[17px] font-semibold text-foreground">This room has closed</Text>
+          <Muted className="text-center text-sm">The host deleted it, so its timer and chat are gone.</Muted>
+          <Button variant="outline" onPress={() => router.back()}>
+            Back to rooms
+          </Button>
+        </View>
       </SafeAreaView>
     )
   }
@@ -187,11 +206,26 @@ export default function RoomDetailScreen() {
           title={room.name}
           sub={`Code ${room.code} · ${isHost ? 'you are the host' : 'hosted room'}`}
           trailing={
-            <View className="flex-row items-center gap-1">
-              <Users size={14} color="#8a9793" />
-              <Muted className="text-xs">
-                {participants.length} / {room.max_participants}
-              </Muted>
+            <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-1">
+                <Users size={14} color="#8a9793" />
+                <Muted className="text-xs">
+                  {participants.length} / {room.max_participants}
+                </Muted>
+              </View>
+              {isHost ? (
+                <BarButton
+                  icon={<Settings2 size={17} color="#8a9793" />}
+                  label="Room settings"
+                  onPress={() => router.push(`/room-settings/${room.id}` as Href)}
+                />
+              ) : (
+                <BarButton
+                  icon={<Share2 size={16} color="#8a9793" />}
+                  label="Share room code"
+                  onPress={() => void Share.share({ message: `Join "${room.name}" on Salsabil. Room code: ${room.code}` })}
+                />
+              )}
             </View>
           }
         />

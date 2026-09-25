@@ -54,6 +54,7 @@ export function FadeIn({
  */
 export function PressableScale({
   onPress,
+  onLongPress,
   children,
   className,
   style,
@@ -63,6 +64,7 @@ export function PressableScale({
   fill = false,
 }: {
   onPress?: () => void
+  onLongPress?: () => void
   children: ReactNode
   className?: string
   style?: StyleProp<ViewStyle>
@@ -91,6 +93,7 @@ export function PressableScale({
         if (haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
         onPress?.()
       }}
+      onLongPress={onLongPress}
     >
       <Animated.View style={[animated, fill ? { flex: 1 } : null]}>
         <View className={className} style={fill ? { flex: 1 } : undefined}>
