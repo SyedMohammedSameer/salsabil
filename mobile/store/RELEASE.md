@@ -67,7 +67,7 @@ of the same name:
 for e in preview production; do
   eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_URL      --value "https://YOUR-PROJECT.supabase.co"
   eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR-ANON-KEY"
-  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_API_BASE_URL      --value "https://YOUR-SITE.netlify.app"
+  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_API_BASE_URL      --value "https://salsabilapp.netlify.app"
 done
 ```
 

@@ -81,7 +81,7 @@ production to the environment of the same name):
 for e in preview production; do
   eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_URL      --value "https://…supabase.co"
   eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "…"
-  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_API_BASE_URL      --value "https://…netlify.app"
+  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_API_BASE_URL      --value "https://salsabilapp.netlify.app"
 done
 ```
 
@@ -114,8 +114,10 @@ There are two ways to make one; both produce the same app.
 builds the APK on GitHub's machines and publishes it as a pre-release on the
 repository's Releases page, with install steps in the notes.
 
-1. Add the three values above as repository secrets: Settings → Secrets and
-   variables → Actions → New repository secret.
+1. Add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` as
+   repository secrets: Settings → Secrets and variables → Actions → New
+   repository secret. `EXPO_PUBLIC_API_BASE_URL` is optional there and
+   defaults to `https://salsabilapp.netlify.app`.
 2. Start a build, either with Actions → *Android beta APK* → Run workflow
    (the workflow must be on the default branch for that button to appear), or
    from any branch with a tag:
@@ -124,7 +126,9 @@ repository's Releases page, with install steps in the notes.
    git tag beta-1 && git push origin beta-1
    ```
 
-3. After about 20–30 minutes, send testers the release link.
+3. After about 20–30 minutes the APK is on the Releases page under
+   *Assets*. Download it and send the file itself (WhatsApp or Telegram as a
+   document, Google Drive, a USB cable), or send the release link.
 
 These APKs are signed with Expo's debug key, which is fine for sideloading and
 the same on every run, so a newer beta installs over an older one.

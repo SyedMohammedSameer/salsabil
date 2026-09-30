@@ -3,8 +3,8 @@
 #
 #   Run it:  Actions → "Android beta APK" → Run workflow (needs this file on the
 #            default branch), or push a tag named beta-<anything> from any branch.
-#   Result:  a GitHub pre-release with the APK attached. The repository is
-#            public, so the release link is what you send testers.
+#   Result:  a GitHub pre-release with the APK attached under Assets. Download
+#            it and send the .apk file to testers, or send them the link.
 #
 # The APK is signed with the Expo template's debug key. That is fine for
 # sideloading, and every build from here signs with the same key, so testers
@@ -12,8 +12,9 @@
 # testers uninstall the beta before installing from Play.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_API_BASE_URL
-# All three end up inside the app bundle, so they are public values; secrets
+#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# Optional: EXPO_PUBLIC_API_BASE_URL, which defaults to the production site.
+# All of them end up inside the app bundle, so they are public values; secrets
 # just keep them out of the repository.
 
 name: Android beta APK
@@ -42,7 +43,7 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL || 'https://salsabilapp.netlify.app' }}
       # Each run gets a higher versionCode, so Android accepts it as an update.
       ANDROID_VERSION_CODE: ${{ github.run_number }}
     steps:
