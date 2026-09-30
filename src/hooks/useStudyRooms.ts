@@ -14,6 +14,7 @@ import {
   updateRoom,
   joinRoom,
   leaveRoom,
+  removeParticipant,
   sendMessage,
   updateTimerState,
   type RoomWithCount,
@@ -233,6 +234,17 @@ export function useLeaveRoom() {
   })
 }
 
+export function useRemoveParticipant() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { roomId: string; userId: string }) =>
+      removeParticipant(vars.roomId, vars.userId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: roomKeys.participants(vars.roomId) })
+    },
+  })
+}
+
 export function useSendMessage() {
   return useMutation({
     mutationFn: (vars: {
@@ -293,6 +305,9 @@ export function useRoomPresence(
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, userId])
+
+  // Joining fails when the host has removed this user (migration 0009).
+  return { joinError: joinMut.error as Error | null }
 }
 
 // ─── Timer computation helper ─────────────────────────────────────────────────

@@ -135,6 +135,7 @@ export interface Database {
           notes?: string | null
         }
         Update: {
+          date?: string
           surah_from?: number
           ayah_from?: number
           surah_to?: number
@@ -514,6 +515,19 @@ export interface Database {
         Update: {
           last_seen_at?: string
         }
+        Relationships: []
+      }
+      room_bans: {
+        Row: {
+          room_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          room_id: string
+          user_id: string
+        }
+        Update: Record<string, never>
         Relationships: []
       }
       room_messages: {

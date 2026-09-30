@@ -1,6 +1,6 @@
 import { View, Text, Pressable, Alert } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { Check, Bell } from 'lucide-react-native'
+import { Check, Bell, Repeat, AlignLeft } from 'lucide-react-native'
 import { Muted } from '~/components/ui'
 import { clock12, relativeDay } from '~/lib/format'
 import { TASK_COINS_BY_PRIORITY } from '@/lib/rewards'
@@ -9,7 +9,8 @@ import { cn } from '@/lib/cn'
 import type { Task, TaskPriority } from '@/lib/database.types'
 
 // One task row, shared by the Focus hub's Tasks section and the All tasks
-// screen. Tap the circle to toggle; long-press the row to delete.
+// screen. Tap the circle to toggle, tap the row to open the task, long-press
+// to delete.
 
 export const PRIORITY_COLOR: Record<TaskPriority, string> = {
   low: '#a9b6b2',
@@ -36,6 +37,7 @@ export function TaskRow({
   task,
   onToggle,
   onDelete,
+  onOpen,
   busy,
   showDate = false,
   first = false,
@@ -43,6 +45,8 @@ export function TaskRow({
   task: Task
   onToggle: () => void
   onDelete: () => void
+  /** Open the full task. Without it, tapping the row toggles it. */
+  onOpen?: () => void
   busy: boolean
   /** Show the due day as well as the time (All tasks screen). */
   showDate?: boolean
@@ -54,6 +58,7 @@ export function TaskRow({
   const sub = [
     showDate && task.due_date ? relativeDay(task.due_date, today) : null,
     task.due_time ? clock12(task.due_time) : null,
+    ...(task.tags ?? []).slice(0, 2).map((t) => `#${t}`),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -70,9 +75,9 @@ export function TaskRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={task.title}
-      accessibilityHint="Long press to delete"
+      accessibilityHint={onOpen ? 'Opens the task. Long press to delete' : 'Long press to delete'}
       onLongPress={confirmDelete}
-      onPress={onToggle}
+      onPress={onOpen ?? onToggle}
       className={cn('flex-row items-center gap-3 py-3 pl-3 pr-3.5', !first && 'border-t border-border')}
       style={busy ? { opacity: 0.6 } : undefined}
     >
@@ -105,10 +110,14 @@ export function TaskRow({
         >
           {task.title}
         </Text>
-        {sub ? (
+        {sub || task.recurrence !== 'none' || task.description ? (
           <View className="mt-0.5 flex-row items-center gap-1">
             {task.due_time && !task.completed ? <Bell size={10} color={overdue ? '#ef4444' : '#8a9793'} /> : null}
-            <Muted className={cn('text-[11px]', overdue && 'text-danger-500')}>{sub}</Muted>
+            {task.recurrence !== 'none' ? <Repeat size={10} color="#8a9793" /> : null}
+            {task.description ? <AlignLeft size={10} color="#8a9793" /> : null}
+            <Muted className={cn('shrink text-[11px]', overdue && 'text-danger-500')} numberOfLines={1}>
+              {sub}
+            </Muted>
           </View>
         ) : null}
       </View>

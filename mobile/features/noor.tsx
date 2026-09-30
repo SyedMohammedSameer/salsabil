@@ -10,10 +10,10 @@ import {
   Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Haptics from 'expo-haptics'
-import { Send, Sparkles, Trash2, X, CircleCheck, CircleAlert, Zap } from 'lucide-react-native'
+import { Send, Sparkles, Trash2, X, CircleCheck, CircleAlert, Zap, Brain } from 'lucide-react-native'
 import { useColorScheme } from 'nativewind'
 import { Muted, Gradient, NOOR_GRADIENT, Card } from '~/components/ui'
 import { StackBar, BarButton } from '~/components/StackBar'
@@ -309,6 +309,7 @@ export default function NoorScreen() {
           leading={<Orb />}
           trailing={
             <View className="flex-row items-center gap-2">
+              <BarButton icon={<Brain size={17} color="#8a9793" />} label="What Noor remembers" onPress={() => router.push('/memories' as Href)} />
               {bubbles.length > 0 ? (
                 <BarButton icon={<Trash2 size={17} color="#8a9793" />} label="Clear conversation" onPress={() => void clear()} />
               ) : null}

@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/platform/toast'
 import { useAuth } from './useAuth'
-import { getWorkouts, createWorkout, deleteWorkout } from '@/lib/api/workouts'
-import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
+import { getWorkouts, createWorkout, deleteWorkout, updateWorkout } from '@/lib/api/workouts'
+import { awardCoinsOnce, awardKeys, reverseAward } from '@/lib/api/coins'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { coinsFor } from '@/lib/rewards'
-import type { WorkoutType } from '@/lib/database.types'
+import type { Workout, WorkoutType } from '@/lib/database.types'
 
 export const workoutKeys = {
   all: ['workouts'] as const,
@@ -58,11 +58,36 @@ export function useCreateWorkout() {
 }
 
 export function useDeleteWorkout() {
+  const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => deleteWorkout(id),
+    // Takes an id (web) or the workout (native). With the workout, the coins
+    // it earned are taken back, so delete-and-relog cannot pay twice.
+    mutationFn: async (target: string | Workout) => {
+      const id = typeof target === 'string' ? target : target.id
+      await deleteWorkout(id)
+      if (user) {
+        await reverseAward(
+          user.id,
+          awardKeys.workout(id),
+          'workout_logged',
+          coinsFor({ kind: 'workout' }).coins,
+          'Removed a workout',
+        )
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: workoutKeys.all })
+      if (user) qc.invalidateQueries({ queryKey: profileKeys.byId(user.id) })
     },
+  })
+}
+
+export function useUpdateWorkout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof updateWorkout>[1] }) =>
+      updateWorkout(id, updates),
+    onSuccess: () => qc.invalidateQueries({ queryKey: workoutKeys.all }),
   })
 }

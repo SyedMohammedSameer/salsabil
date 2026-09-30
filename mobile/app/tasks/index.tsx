@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import { useRouter, type Href } from 'expo-router'
 import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
-import { CalendarDays } from 'lucide-react-native'
+import { CalendarDays, Plus } from 'lucide-react-native'
 import { Screen, Muted, Card, SectionHeader } from '~/components/ui'
 import { MonthGrid } from '~/components/ui/pickers'
 import { TaskRow } from '~/components/tasks/TaskRow'
@@ -19,6 +20,7 @@ import type { Task } from '@/lib/database.types'
 type Group = { key: string; title: string; tasks: Task[]; danger?: boolean }
 
 export default function AllTasksScreen() {
+  const router = useRouter()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
   const today = localDateString()
@@ -123,6 +125,20 @@ export default function AllTasksScreen() {
           </Card>
         ) : null}
 
+        {/* Add straight onto the chosen day (or today when showing all). */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(`/tasks/new?date=${day ?? today}` as Href)}
+          className="flex-row items-center gap-3 rounded-2xl border border-dashed border-noor-500/40 bg-noor-500/5 px-4 py-3"
+        >
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-noor-500/15">
+            <Plus size={16} color={dark ? '#2dd4bf' : '#0d9488'} />
+          </View>
+          <Text className="text-[14px] font-semibold text-noor-700 dark:text-noor-300">
+            Add a task · {relativeDay(day ?? today, today)}
+          </Text>
+        </Pressable>
+
         {isLoading ? <ActivityIndicator /> : null}
 
         {groups.length === 0 && !isLoading ? (
@@ -138,6 +154,7 @@ export default function AllTasksScreen() {
               {g.tasks.map((task, i) => (
                 <TaskRow
                   key={task.id}
+                  onOpen={() => router.push(`/tasks/${task.id}` as Href)}
                   task={task}
                   first={i === 0}
                   showDate={g.key !== 'today' && !day}

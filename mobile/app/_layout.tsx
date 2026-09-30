@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, useRouter, useSegments, type Href } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import * as Linking from 'expo-linking'
@@ -12,6 +12,7 @@ import { Providers } from '~/lib/providers'
 import { bindAuthRefreshToAppState, createSessionFromUrl } from '~/lib/auth'
 import { useTheme } from '~/lib/theme'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 
 void SplashScreen.preventAutoHideAsync()
 
@@ -21,6 +22,7 @@ void SplashScreen.preventAutoHideAsync()
  */
 function AuthGate() {
   const { session, loading } = useAuth()
+  const { data: profile, isLoading: profileLoading } = useProfile()
   const segments = useSegments()
   const router = useRouter()
   const { ready: themeReady } = useTheme()
@@ -39,16 +41,25 @@ function AuthGate() {
     if (loading) return
 
     const inAuthGroup = segments[0] === '(auth)'
+    const inOnboarding = (segments[0] as string) === 'onboarding'
+    // New accounts (and web accounts that never finished it) pick a username
+    // and set up reminders once, like the web's onboarding gate.
+    const needsOnboarding = !!profile && (!profile.username || !profile.onboarded)
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/sign-in')
-    } else if (session && inAuthGroup) {
+    } else if (session && needsOnboarding && !inOnboarding) {
+      router.replace('/onboarding' as Href)
+    } else if (session && inAuthGroup && profile) {
       router.replace('/')
     }
-  }, [session, loading, segments, router])
+  }, [session, loading, segments, router, profile])
 
   useEffect(() => {
-    if (!loading && themeReady && fontsReady) void SplashScreen.hideAsync()
-  }, [loading, themeReady, fontsReady])
+    // With a session, wait for the profile too, so onboarding never flashes
+    // the home screen first.
+    const profileReady = !session || !profileLoading
+    if (!loading && themeReady && fontsReady && profileReady) void SplashScreen.hideAsync()
+  }, [loading, themeReady, fontsReady, session, profileLoading])
 
   return (
     <Stack
@@ -66,11 +77,19 @@ function AuthGate() {
       {/* These own their own chrome. */}
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="rooms/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="join/[code]" options={{ headerShown: false }} />
       {/* Noor is summoned from the floating orb and sits over the current hub. */}
       <Stack.Screen name="noor" options={{ headerShown: false, presentation: 'modal' }} />
 
       <Stack.Screen name="tasks/index" options={{ title: 'All tasks' }} />
+      <Stack.Screen name="tasks/[id]" options={{ title: 'Task' }} />
+      <Stack.Screen name="challenges/[id]" options={{ title: 'Challenge' }} />
+      <Stack.Screen name="workouts/[id]" options={{ title: 'Workout' }} />
+      <Stack.Screen name="quran/[id]" options={{ title: 'Reading' }} />
+      <Stack.Screen name="memories" options={{ title: "What Noor remembers" }} />
+      <Stack.Screen name="focus-history" options={{ title: 'Focus history' }} />
       <Stack.Screen name="profile" options={{ title: 'Profile' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />

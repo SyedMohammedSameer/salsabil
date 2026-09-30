@@ -12,6 +12,7 @@ source; the "where" column is what to re-check if the app changes.
 | Name | Yes, if provided | Yes | No | App functionality | `profiles.display_name` |
 | User ID | Yes | Yes | No | App functionality | `profiles.id` |
 | Coarse location | Yes, optional | **No** | No | App functionality (prayer times) | `mobile/lib/location.ts` |
+| Photos | Yes, optional | Yes | No | App functionality (profile photo) | `mobile/lib/avatar.ts`, `avatars` bucket |
 | Other user content | Yes | Yes | No | App functionality | Prayer/Quran/task logs, Noor chat, room messages |
 
 **Tracking:** No. The app has no advertising SDK, no ad identifier and no
@@ -35,6 +36,7 @@ cryptography would require an export compliance filing.
 | Personal info | Name | Yes | No | Yes | Account management |
 | Location | Approximate location | Yes | **Yes** (Aladhan) | Yes | App functionality |
 | Messages | Other in-app messages | Yes | **Yes** (OpenRouter) | No | App functionality |
+| Photos and videos | Photos | Yes | No | Yes | App functionality (profile photo) |
 | App activity | Other user-generated content | Yes | No | No | App functionality |
 
 Location and Noor messages are declared as **shared** because they leave our
@@ -55,6 +57,7 @@ under-declaring it is the most common data-safety rejection.
 | `POST_NOTIFICATIONS` | Prayer and focus session reminders |
 | `SCHEDULE_EXACT_ALARM` | Prayer reminders must fire at the exact adhan time, not on a batched wake |
 | `VIBRATE` | Haptic feedback |
+| Photo picker (`READ_MEDIA_IMAGES` on older Android) | Choosing a profile photo; only the picked image is read |
 
 ## Capabilities deliberately not declared
 

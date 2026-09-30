@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { View, Text, Pressable, ScrollView } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Play, Pause, RotateCcw, SkipForward, Bell, Coins, Minus, Plus, Sprout } from 'lucide-react-native'
+import { Play, Pause, RotateCcw, SkipForward, Bell, Coins, Minus, Plus, Sprout, ChevronRight } from 'lucide-react-native'
 import { HubContent, Muted, Card, Gradient, Segmented, FadeIn } from '~/components/ui'
 import { SvgTree } from '~/components/garden/SvgTree'
 import {
@@ -243,6 +243,7 @@ function TreePicker({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function FocusScreen() {
+  const router = useRouter()
   const control = useFocusControl()
   const { timer, target } = control
   const { data: todayMinutes } = useTodayFocusMinutes()
@@ -403,6 +404,7 @@ export default function FocusScreen() {
 
         {/* Stats strip */}
         <FadeIn index={3}>
+          <View className="gap-2">
           <Card className="flex-row p-0">
             {[
               { v: durationLabel(todayMinutes ?? 0), k: 'today' },
@@ -415,6 +417,15 @@ export default function FocusScreen() {
               </View>
             ))}
           </Card>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/focus-history' as Href)}
+            className="flex-row items-center justify-center gap-1 py-1"
+          >
+            <Text className="text-xs font-semibold text-noor-600 dark:text-noor-400">See every session</Text>
+            <ChevronRight size={13} color="#0d9488" />
+          </Pressable>
+          </View>
         </FadeIn>
 
         <FadeIn index={4}>

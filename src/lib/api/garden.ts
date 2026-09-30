@@ -129,6 +129,18 @@ export async function plantTree(
   return data
 }
 
+/** Give a tree a name of its own (null goes back to its species name). */
+export async function renameTree(treeId: string, name: string | null): Promise<GardenTree> {
+  const { data, error } = await supabase
+    .from('garden_trees')
+    .update({ name })
+    .eq('id', treeId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function addXPToTree(treeId: string, xpToAdd: number): Promise<GardenTree> {
   const { data: tree, error: fetchErr } = await supabase
     .from('garden_trees')

@@ -77,3 +77,33 @@ export async function getTodayQuranPages(userId: string, date: string): Promise<
   if (error) throw error
   return (data ?? []).reduce((sum, r) => sum + Number(r.pages_read), 0)
 }
+
+export type QuranLogUpdate = Partial<
+  Pick<
+    QuranLog,
+    | 'date'
+    | 'surah_from'
+    | 'ayah_from'
+    | 'surah_to'
+    | 'ayah_to'
+    | 'pages_read'
+    | 'duration_mins'
+    | 'notes'
+  >
+>
+
+export async function updateQuranLog(id: string, updates: QuranLogUpdate): Promise<QuranLog> {
+  const { data, error } = await supabase
+    .from('quran_logs')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteQuranLog(id: string): Promise<void> {
+  const { error } = await supabase.from('quran_logs').delete().eq('id', id)
+  if (error) throw error
+}

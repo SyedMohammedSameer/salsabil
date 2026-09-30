@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
+import { useRouter, type Href } from 'expo-router'
 import { View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native'
 import { useColorScheme } from 'nativewind'
 import { BookOpen } from 'lucide-react-native'
+import { DayChips } from '~/components/entries/DayChips'
+import { relativeDay } from '~/lib/format'
 import {
   HubContent,
   Muted,
@@ -127,12 +130,19 @@ export default function QuranScreen() {
   const { data: todayPages } = useTodayQuranPages(today)
   const { data: week } = useWeeklyQuranPages(weekStart, today)
   const createLog = useCreateQuranLog()
+  const router = useRouter()
+  const twoWeeksAgo = useMemo(() => localDateString(daysAgo(13)), [])
+  const recent = useMemo(() => (allLogs ?? []).filter((l) => l.date >= twoWeeksAgo).slice(0, 20), [allLogs, twoWeeksAgo])
 
   const [surahFrom, setSurahFrom] = useState('')
   const [ayahFrom, setAyahFrom] = useState('')
   const [surahTo, setSurahTo] = useState('')
   const [ayahTo, setAyahTo] = useState('')
   const [pages, setPages] = useState('')
+  const [logDate, setLogDate] = useState(today)
+  const [minutes, setMinutes] = useState('')
+  const [notes, setNotes] = useState('')
+  const [more, setMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const pagesValue = parsePages(pages)
@@ -184,7 +194,16 @@ export default function QuranScreen() {
     }
 
     createLog.mutate(
-      { date: today, surah_from: sFrom, ayah_from: aFrom, surah_to: sTo, ayah_to: aTo, pages_read: pagesValue },
+      {
+        date: logDate,
+        surah_from: sFrom,
+        ayah_from: aFrom,
+        surah_to: sTo,
+        ayah_to: aTo,
+        pages_read: pagesValue,
+        duration_mins: minutes.trim() ? Number(minutes) || undefined : undefined,
+        notes: notes.trim() || undefined,
+      },
       {
         onSuccess: () => {
           setSurahFrom('')
@@ -192,6 +211,10 @@ export default function QuranScreen() {
           setSurahTo('')
           setAyahTo('')
           setPages('')
+          setMinutes('')
+          setNotes('')
+          setLogDate(today)
+          setMore(false)
         },
         onError: (e) => setError(e instanceof Error ? e.message : 'Could not save your reading.'),
       },
@@ -315,6 +338,42 @@ export default function QuranScreen() {
                 style={{ paddingVertical: 0, includeFontPadding: false } as never}
               />
             </View>
+            {more ? (
+              <View className="gap-3">
+                <DayChips value={logDate} onChange={setLogDate} />
+                <View className="flex-row items-center gap-3 rounded-2xl border border-border py-2 pl-3.5 pr-2">
+                  <Text className="flex-1 text-[13px] font-semibold text-foreground">Minutes (optional)</Text>
+                  <TextInput
+                    value={minutes}
+                    onChangeText={(v) => setMinutes(v.replace(/[^0-9]/g, ''))}
+                    keyboardType="number-pad"
+                    placeholder="20"
+                    placeholderTextColor="#7b8a86"
+                    maxLength={3}
+                    textAlign="center"
+                    accessibilityLabel="Minutes read"
+                    className="h-11 w-20 rounded-[10px] bg-muted px-2 text-[17px] font-bold text-foreground"
+                    style={{ paddingVertical: 0 }}
+                  />
+                </View>
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Notes: a verse that stayed with you"
+                  placeholderTextColor="#83938f"
+                  multiline
+                  maxLength={500}
+                  className="min-h-[64px] rounded-xl border border-input bg-card px-3 py-2.5 text-[15px] text-foreground"
+                  style={{ textAlignVertical: 'top' }}
+                />
+              </View>
+            ) : (
+              <Pressable onPress={() => setMore(true)} hitSlop={6} className="self-start">
+                <Text className="text-xs font-semibold text-noor-600 dark:text-noor-400">
+                  {logDate === today ? 'Earlier day, time or notes' : `Logging for ${relativeDay(logDate, today)}`}
+                </Text>
+              </Pressable>
+            )}
             {error ? <Text className="text-xs text-destructive">{error}</Text> : null}
             <GradientButton
               colors={GRADIENT_BUTTON.gold}
@@ -326,40 +385,41 @@ export default function QuranScreen() {
           </Card>
         </FadeIn>
 
-        {/* Today's readings */}
+        {/* Recent readings, tap to correct */}
         <FadeIn index={3}>
           <View className="gap-3">
-            <SectionHeader title="Today's readings" />
+            <SectionHeader title="Recent readings" description="Tap one to edit or delete it" />
             {isLoading ? (
               <ActivityIndicator />
-            ) : (logs ?? []).length === 0 ? (
+            ) : recent.length === 0 ? (
               <Card variant="outline-dashed" className="items-center py-6">
-                <Muted className="text-xs">Nothing logged yet today.</Muted>
+                <Muted className="text-xs">Nothing logged in the last two weeks.</Muted>
               </Card>
             ) : (
               <Card className="p-0">
-                {(logs ?? []).map((log, i) => (
-                  <View
+                {recent.map((log, i) => (
+                  <Pressable
                     key={log.id}
-                    className={[
-                      'flex-row items-center gap-3 px-4 py-3',
-                      i > 0 ? 'border-t border-border' : '',
-                    ].join(' ')}
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/quran/${log.id}` as Href)}
+                    className={['flex-row items-center gap-3 px-4 py-3', i > 0 ? 'border-t border-border' : ''].join(' ')}
                   >
                     <View className="min-w-0 flex-1">
                       <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
                         {surahName(log.surah_from)} {log.surah_from}:{log.ayah_from} → {log.surah_to}:{log.ayah_to}
                       </Text>
-                      {log.surah_to !== log.surah_from ? (
-                        <Muted className="text-xs">to {surahName(log.surah_to)}</Muted>
-                      ) : null}
+                      <Muted className="text-xs" numberOfLines={1}>
+                        {relativeDay(log.date, today)}
+                        {log.duration_mins ? ` · ${log.duration_mins} min` : ''}
+                        {log.notes ? ` · ${log.notes}` : ''}
+                      </Muted>
                     </View>
                     <View className="rounded-full bg-gold-500/10 px-2.5 py-1">
                       <Text className="text-[11px] font-semibold" style={{ color: dark ? '#fbbf24' : '#b45309' }}>
-                        {log.pages_read} {Number(log.pages_read) === 1 ? 'page' : 'pages'}
+                        {Number(log.pages_read)} {Number(log.pages_read) === 1 ? 'page' : 'pages'}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </Card>
             )}

@@ -523,3 +523,28 @@ export const CHALLENGE_TEMPLATES: ChallengeTemplate[] = [
     },
   },
 ]
+
+/**
+ * A challenge's daily checklist. Stored as a JSON array of strings in the
+ * challenge's description (the web's format); older phone builds joined the
+ * items with " · ". Falls back to the template level's tasks.
+ */
+export function challengeChecklist(challenge: {
+  description: string | null
+  category: string | null
+}): string[] {
+  const raw = challenge.description?.trim()
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string')) return parsed
+    } catch {
+      /* not JSON */
+    }
+    const { level } = parseChallengeCategory(challenge.category)
+    if (level && raw === level.tasks.join(' · ')) return level.tasks
+    if (raw.includes(' · ')) return raw.split(' · ').filter(Boolean)
+    return [raw]
+  }
+  return parseChallengeCategory(challenge.category).level?.tasks ?? []
+}

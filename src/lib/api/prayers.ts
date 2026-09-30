@@ -51,6 +51,21 @@ export async function upsertPrayer(
   return data
 }
 
+/**
+ * Remove a prayer's status for a day, for a status logged by mistake. Coins
+ * already paid for that slot stay paid, and logging it again does not pay a
+ * second time (the award is keyed on date + prayer).
+ */
+export async function clearPrayer(userId: string, date: string, prayer: PrayerName): Promise<void> {
+  const { error } = await supabase
+    .from('prayers')
+    .delete()
+    .eq('user_id', userId)
+    .eq('date', date)
+    .eq('prayer', prayer)
+  if (error) throw error
+}
+
 /** Count how many fardh prayers were logged as 'prayed' for a given date */
 export async function getPrayerCountForDate(
   userId: string,

@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics'
 import { Share2, Trash2 } from 'lucide-react-native'
 import { Screen, Muted, Card, FadeIn } from '~/components/ui'
 import { RoomForm } from '~/components/rooms/RoomForm'
+import { inviteMessage } from '~/lib/invite'
 import { useRoom, useUpdateRoom, useDeleteRoom } from '@/hooks/useStudyRooms'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/lib/platform/toast'
@@ -44,9 +45,7 @@ export default function RoomSettingsScreen() {
   const inSession = room.timer_state === 'running' || room.timer_state === 'paused'
 
   const share = () => {
-    void Share.share({
-      message: `Join my study room "${room.name}" on Salsabil. Room code: ${room.code}`,
-    })
+    void Share.share({ message: inviteMessage(room) })
   }
 
   const confirmDelete = () => {

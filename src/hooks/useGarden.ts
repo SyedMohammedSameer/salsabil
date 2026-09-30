@@ -2,7 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/platform/toast'
 import { useAuth } from './useAuth'
 import { profileKeys } from './useProfile'
-import { fetchGardenTrees, plantTree, addXPToTree, waterNewestActiveTree } from '@/lib/api/garden'
+import {
+  fetchGardenTrees,
+  plantTree,
+  addXPToTree,
+  waterNewestActiveTree,
+  renameTree,
+} from '@/lib/api/garden'
 import { spendCoins } from '@/lib/api/coins'
 import { waterCost, WATER_XP_GAIN } from '@/lib/rewards'
 import type { TreeSpecies, GardenTree } from '@/lib/database.types'
@@ -107,6 +113,19 @@ export function useWaterNewestTree() {
     mutationFn: (xp: number) => waterNewestActiveTree(user!.id, xp),
     onSuccess: (updated) => {
       if (!updated) return
+      qc.setQueryData<GardenTree[]>(gardenKeys.trees(user!.id), (old) =>
+        old?.map((t) => (t.id === updated.id ? updated : t)),
+      )
+    },
+  })
+}
+
+export function useRenameTree() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string | null }) => renameTree(id, name),
+    onSuccess: (updated) => {
       qc.setQueryData<GardenTree[]>(gardenKeys.trees(user!.id), (old) =>
         old?.map((t) => (t.id === updated.id ? updated : t)),
       )

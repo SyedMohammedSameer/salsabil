@@ -83,6 +83,16 @@ eas secret:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://…"
 the native projects are derived from `app.config.ts`, which is the single
 source of truth for bundle identifiers, permissions and the deep-link scheme.
 
+**Native modules and the dev client.** `expo-image-picker` (profile photos) is
+the one module added after the first dev-client build. Until the dev client is
+rebuilt, everything else hot-reloads as usual and "Change photo" says the app
+needs updating (`lib/avatar.ts` loads the module lazily for that reason).
+
+**Database migrations.** Apply `supabase/migrations/0008_private_rooms.sql` and
+`0009_room_moderation.sql` in the Supabase SQL editor: private rooms joinable by
+code, and hosts removing participants. The app falls back gracefully before
+they are applied.
+
 ## Notifications
 
 Prayer reminders are scheduled **on the device** (`lib/notifications.ts`), not

@@ -8,14 +8,16 @@ import * as Haptics from 'expo-haptics'
 import { Bell, BellRing, Check, Clock, MapPin, RotateCcw, Sparkle, X } from 'lucide-react-native'
 import { HubContent, Muted, Card, Button, Gradient, FadeIn } from '~/components/ui'
 import { useDeviceLocation } from '~/lib/location'
+import { addDays, parseDate, relativeDay } from '~/lib/format'
 import {
   requestNotificationPermission,
   getNotificationPermission,
   type NotificationPermission,
 } from '~/lib/notifications'
 import { usePrayerTimes } from '@/hooks/usePrayerTimes'
-import { usePrayersForDate, useUpsertPrayer } from '@/hooks/usePrayers'
+import { usePrayersForDate, useUpsertPrayer, useClearPrayer } from '@/hooks/usePrayers'
 import { localDateString } from '@/lib/dates'
+import { cn } from '@/lib/cn'
 import {
   FARD_ORDER,
   nextPrayer,
@@ -303,7 +305,7 @@ function StatusButtons({
 }: {
   prayer: PrayerName
   current: PrayerStatus | null
-  onChange: (status: PrayerStatus) => void
+  onChange: (status: PrayerStatus | null) => void
   busy: boolean
 }) {
   const { colorScheme } = useColorScheme()
@@ -321,11 +323,12 @@ function StatusButtons({
             key={status}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            accessibilityLabel={`${LABEL[prayer]}: ${cfg.label}`}
-            disabled={busy || active}
+            accessibilityLabel={active ? `${LABEL[prayer]}: ${cfg.label}. Tap to clear` : `${LABEL[prayer]}: ${cfg.label}`}
+            disabled={busy}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-              onChange(status)
+              // Tapping the status that is already set clears it.
+              onChange(active ? null : status)
             }}
             className="h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-muted"
             style={
@@ -350,9 +353,16 @@ export default function PrayersScreen() {
   const now = useNow()
   const today = localDateString(now)
   const { coords, status: locationStatus, resolve } = useDeviceLocation()
-  const { data: times, isLoading: timesLoading } = usePrayerTimes(coords)
-  const { data: logged } = usePrayersForDate(today)
+  // The day being logged: today, or one of the six before it.
+  const [day, setDay] = useState(today)
+  const isToday = day === today
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)), [today])
+  const { data: times, isLoading: timesLoading } = usePrayerTimes(coords, 2, parseDate(day))
+  const { data: logged } = usePrayersForDate(day)
   const upsert = useUpsertPrayer()
+  const clear = useClearPrayer()
+  const setStatus = (prayer: PrayerName, s: PrayerStatus | null) =>
+    s ? upsert.mutate({ date: day, prayer, status: s }) : clear.mutate({ date: day, prayer })
 
   const [permission, setPermission] = useState<NotificationPermission>('undetermined')
   const remindersOn = useNotificationPrefs((st) => st.prefs.prayers)
@@ -369,7 +379,7 @@ export default function PrayersScreen() {
 
   // Reminders are scheduled app-wide by useNotificationSync in the tab layout.
 
-  const upcoming = times ? nextPrayer(times.prayers, now) : null
+  const upcoming = times && isToday ? nextPrayer(times.prayers, now) : null
 
   const enableReminders = async () => {
     const result = await requestNotificationPermission()
@@ -385,8 +395,51 @@ export default function PrayersScreen() {
   return (
     <HubContent>
       <View className="gap-4 pt-1">
+        {/* Day strip: fix or catch up on the last week. */}
+        <FadeIn index={0}>
+          <View className="flex-row gap-1.5">
+            {days.map((d) => {
+              const active = d === day
+              const dt = parseDate(d)
+              return (
+                <Pressable
+                  key={d}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={relativeDay(d, today)}
+                  onPress={() => {
+                    void Haptics.selectionAsync()
+                    setDay(d)
+                  }}
+                  className={cn(
+                    'h-[52px] flex-1 items-center justify-center rounded-2xl',
+                    active ? 'bg-noor-500' : 'bg-muted',
+                  )}
+                >
+                  <Text className={cn('text-[10px] font-semibold uppercase', active ? 'text-white/85' : 'text-muted-foreground')}>
+                    {d === today ? 'Today' : dt.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 3)}
+                  </Text>
+                  <Text className={cn('text-[15px] font-bold', active ? 'text-white' : 'text-foreground')}>{dt.getDate()}</Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        </FadeIn>
+
+        {!isToday ? (
+          <Card variant="flat" className="flex-row items-center gap-2 px-3.5 py-2.5">
+            <RotateCcw size={14} color="#8a9793" />
+            <Muted className="flex-1 text-xs">
+              Logging {relativeDay(day, today)}. Tap a status again to clear it.
+            </Muted>
+            <Pressable onPress={() => setDay(today)} hitSlop={6}>
+              <Text className="text-xs font-semibold text-noor-600 dark:text-noor-400">Back to today</Text>
+            </Pressable>
+          </Card>
+        ) : null}
+
         {/* Location gate — prayer times are astronomical, so they need coordinates. */}
-        {!coords ? (
+        {!isToday ? null : !coords ? (
           <FadeIn index={0}>
             <Card variant="glass-noor" className="gap-3">
               <View className="flex-row items-center gap-2">
@@ -466,9 +519,11 @@ export default function PrayersScreen() {
                   <StatusButtons
                     prayer={prayer}
                     current={status}
-                    busy={upsert.isPending && upsert.variables?.prayer === prayer}
-                    // There is no "unset" — the web view ignores a cleared status too.
-                    onChange={(s) => upsert.mutate({ date: today, prayer, status: s })}
+                    busy={
+                      (upsert.isPending && upsert.variables?.prayer === prayer) ||
+                      (clear.isPending && clear.variables?.prayer === prayer)
+                    }
+                    onChange={(s) => setStatus(prayer, s)}
                   />
                 </View>
               )
@@ -486,7 +541,7 @@ export default function PrayersScreen() {
               <Text className="text-[15px] font-semibold text-foreground">Tahajjud</Text>
               <Muted className="text-xs" numberOfLines={1}>
                 {statusByPrayer.tahajjud === 'prayed'
-                  ? `Offered tonight · +${coinsFor({ kind: 'prayer', prayer: 'tahajjud', status: 'prayed' }).coins} earned`
+                  ? `Offered · +${coinsFor({ kind: 'prayer', prayer: 'tahajjud', status: 'prayed' }).coins} earned`
                   : `Voluntary · the night is yours · +${coinsFor({ kind: 'prayer', prayer: 'tahajjud', status: 'prayed' }).coins}`}
               </Muted>
             </View>
@@ -494,7 +549,7 @@ export default function PrayersScreen() {
               prayer="tahajjud"
               current={statusByPrayer.tahajjud ?? null}
               busy={upsert.isPending && upsert.variables?.prayer === 'tahajjud'}
-              onChange={(s) => upsert.mutate({ date: today, prayer: 'tahajjud', status: s })}
+              onChange={(s) => setStatus('tahajjud', s)}
             />
           </Card>
         </FadeIn>

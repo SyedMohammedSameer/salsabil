@@ -11,7 +11,7 @@ import { useUpsertPrayer } from '@/hooks/usePrayers'
 import { useCreateQuranLog, useQuranLogs } from '@/hooks/useQuranLogs'
 import { useLogAdhkarComplete } from '@/hooks/useAdhkar'
 import { useCreateWorkout } from '@/hooks/useWorkouts'
-import { useChallenges, useCreateChallenge, useIncrementChallenge } from '@/hooks/useChallenges'
+import { useChallenges, useCreateChallenge, useIncrementChallenge, useUpdateChallengeStatus } from '@/hooks/useChallenges'
 import { useGardenTrees, usePlantTree, useWaterTree } from '@/hooks/useGarden'
 import { useAddMemory, useForgetMemory } from '@/hooks/useMemories'
 import { SPECIES_INFO } from '@/lib/api/garden'
@@ -23,6 +23,7 @@ import type {
   PrayerStatus,
   Task,
   TaskPriority,
+  TaskRecurrence,
   TreeSpecies,
   WorkoutType,
 } from '@/lib/database.types'
@@ -41,6 +42,11 @@ export interface ActionResult {
 const PRAYERS: PrayerName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'tahajjud']
 const STATUSES: PrayerStatus[] = ['prayed', 'late', 'qada', 'missed']
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
+const RECURRENCES: TaskRecurrence[] = ['none', 'daily', 'weekly', 'monthly']
+const tagsOf = (v: unknown): string[] | undefined =>
+  Array.isArray(v)
+    ? v.filter((t): t is string => typeof t === 'string' && !!t.trim()).map((t) => t.trim().replace(/^#/, '').toLowerCase()).slice(0, 8)
+    : undefined
 const LABEL: Record<string, string> = { fajr: 'Fajr', dhuhr: 'Dhuhr', asr: 'Asr', maghrib: 'Maghrib', isha: 'Isha', tahajjud: 'Tahajjud' }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
@@ -122,6 +128,7 @@ export function useNoorExecutor() {
   const createWorkout = useCreateWorkout()
   const createChallenge = useCreateChallenge()
   const incrementChallenge = useIncrementChallenge()
+  const setChallengeStatus = useUpdateChallengeStatus()
   const plantTree = usePlantTree()
   const waterTree = useWaterTree()
   const addMemory = useAddMemory()
@@ -159,7 +166,16 @@ export function useNoorExecutor() {
             const due_date = validDate(g.due_date)
             const due_time = validTime(g.due_time)
             const priority = PRIORITIES.includes(g.priority as TaskPriority) ? (g.priority as TaskPriority) : 'medium'
-            await createTask.mutateAsync({ title, priority, due_date: due_date ?? (due_time ? today : undefined), due_time })
+            const recurrence = RECURRENCES.includes(g.repeat as TaskRecurrence) ? (g.repeat as TaskRecurrence) : undefined
+            await createTask.mutateAsync({
+              title,
+              priority,
+              due_date: due_date ?? (due_time || recurrence ? today : undefined),
+              due_time,
+              description: str(g.notes),
+              tags: tagsOf(g.tags),
+              recurrence,
+            })
             const when = whenLabel(due_date ?? (due_time ? today : undefined), due_time)
             return { ok: true, label: `Added "${title}"${when ? ` · ${when}` : ''}` }
           }
@@ -181,6 +197,9 @@ export function useNoorExecutor() {
             if (PRIORITIES.includes(g.priority as TaskPriority)) updates.priority = g.priority
             if (g.due_date === null) updates.due_date = null
             if (g.due_time === null) updates.due_time = null
+            if (str(g.notes)) updates.description = str(g.notes)
+            if (RECURRENCES.includes(g.repeat as TaskRecurrence)) updates.recurrence = g.repeat
+            if (tagsOf(g.tags)) updates.tags = tagsOf(g.tags)
             if (!Object.keys(updates).length) return { ok: false, label: 'Nothing to change' }
             await updateTask.mutateAsync({ id: task.id, updates: updates as never })
             return { ok: true, label: `Updated "${(updates.title as string) ?? task.title}"` }
@@ -277,6 +296,16 @@ export function useNoorExecutor() {
             if (!title) return { ok: false, label: 'No challenge title given' }
             await createChallenge.mutateAsync({ title, target_days: Math.min(365, Math.max(1, days)), start_date: today, category: str(g.category) })
             return { ok: true, label: `Started "${title}" · ${days} days` }
+          }
+          case 'pauseChallenge':
+          case 'resumeChallenge':
+          case 'abandonChallenge': {
+            const pool = (challenges ?? []).filter((c) => (a.name === 'resumeChallenge' ? c.status === 'paused' : c.status === 'active' || c.status === 'paused'))
+            const c = str(g.title) ? bestMatch(pool, str(g.title)!, (x) => x.title) : pool.length === 1 ? pool[0] : null
+            if (!c) return { ok: false, label: 'Which challenge?' }
+            const status = a.name === 'pauseChallenge' ? 'paused' : a.name === 'resumeChallenge' ? 'active' : 'failed'
+            await setChallengeStatus.mutateAsync({ id: c.id, status })
+            return { ok: true, label: `"${c.title.split(' — ')[0]}" ${status === 'paused' ? 'paused' : status === 'active' ? 'resumed' : 'ended'}` }
           }
           case 'updateChallengeDay': {
             const active = (challenges ?? []).filter((c) => c.status === 'active')
@@ -381,6 +410,7 @@ export function useNoorExecutor() {
       createWorkout,
       createChallenge,
       incrementChallenge,
+      setChallengeStatus,
       plantTree,
       waterTree,
       addMemory,

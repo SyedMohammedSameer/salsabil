@@ -28,6 +28,11 @@ movement. Declining means the rest of the app works and prayer times do not.
 stored in your account so the thread persists, and is sent to the model provider
 to generate a reply.
 
+**A profile photo — only if you add one.** You choose it from your photo
+library; the app only sees the one photo you pick, and never opens the camera.
+It is stored in our Supabase storage and shown on your profile and in study
+rooms. Removing it deletes the file.
+
 **Study room messages.** Visible to everyone in that room, as you would expect
 of a chat.
 
@@ -35,7 +40,8 @@ of a chat.
 
 We do not use advertising identifiers, run third-party analytics or advertising
 SDKs, sell or rent your data, or build advertising profiles. We do not collect
-contacts, photos, calendar, or precise background location.
+contacts, calendar, or precise background location, and we do not read your
+photo library beyond the one picture you choose as a profile photo.
 
 ## Who else processes your data
 
@@ -59,8 +65,8 @@ off in system settings stops them entirely.
 
 ## Your rights
 
-Your data belongs to your account. You can edit your profile and delete
-individual entries in the app, and you can request full export or deletion of
+Your data belongs to your account. You can edit your profile, delete individual
+entries, and see and delete what Noor remembers about you, all in the app, and you can request full export or deletion of
 your account by emailing the address above. Deleting your account removes your
 profile and everything linked to it.
 

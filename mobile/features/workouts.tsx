@@ -1,22 +1,24 @@
 import { useMemo, useState } from 'react'
-import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, Pressable, ActivityIndicator, Alert, TextInput } from 'react-native'
+import { useRouter, type Href } from 'expo-router'
 import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
-import { Dumbbell, HeartPulse, Footprints, Trophy, StretchHorizontal, Activity } from 'lucide-react-native'
+import { Dumbbell, HeartPulse, Footprints, Trophy, StretchHorizontal, Activity, ChevronRight } from 'lucide-react-native'
 import { HubContent, Muted, Card, Input, GradientButton, FadeIn, SectionHeader } from '~/components/ui'
 import { GrowHero, HeroStat } from '~/components/GrowHero'
+import { DayChips } from '~/components/entries/DayChips'
 import { relativeDay, addDays } from '~/lib/format'
 import { useWorkouts, useCreateWorkout, useDeleteWorkout } from '@/hooks/useWorkouts'
 import { localDateString, daysAgo } from '@/lib/dates'
 import { WORKOUT_COINS } from '@/lib/rewards'
 import { cn } from '@/lib/cn'
-import type { WorkoutType } from '@/lib/database.types'
+import type { Workout, WorkoutType } from '@/lib/database.types'
 
 // The Workouts section of the Grow hub.
 
-const TYPES: WorkoutType[] = ['strength', 'cardio', 'flexibility', 'sports', 'walk', 'other']
+export const WORKOUT_TYPES: WorkoutType[] = ['strength', 'cardio', 'flexibility', 'sports', 'walk', 'other']
 
-const TYPE_LABEL: Record<WorkoutType, string> = {
+export const WORKOUT_LABEL: Record<WorkoutType, string> = {
   strength: 'Strength',
   cardio: 'Cardio',
   flexibility: 'Flexibility',
@@ -35,6 +37,7 @@ const TYPE_ICON: Record<WorkoutType, typeof Dumbbell> = {
 }
 
 export default function WorkoutsScreen() {
+  const router = useRouter()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
   const today = localDateString()
@@ -46,6 +49,9 @@ export default function WorkoutsScreen() {
   const [type, setType] = useState<WorkoutType>('strength')
   const [title, setTitle] = useState('')
   const [duration, setDuration] = useState('')
+  const [date, setDate] = useState(today)
+  const [notes, setNotes] = useState('')
+  const [more, setMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const week = useMemo(() => (workouts ?? []).filter((w) => w.date >= weekStart), [workouts, weekStart])
@@ -66,22 +72,25 @@ export default function WorkoutsScreen() {
       return
     }
     createWorkout.mutate(
-      { type, title: trimmed, duration_mins: Math.round(mins), date: today },
+      { type, title: trimmed, duration_mins: Math.round(mins), date, notes: notes.trim() || undefined },
       {
         onSuccess: () => {
           setTitle('')
           setDuration('')
+          setNotes('')
+          setDate(today)
+          setMore(false)
         },
         onError: (e) => setError(e instanceof Error ? e.message : 'Could not save the workout.'),
       },
     )
   }
 
-  const confirmDelete = (id: string, name: string) => {
+  const confirmDelete = (w: Workout) => {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-    Alert.alert('Delete workout?', name, [
+    Alert.alert('Delete workout?', `${w.title}. The ${WORKOUT_COINS} coins it earned are taken back.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteWorkout.mutate(id) },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteWorkout.mutate(w) },
     ])
   }
 
@@ -115,7 +124,7 @@ export default function WorkoutsScreen() {
         <FadeIn index={1}>
           <Card className="gap-3">
             <View className="flex-row flex-wrap gap-1.5">
-              {TYPES.map((t) => {
+              {WORKOUT_TYPES.map((t) => {
                 const active = type === t
                 const Icon = TYPE_ICON[t]
                 return (
@@ -131,7 +140,7 @@ export default function WorkoutsScreen() {
                   >
                     <Icon size={13} color={active ? rose : '#8a9793'} />
                     <Text className="text-xs font-semibold" style={{ color: active ? rose : '#8a9793' }}>
-                      {TYPE_LABEL[t]}
+                      {WORKOUT_LABEL[t]}
                     </Text>
                   </Pressable>
                 )
@@ -145,6 +154,27 @@ export default function WorkoutsScreen() {
                 <Input value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="min" accessibilityLabel="Minutes" />
               </View>
             </View>
+            {more ? (
+              <View className="gap-3">
+                <DayChips value={date} onChange={setDate} />
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Notes: sets, distance, how it felt"
+                  placeholderTextColor="#83938f"
+                  multiline
+                  maxLength={500}
+                  className="min-h-[64px] rounded-xl border border-input bg-card px-3 py-2.5 text-[15px] text-foreground"
+                  style={{ textAlignVertical: 'top' }}
+                />
+              </View>
+            ) : (
+              <Pressable onPress={() => setMore(true)} hitSlop={6} className="self-start">
+                <Text className="text-xs font-semibold text-noor-600 dark:text-noor-400">
+                  {date === today ? 'Earlier day or notes' : `Logging for ${relativeDay(date, today)}`}
+                </Text>
+              </Pressable>
+            )}
             {error ? <Text className="text-xs text-destructive">{error}</Text> : null}
             <GradientButton onPress={submit} loading={createWorkout.isPending}>
               Log workout · +{WORKOUT_COINS} coins
@@ -154,7 +184,7 @@ export default function WorkoutsScreen() {
 
         <FadeIn index={2}>
           <View className="gap-3">
-            <SectionHeader title="Recent" description="Long-press to delete" />
+            <SectionHeader title="Recent" description="Tap to edit, long-press to delete" />
             {isLoading ? (
               <ActivityIndicator />
             ) : (workouts ?? []).length === 0 ? (
@@ -170,8 +200,9 @@ export default function WorkoutsScreen() {
                       key={w.id}
                       accessibilityRole="button"
                       accessibilityLabel={`${w.title}, ${w.duration_mins} minutes`}
-                      accessibilityHint="Long press to delete"
-                      onLongPress={() => confirmDelete(w.id, w.title)}
+                      accessibilityHint="Opens the workout. Long press to delete"
+                      onPress={() => router.push(`/workouts/${w.id}` as Href)}
+                      onLongPress={() => confirmDelete(w)}
                       className={cn('flex-row items-center gap-3 px-4 py-3', i > 0 && 'border-t border-border')}
                     >
                       <View className="h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10">
@@ -179,11 +210,12 @@ export default function WorkoutsScreen() {
                       </View>
                       <View className="min-w-0 flex-1">
                         <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{w.title}</Text>
-                        <Muted className="text-xs">
-                          {TYPE_LABEL[w.type]} · {w.duration_mins} min · {relativeDay(w.date, today)}
+                        <Muted className="text-xs" numberOfLines={1}>
+                          {WORKOUT_LABEL[w.type]} · {w.duration_mins} min · {relativeDay(w.date, today)}
+                          {w.notes ? ` · ${w.notes}` : ''}
                         </Muted>
                       </View>
-                      <Muted className="text-xs">+{WORKOUT_COINS}</Muted>
+                      <ChevronRight size={16} color="#8a9793" />
                     </Pressable>
                   )
                 })}

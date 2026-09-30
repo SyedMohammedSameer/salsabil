@@ -58,6 +58,7 @@ import { FARD_ORDER, nextPrayer, prayerTimeToDate, type FardName } from '@/lib/a
 import { waterCost } from '@/lib/rewards'
 import { getDailyQuote } from '@/data/quotes'
 import { surahName } from '@/data/surahs'
+import { Avatar } from '~/components/Avatar'
 import { localDateString } from '@/lib/dates'
 import { cn } from '@/lib/cn'
 import type { PrayerStatus } from '@/lib/database.types'
@@ -430,11 +431,13 @@ export default function HomeScreen() {
                 onPress={() => router.push('/profile')}
                 className="flex-row items-center gap-3"
               >
-                <View className="h-[42px] w-[42px] items-center justify-center rounded-full border border-white/25 bg-white/20">
-                  <Text className="text-base font-bold text-white">
-                    {displayName.slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
+                <Avatar
+                  url={profile?.avatar_url}
+                  name={displayName}
+                  size={42}
+                  className="border border-white/25 bg-white/20"
+                  textClassName="text-white"
+                />
                 <View>
                   <Text className="text-xs text-white/75">Assalamu alaikum</Text>
                   <Text className="text-[21px] font-bold tracking-tight text-white" numberOfLines={1}>

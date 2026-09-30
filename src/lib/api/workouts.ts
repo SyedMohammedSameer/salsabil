@@ -29,3 +29,17 @@ export async function deleteWorkout(id: string): Promise<void> {
   const { error } = await supabase.from('workouts').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function updateWorkout(
+  id: string,
+  updates: Partial<Pick<Workout, 'type' | 'title' | 'duration_mins' | 'notes' | 'date'>>,
+): Promise<Workout> {
+  const { data, error } = await supabase
+    .from('workouts')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}

@@ -111,6 +111,16 @@ const config: ExpoConfig = {
         color: '#14b8a6',
       },
     ],
+    [
+      // Profile photos. Library only: the app never opens the camera, so it
+      // declares no camera or microphone permission.
+      'expo-image-picker',
+      {
+        photosPermission: 'Salsabil uses your photo library so you can choose a profile picture.',
+        cameraPermission: false,
+        microphonePermission: false,
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

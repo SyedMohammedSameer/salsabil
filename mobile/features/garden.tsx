@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native'
 import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
-import { Droplets, Coins } from 'lucide-react-native'
+import { Droplets, Coins, Pencil, Check, X } from 'lucide-react-native'
 import { HubContent, Muted, Card, Gradient, GradientButton, FadeIn, SectionHeader } from '~/components/ui'
 import { GrowHero, HeroAction } from '~/components/GrowHero'
 import { SvgTree } from '~/components/garden/SvgTree'
-import { useGardenTrees, usePlantTree, useWaterTree } from '@/hooks/useGarden'
+import { useGardenTrees, usePlantTree, useWaterTree, useRenameTree } from '@/hooks/useGarden'
+import { treeName } from '~/lib/focusControl'
 import { useProfile } from '@/hooks/useProfile'
 import { SPECIES_INFO, XP_THRESHOLDS, computeStage } from '@/lib/api/garden'
 import { waterCost, WATER_XP_GAIN } from '@/lib/rewards'
@@ -41,6 +42,9 @@ export default function GardenScreen() {
   const plantTree = usePlantTree()
   const waterTree = useWaterTree()
   const [selected, setSelected] = useState<string | null>(null)
+  const rename = useRenameTree()
+  const [naming, setNaming] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
 
   const coins = profile?.coins ?? 0
   const list = trees ?? []
@@ -81,8 +85,8 @@ export default function GardenScreen() {
             sub={
               focus && info
                 ? info.next
-                  ? `${SPECIES_INFO[focus.species].name} is ${info.toGo} XP from ${info.next}${readyCount ? ` · ${readyCount} ready to grow a stage` : ''}`
-                  : `${SPECIES_INFO[focus.species].name} is fully grown`
+                  ? `${treeName(focus)} is ${info.toGo} XP from ${info.next}${readyCount ? ` · ${readyCount} ready to grow a stage` : ''}`
+                  : `${treeName(focus)} is fully grown`
                 : 'Plant your first tree from the nursery below'
             }
             right={
@@ -140,10 +144,11 @@ export default function GardenScreen() {
                         key={tree.id}
                         accessibilityRole="button"
                         accessibilityState={{ selected: active }}
-                        accessibilityLabel={`${SPECIES_INFO[tree.species].name}, ${computeStage(tree.xp)}`}
+                        accessibilityLabel={`${treeName(tree)}, ${computeStage(tree.xp)}`}
                         onPress={() => {
                           void Haptics.selectionAsync()
                           setSelected(tree.id)
+                          setNaming(false)
                         }}
                         className="items-center"
                       >
@@ -169,11 +174,60 @@ export default function GardenScreen() {
             <Card className="flex-row items-center gap-3 border-noor-300 dark:border-noor-800">
               <SvgTree species={focus.species} stage={info.stage} seed={focus.id} size={56} />
               <View className="min-w-0 flex-1 gap-1.5">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-[15px] font-semibold text-foreground">{SPECIES_INFO[focus.species].name}</Text>
-                  <View className="rounded-full bg-noor-500/10 px-2.5 py-0.5">
-                    <Text className="text-[11px] font-semibold capitalize text-noor-600 dark:text-noor-400">{info.stage}</Text>
-                  </View>
+                <View className="flex-row items-center justify-between gap-2">
+                  {naming ? (
+                    <View className="flex-1 flex-row items-center gap-1.5">
+                      <TextInput
+                        value={nameDraft}
+                        onChangeText={setNameDraft}
+                        autoFocus
+                        maxLength={30}
+                        placeholder={SPECIES_INFO[focus.species].name}
+                        placeholderTextColor="#83938f"
+                        returnKeyType="done"
+                        onSubmitEditing={() => {
+                          rename.mutate({ id: focus.id, name: nameDraft.trim() || null })
+                          setNaming(false)
+                        }}
+                        accessibilityLabel="Tree name"
+                        className="h-9 flex-1 rounded-lg border border-input bg-card px-2.5 text-[15px] text-foreground"
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Save name"
+                        onPress={() => {
+                          rename.mutate({ id: focus.id, name: nameDraft.trim() || null })
+                          setNaming(false)
+                        }}
+                        className="h-9 w-9 items-center justify-center rounded-lg bg-noor-500/10"
+                      >
+                        <Check size={16} color="#0d9488" />
+                      </Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => setNaming(false)} className="h-9 w-9 items-center justify-center rounded-lg bg-muted">
+                        <X size={16} color="#8a9793" />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename ${treeName(focus)}`}
+                      onPress={() => {
+                        setNameDraft(focus.name ?? '')
+                        setNaming(true)
+                      }}
+                      className="min-w-0 flex-1 flex-row items-center gap-1.5"
+                    >
+                      <Text className="shrink text-[15px] font-semibold text-foreground" numberOfLines={1}>
+                        {treeName(focus)}
+                      </Text>
+                      <Pencil size={12} color="#8a9793" />
+                    </Pressable>
+                  )}
+                  {naming ? null : (
+                    <View className="rounded-full bg-noor-500/10 px-2.5 py-0.5">
+                      <Text className="text-[11px] font-semibold capitalize text-noor-600 dark:text-noor-400">{info.stage}</Text>
+                    </View>
+                  )}
                 </View>
                 <View className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <View className="h-full rounded-full bg-primary" style={{ width: `${info.pct * 100}%` }} />
@@ -198,8 +252,8 @@ export default function GardenScreen() {
               onPress={() => waterTree.mutate(focus)}
             >
               {coins < cost
-                ? `Water ${SPECIES_INFO[focus.species].name} · need ${cost - coins} more coins`
-                : `Water ${SPECIES_INFO[focus.species].name} · ${cost} coins`}
+                ? `Water ${treeName(focus)} · need ${cost - coins} more coins`
+                : `Water ${treeName(focus)} · ${cost} coins`}
             </GradientButton>
           </FadeIn>
         ) : null}
@@ -241,7 +295,7 @@ export default function GardenScreen() {
               <View style={{ width: 8 }} />
             </ScrollView>
             <Muted className="text-xs">
-              Every rewarded action adds XP to your newest tree, so it matures without you paying.
+              Focus sessions grow the tree you choose on the timer; every other reward grows your newest tree, so it matures without you paying.
               Watering accelerates it, and costs more as the tree grows: {waterCost('seed')} coins for a
               seed, {waterCost('mature')} for a mature tree.
             </Muted>

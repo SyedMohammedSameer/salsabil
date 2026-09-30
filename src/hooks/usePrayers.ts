@@ -4,6 +4,7 @@ import {
   getPrayersForDate,
   getPrayersForDateRange,
   upsertPrayer,
+  clearPrayer,
   getPrayerCountForDate,
 } from '@/lib/api/prayers'
 import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
@@ -77,6 +78,19 @@ export function useUpsertPrayer() {
       // cannot farm coins. Marking something 'missed' pays nothing and writes
       // no ledger row, so logging it honestly later still earns.
       void rewardPrayer(user.id, date, prayer, status, qc)
+    },
+  })
+}
+
+export function useClearPrayer() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ date, prayer }: { date: string; prayer: PrayerName }) =>
+      clearPrayer(user!.id, date, prayer),
+    onSuccess: (_data, { date }) => {
+      qc.invalidateQueries({ queryKey: prayerKeys.byDate(user!.id, date) })
+      qc.invalidateQueries({ queryKey: prayerKeys.countByDate(user!.id, date) })
     },
   })
 }

@@ -145,6 +145,23 @@ export async function leaveRoom(roomId: string, userId: string): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * Host only (row-level security, migration 0009): remove someone from the
+ * room and stop them rejoining it.
+ */
+export async function removeParticipant(roomId: string, userId: string): Promise<void> {
+  const ban = await supabase
+    .from('room_bans')
+    .upsert({ room_id: roomId, user_id: userId }, { onConflict: 'room_id,user_id' })
+  if (ban.error) throw ban.error
+  const { error } = await supabase
+    .from('room_participants')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 export async function fetchMessages(roomId: string): Promise<RoomMessage[]> {
   const { data, error } = await supabase
     .from('room_messages')

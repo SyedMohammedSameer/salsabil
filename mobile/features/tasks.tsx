@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { View, Text, Pressable, TextInput, ActivityIndicator } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { useColorScheme } from 'nativewind'
 import * as Haptics from 'expo-haptics'
 import { Plus, CalendarDays, ChevronRight, Bell } from 'lucide-react-native'
@@ -266,6 +266,7 @@ export default function TasksScreen() {
                 {overdue.map((task, i) => (
                   <TaskRow
                     key={task.id}
+                    onOpen={() => router.push(`/tasks/${task.id}` as Href)}
                     task={task}
                     first={i === 0}
                     showDate
@@ -292,6 +293,7 @@ export default function TasksScreen() {
                 {todo.map((task, i) => (
                   <TaskRow
                     key={task.id}
+                    onOpen={() => router.push(`/tasks/${task.id}` as Href)}
                     task={task}
                     first={i === 0}
                     busy={completeTask.isPending && completeTask.variables?.id === task.id}
@@ -313,6 +315,7 @@ export default function TasksScreen() {
                 {done.map((task, i) => (
                   <TaskRow
                     key={task.id}
+                    onOpen={() => router.push(`/tasks/${task.id}` as Href)}
                     task={task}
                     first={i === 0}
                     busy={completeTask.isPending && completeTask.variables?.id === task.id}

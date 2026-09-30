@@ -15,6 +15,7 @@ import {
   MapPin,
   User,
   Shield,
+  Brain,
   Info,
   ChevronRight,
 } from 'lucide-react-native'
@@ -225,6 +226,13 @@ export default function SettingsScreen() {
               title="Profile"
               sub={[profile?.display_name, profile?.username ? `@${profile.username}` : null].filter(Boolean).join(' · ') || user?.email}
               onPress={() => router.push('/profile')}
+            />
+            <Row
+              icon={<Brain size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}
+              tint="bg-noor-500/10"
+              title="What Noor remembers"
+              sub="See and delete Noor's memory"
+              onPress={() => router.push('/memories' as Href)}
             />
             <Row
               icon={<Shield size={17} color={dark ? '#2dd4bf' : '#0d9488'} />}

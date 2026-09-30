@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { View, Text, Pressable, ActivityIndicator } from 'react-native'
+import { View, Text, Pressable, TextInput } from 'react-native'
+import { useRouter, type Href } from 'expo-router'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Check, Trophy, ChevronLeft, Coins } from 'lucide-react-native'
-import { HubContent, Muted, Card, GradientButton, FadeIn, SectionHeader, PressableScale } from '~/components/ui'
+import { Check, Trophy, ChevronLeft, Coins, Pause, Flag, ChevronRight, Sparkles, Plus, X } from 'lucide-react-native'
+import { HubContent, Muted, Card, GradientButton, FadeIn, SectionHeader, PressableScale, Input } from '~/components/ui'
 import { GrowHero, HeroAction } from '~/components/GrowHero'
 import { useChallenges, useCreateChallenge, useIncrementChallenge } from '@/hooks/useChallenges'
 import { localDateString } from '@/lib/dates'
@@ -65,23 +66,47 @@ function DayRing({ current, target }: { current: number; target: number }) {
   )
 }
 
-function ActiveRow({ challenge, onTick, busy }: { challenge: Challenge; onTick: () => void; busy: boolean }) {
+function ActiveRow({
+  challenge,
+  onTick,
+  busy,
+  onOpen,
+}: {
+  challenge: Challenge
+  onTick: () => void
+  busy: boolean
+  onOpen: () => void
+}) {
   const today = localDateString()
   const { coinsPerDay } = getChallengeRewards(challenge.category)
   const pct = Math.min(1, challenge.current_days / Math.max(1, challenge.target_days))
   const complete = challenge.status === 'completed'
+  const paused = challenge.status === 'paused'
+  const failed = challenge.status === 'failed'
   const done = tickedToday(challenge, today)
   return (
-    <Card className="gap-2.5">
+    <PressableScale onPress={onOpen} accessibilityLabel={`Open ${challenge.title}`}>
+    <Card className={cn('gap-2.5', failed && 'opacity-60')}>
       <View className="flex-row items-center justify-between gap-2">
         <View className="min-w-0 flex-1">
           <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{challenge.title}</Text>
           <Muted className="text-xs">
-            {complete ? 'Completed. Alhamdulillah.' : `Day ${challenge.current_days} of ${challenge.target_days}`}
+            {complete
+              ? 'Completed. Alhamdulillah.'
+              : failed
+                ? `Given up on day ${challenge.current_days} of ${challenge.target_days}`
+                : `Day ${challenge.current_days} of ${challenge.target_days}${paused ? ' · paused' : ''}`}
           </Muted>
         </View>
         {complete ? (
           <Trophy size={18} color="#f59e0b" />
+        ) : failed ? (
+          <Flag size={16} color="#8a9793" />
+        ) : paused ? (
+          <View className="flex-row items-center gap-1 rounded-full bg-warn-500/10 px-3 py-1.5">
+            <Pause size={11} color="#f59e0b" />
+            <Text className="text-xs font-semibold text-warn-600 dark:text-warn-400">Paused</Text>
+          </View>
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -99,9 +124,167 @@ function ActiveRow({ challenge, onTick, busy }: { challenge: Challenge; onTick: 
         )}
       </View>
       <View className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <View className="h-full rounded-full" style={{ width: `${pct * 100}%`, backgroundColor: complete ? '#f59e0b' : '#8b5cf6' }} />
+        <View className="h-full rounded-full" style={{ width: `${pct * 100}%`, backgroundColor: complete ? '#f59e0b' : paused || failed ? '#8a9793' : '#8b5cf6' }} />
       </View>
     </Card>
+    </PressableScale>
+  )
+}
+
+// ─── Custom challenge ────────────────────────────────────────────────────────
+
+const CUSTOM_DAYS = [7, 14, 21, 30, 40]
+const CATEGORIES = ['spiritual', 'fitness', 'study', 'habit', 'other']
+
+function CustomForm({
+  onBack,
+  onCreate,
+  creating,
+}: {
+  onBack: () => void
+  onCreate: (input: { title: string; checklist: string[]; days: number; start: string; category: string }) => void
+  creating: boolean
+}) {
+  const today = localDateString()
+  const [title, setTitle] = useState('')
+  const [items, setItems] = useState<string[]>([])
+  const [draft, setDraft] = useState('')
+  const [days, setDays] = useState(30)
+  const [customDays, setCustomDays] = useState('')
+  const [startTomorrow, setStartTomorrow] = useState(false)
+  const [category, setCategory] = useState('habit')
+  const [error, setError] = useState<string | null>(null)
+  const rewards = getChallengeRewards(null)
+  const total = customDays ? Number(customDays) || 0 : days
+
+  const addItem = () => {
+    if (!draft.trim()) return
+    setItems((all) => [...all, draft.trim()])
+    setDraft('')
+  }
+
+  const submit = () => {
+    setError(null)
+    if (!title.trim()) return setError('Give the challenge a name.')
+    if (!Number.isFinite(total) || total < 1 || total > 365) return setError('Choose 1 to 365 days.')
+    const start = new Date()
+    if (startTomorrow) start.setDate(start.getDate() + 1)
+    onCreate({
+      title: title.trim(),
+      checklist: [...items, draft].map((t) => t.trim()).filter(Boolean),
+      days: Math.round(total),
+      start: startTomorrow ? localDateString(start) : today,
+      category,
+    })
+  }
+
+  const chip = (active: boolean) =>
+    cn('rounded-full border px-3.5 py-2', active ? 'border-noor-500 bg-noor-500/10' : 'border-transparent bg-muted')
+  const chipText = (active: boolean) =>
+    cn('text-xs font-semibold', active ? 'text-noor-600 dark:text-noor-400' : 'text-muted-foreground')
+
+  return (
+    <HubContent>
+      <View className="gap-4 pt-1">
+        <Pressable accessibilityRole="button" onPress={onBack} className="flex-row items-center gap-1 self-start py-1">
+          <ChevronLeft size={18} color="#14b8a6" />
+          <Text className="text-sm font-medium text-noor-600 dark:text-noor-400">All challenges</Text>
+        </Pressable>
+        <GrowHero eyebrow="Custom challenge" title="Your own rules" sub="Name it, decide what a done day means, and how long it runs." />
+        <Card className="gap-4">
+          <Input label="Name" value={title} onChangeText={setTitle} placeholder="e.g. 30 days of Fajr in the masjid" maxLength={80} />
+
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">What counts as a done day</Text>
+            {items.map((item, i) => (
+              <View key={i} className="flex-row items-center gap-2">
+                <Check size={14} color="#10b981" />
+                <Text className="flex-1 text-sm text-foreground">{item}</Text>
+                <Pressable onPress={() => setItems((all) => all.filter((_, j) => j !== i))} hitSlop={8}>
+                  <X size={15} color="#8a9793" />
+                </Pressable>
+              </View>
+            ))}
+            <View className="flex-row items-center gap-2">
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                onSubmitEditing={addItem}
+                placeholder="Add a checklist item"
+                placeholderTextColor="#83938f"
+                returnKeyType="done"
+                className="h-11 flex-1 rounded-xl border border-input bg-card px-3 text-[15px] text-foreground"
+              />
+              <Pressable onPress={addItem} accessibilityLabel="Add item" className="h-11 w-11 items-center justify-center rounded-xl bg-noor-500/10">
+                <Plus size={16} color="#0d9488" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">How many days</Text>
+            <View className="flex-row flex-wrap items-center gap-2">
+              {CUSTOM_DAYS.map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={() => {
+                    void Haptics.selectionAsync()
+                    setCustomDays('')
+                    setDays(d)
+                  }}
+                  className={chip(!customDays && days === d)}
+                >
+                  <Text className={chipText(!customDays && days === d)}>{d} days</Text>
+                </Pressable>
+              ))}
+              <TextInput
+                value={customDays}
+                onChangeText={(v) => setCustomDays(v.replace(/[^0-9]/g, ''))}
+                placeholder="Other"
+                placeholderTextColor="#83938f"
+                keyboardType="number-pad"
+                maxLength={3}
+                className="h-[34px] w-20 rounded-full border border-input bg-card px-3 text-center text-xs text-foreground"
+              />
+            </View>
+          </View>
+
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">Starts</Text>
+            <View className="flex-row gap-2">
+              {[false, true].map((t) => (
+                <Pressable key={String(t)} onPress={() => setStartTomorrow(t)} className={chip(startTomorrow === t)}>
+                  <Text className={chipText(startTomorrow === t)}>{t ? 'Tomorrow' : 'Today'}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">Kind</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {CATEGORIES.map((c) => (
+                <Pressable key={c} onPress={() => setCategory(c)} className={chip(category === c)}>
+                  <Text className={chipText(category === c)}>{c[0].toUpperCase() + c.slice(1)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View className="flex-row items-center gap-2 rounded-xl bg-muted p-3">
+            <Coins size={14} color="#d97706" />
+            <Muted className="flex-1 text-xs">
+              {rewards.coinsPerDay} coins a day, plus {rewards.completionBonus} on completion:{' '}
+              {(rewards.coinsPerDay * (total || 0) + rewards.completionBonus).toLocaleString()} in total.
+            </Muted>
+          </View>
+          {error ? <Text className="text-xs text-destructive">{error}</Text> : null}
+          <GradientButton onPress={submit} loading={creating}>
+            Start challenge
+          </GradientButton>
+        </Card>
+      </View>
+    </HubContent>
   )
 }
 
@@ -212,14 +395,21 @@ function TemplateDetail({
 }
 
 export default function ChallengesScreen() {
+  const router = useRouter()
   const today = localDateString()
   const { data: challenges, isLoading } = useChallenges()
   const createChallenge = useCreateChallenge()
   const increment = useIncrementChallenge()
   const [openTemplate, setOpenTemplate] = useState<ChallengeTemplate | null>(null)
+  const [custom, setCustom] = useState(false)
+  const open = (c: Challenge) => router.push(`/challenges/${c.id}` as Href)
 
   const active = useMemo(() => (challenges ?? []).filter((c) => c.status === 'active'), [challenges])
-  const completed = useMemo(() => (challenges ?? []).filter((c) => c.status === 'completed'), [challenges])
+  const paused = useMemo(() => (challenges ?? []).filter((c) => c.status === 'paused'), [challenges])
+  const finished = useMemo(
+    () => (challenges ?? []).filter((c) => c.status === 'completed' || c.status === 'failed'),
+    [challenges],
+  )
   const lead = active[0] ?? null
   const rest = active.slice(1)
 
@@ -237,7 +427,8 @@ export default function ChallengesScreen() {
           createChallenge.mutate(
             {
               title: `${openTemplate.name} — ${level.label}`,
-              description: level.tasks.join(' · '),
+              // The web's format: the daily checklist as a JSON array.
+              description: JSON.stringify(level.tasks),
               target_days: days,
               start_date: today,
               // The category encodes template + difficulty, which is how
@@ -247,6 +438,21 @@ export default function ChallengesScreen() {
             { onSuccess: () => setOpenTemplate(null) },
           )
         }}
+      />
+    )
+  }
+
+  if (custom) {
+    return (
+      <CustomForm
+        onBack={() => setCustom(false)}
+        creating={createChallenge.isPending}
+        onCreate={({ title, checklist, days, start, category }) =>
+          createChallenge.mutate(
+            { title, description: JSON.stringify(checklist), target_days: days, start_date: start, category },
+            { onSuccess: () => setCustom(false) },
+          )
+        }
       />
     )
   }
@@ -263,8 +469,13 @@ export default function ChallengesScreen() {
               eyebrow="In progress"
               title={lead.title.split(' — ')[0]}
               sub={`${lead.target_days - lead.current_days} days to go · ${leadRewards.coinsPerDay} a day, ${leadRewards.completionBonus.toLocaleString()} on completion`}
-              right={<DayRing current={lead.current_days} target={lead.target_days} />}
+              right={
+                <Pressable accessibilityRole="button" accessibilityLabel="Open challenge" onPress={() => open(lead)}>
+                  <DayRing current={lead.current_days} target={lead.target_days} />
+                </Pressable>
+              }
               footer={
+                <View className="flex-row items-center gap-2">
                 <HeroAction
                   icon={<Check size={14} strokeWidth={2.5} color="#115e59" />}
                   disabled={leadDone || (increment.isPending && increment.variables?.id === lead.id)}
@@ -272,6 +483,11 @@ export default function ChallengesScreen() {
                 >
                   {leadDone ? 'Done for today' : `Mark today done · +${leadRewards.coinsPerDay}`}
                 </HeroAction>
+                <Pressable onPress={() => open(lead)} hitSlop={8} className="flex-row items-center gap-0.5 px-2 py-2">
+                  <Text className="text-[13px] font-semibold text-white/90">Details</Text>
+                  <ChevronRight size={14} color="rgba(255,255,255,0.9)" />
+                </Pressable>
+                </View>
               }
             />
           ) : (
@@ -283,14 +499,25 @@ export default function ChallengesScreen() {
           )}
         </FadeIn>
 
-        {rest.length > 0 || completed.length > 0 ? (
+        {rest.length > 0 || paused.length > 0 ? (
           <FadeIn index={1}>
             <View className="gap-3">
               {rest.map((c) => (
-                <ActiveRow key={c.id} challenge={c} busy={increment.isPending && increment.variables?.id === c.id} onTick={() => tick(c)} />
+                <ActiveRow key={c.id} challenge={c} onOpen={() => open(c)} busy={increment.isPending && increment.variables?.id === c.id} onTick={() => tick(c)} />
               ))}
-              {completed.slice(0, 3).map((c) => (
-                <ActiveRow key={c.id} challenge={c} busy={false} onTick={() => undefined} />
+              {paused.map((c) => (
+                <ActiveRow key={c.id} challenge={c} onOpen={() => open(c)} busy={false} onTick={() => undefined} />
+              ))}
+            </View>
+          </FadeIn>
+        ) : null}
+
+        {finished.length > 0 ? (
+          <FadeIn index={1}>
+            <View className="gap-3">
+              <SectionHeader title="Finished" count={finished.length} />
+              {finished.slice(0, 5).map((c) => (
+                <ActiveRow key={c.id} challenge={c} onOpen={() => open(c)} busy={false} onTick={() => undefined} />
               ))}
             </View>
           </FadeIn>
@@ -298,7 +525,19 @@ export default function ChallengesScreen() {
 
         <FadeIn index={2}>
           <View className="gap-3">
-            <SectionHeader title="Start something new" description={`${CHALLENGE_TEMPLATES.length} templates`} />
+            <SectionHeader title="Start something new" description={`${CHALLENGE_TEMPLATES.length} templates, or your own`} />
+            <PressableScale onPress={() => setCustom(true)} accessibilityLabel="Create a custom challenge">
+              <Card className="flex-row items-center gap-3 border-dashed border-violet-500/40">
+                <View className="h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10">
+                  <Sparkles size={20} color="#8b5cf6" />
+                </View>
+                <View className="min-w-0 flex-1">
+                  <Text className="text-[15px] font-semibold text-foreground">Custom challenge</Text>
+                  <Muted className="text-xs">Your own name, checklist and length</Muted>
+                </View>
+                <ChevronRight size={18} color="#8a9793" />
+              </Card>
+            </PressableScale>
             {CHALLENGE_TEMPLATES.map((template) => {
               const easy = template.levels.easy
               return (

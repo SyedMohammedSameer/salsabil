@@ -109,3 +109,27 @@ export async function getCoinTransactions(userId: string): Promise<CoinTransacti
   if (error) throw error
   return data ?? []
 }
+
+/**
+ * Take back an award when the thing it paid for is deleted, so deleting a log
+ * and logging it again cannot earn twice. Best effort: nothing happens if the
+ * award was never paid, and a balance too low to cover it is left alone
+ * rather than blocking the delete.
+ */
+export async function reverseAward(
+  userId: string,
+  idempotencyKey: string,
+  action: CoinAction,
+  amount: number,
+  description: string,
+): Promise<boolean> {
+  if (amount <= 0) return false
+  const paid = await hasBeenAwarded(userId, idempotencyKey).catch(() => false)
+  if (!paid) return false
+  try {
+    await spendCoins(userId, action, amount, description)
+    return true
+  } catch {
+    return false
+  }
+}

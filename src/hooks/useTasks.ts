@@ -8,14 +8,16 @@ import {
   completeTask,
   deleteTask,
   getTodayTaskStats,
+  spawnNextOccurrence,
 } from '@/lib/api/tasks'
+import { localDateString } from '@/lib/dates'
 import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
 import { createNotification } from '@/lib/api/notifications'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
 import { coinsFor } from '@/lib/rewards'
 import { notificationKeys } from './useNotifications'
-import type { Task, TaskPriority } from '@/lib/database.types'
+import type { Task, TaskPriority, TaskRecurrence } from '@/lib/database.types'
 import { useAuth } from './useAuth'
 
 export const taskKeys = {
@@ -81,6 +83,7 @@ export function useCreateTask() {
       due_date?: string
       due_time?: string
       tags?: string[]
+      recurrence?: TaskRecurrence
     }) => createTask(user!.id, input),
     onSuccess: (newTask) => {
       qc.setQueryData<Task[]>(taskKeys.all(user!.id), (old) =>
@@ -147,6 +150,13 @@ export function useCompleteTask() {
         const reward = coinsFor({ kind: 'task', priority: updated.priority })
 
         Promise.allSettled([
+          // A repeating task puts its next occurrence on the list.
+          spawnNextOccurrence(updated, localDateString()).then((next) => {
+            if (!next) return
+            qc.setQueryData<Task[]>(taskKeys.all(user.id), (old) => (old ? [...old, next] : [next]))
+            if (next.due_date)
+              qc.invalidateQueries({ queryKey: taskKeys.byDate(user.id, next.due_date) })
+          }),
           awardCoinsOnce(
             user.id,
             'task_complete',

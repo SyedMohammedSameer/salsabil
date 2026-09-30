@@ -30,6 +30,9 @@ export type NoorActionName =
   | 'logWorkout'
   | 'createChallenge'
   | 'updateChallengeDay'
+  | 'pauseChallenge'
+  | 'resumeChallenge'
+  | 'abandonChallenge'
   | 'plantTree'
   | 'waterTree'
   | 'addMemory'
@@ -64,6 +67,9 @@ const KNOWN = new Set<NoorActionName>([
   'logWorkout',
   'createChallenge',
   'updateChallengeDay',
+  'pauseChallenge',
+  'resumeChallenge',
+  'abandonChallenge',
   'plantTree',
   'waterTree',
   'addMemory',
@@ -73,7 +79,7 @@ const KNOWN = new Set<NoorActionName>([
 ])
 
 /** Actions that remove something; these wait for the user to confirm. */
-export const NEEDS_CONFIRMATION = new Set<NoorActionName>(['deleteTask', 'forgetMemory', 'cancelTimer'])
+export const NEEDS_CONFIRMATION = new Set<NoorActionName>(['deleteTask', 'forgetMemory', 'cancelTimer', 'abandonChallenge'])
 
 /**
  * Pull every action tag out of a reply.
@@ -151,10 +157,10 @@ You are running inside the Salsabil phone app. It runs your action tags automati
 Format: [ACTION:name|{json}]
 
 Tasks
-[ACTION:createTask|{"title":"...","priority":"low|medium|high|urgent","due_date":"YYYY-MM-DD","due_time":"HH:MM"}]  (due_date and due_time optional; a time sets a reminder)
+[ACTION:createTask|{"title":"...","priority":"low|medium|high|urgent","due_date":"YYYY-MM-DD","due_time":"HH:MM","repeat":"none|daily|weekly|monthly","notes":"...","tags":["study"]}]  (everything but title optional; a time sets a reminder)
 [ACTION:completeTask|{"title":"words from the task title"}]
 [ACTION:reopenTask|{"title":"..."}]
-[ACTION:updateTask|{"title":"current title","new_title":"...","due_date":"YYYY-MM-DD","due_time":"HH:MM","priority":"..."}]  (only the fields that change)
+[ACTION:updateTask|{"title":"current title","new_title":"...","due_date":"YYYY-MM-DD","due_time":"HH:MM","priority":"...","repeat":"...","notes":"...","tags":["..."]}]  (only the fields that change)
 [ACTION:deleteTask|{"title":"..."}]  (the user confirms with a tap)
 
 Worship
@@ -173,6 +179,8 @@ Health and habits
 [ACTION:logWorkout|{"type":"strength|cardio|flexibility|sports|walk|other","title":"...","duration_mins":30}]
 [ACTION:createChallenge|{"title":"...","target_days":30,"category":"spiritual|fitness|study|other"}]
 [ACTION:updateChallengeDay|{"title":"words from the challenge title"}]  (marks today done)
+[ACTION:pauseChallenge|{"title":"..."}]   [ACTION:resumeChallenge|{"title":"..."}]
+[ACTION:abandonChallenge|{"title":"..."}]  (gives it up; the user confirms)
 
 Garden
 [ACTION:plantTree|{"species":"olive|acacia|date_palm|pomegranate|fig|pine|cedar|oak|lote|sakura|banyan|baobab"}]  (costs coins)
@@ -232,6 +240,12 @@ export function actionSummary(a: NoorAction): string {
       return `Start challenge ${q(g.title)}`
     case 'updateChallengeDay':
       return `Mark ${q(g.title)} done today`
+    case 'pauseChallenge':
+      return `Pause ${q(g.title) || 'the challenge'}`
+    case 'resumeChallenge':
+      return `Resume ${q(g.title) || 'the challenge'}`
+    case 'abandonChallenge':
+      return `Give up ${q(g.title) || 'the challenge'}`
     case 'plantTree':
       return `Plant a ${String(g.species ?? 'tree').replace('_', ' ')}`
     case 'waterTree':

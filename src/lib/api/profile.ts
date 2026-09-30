@@ -42,6 +42,40 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
 }
 
 /**
+ * Upload a profile photo from raw bytes (the phone app has no File object).
+ *
+ * Stored under avatars/<user>/, the folder the storage policy lets each user
+ * write to. The policy allows insert and delete but not update, so a new photo
+ * gets a new name instead of overwriting, and the previous ones are removed
+ * afterwards. The new name also means no stale cached image.
+ */
+export async function uploadAvatarBytes(
+  userId: string,
+  bytes: ArrayBuffer,
+  contentType: string,
+): Promise<string> {
+  const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
+  const name = `avatar-${Date.now()}.${ext}`
+  const path = `${userId}/${name}`
+  const { error } = await supabase.storage.from('avatars').upload(path, bytes, { contentType })
+  if (error) throw error
+
+  // Best effort: a leftover old photo is harmless.
+  const { data: existing } = await supabase.storage.from('avatars').list(userId)
+  const stale = (existing ?? []).filter((f) => f.name !== name).map((f) => `${userId}/${f.name}`)
+  if (stale.length) await supabase.storage.from('avatars').remove(stale)
+
+  return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
+}
+
+/** Remove the profile photo files; the caller clears avatar_url. */
+export async function removeAvatarFiles(userId: string): Promise<void> {
+  const { data: existing } = await supabase.storage.from('avatars').list(userId)
+  const paths = (existing ?? []).map((f) => `${userId}/${f.name}`)
+  if (paths.length) await supabase.storage.from('avatars').remove(paths)
+}
+
+/**
  * Permanently delete the signed-in user's account and everything linked to it.
  *
  * Required by App Store Review Guideline 5.1.1(v) and the Play equivalent: an

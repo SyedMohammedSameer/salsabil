@@ -4,6 +4,8 @@ import {
   Text,
   Pressable,
   Share,
+  Modal,
+  Alert,
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
@@ -15,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQueryClient } from '@tanstack/react-query'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Send, Users, Pause, Play, RotateCcw, Settings2, Share2, DoorClosed } from 'lucide-react-native'
+import { Send, Users, Pause, Play, RotateCcw, Settings2, Share2, DoorClosed, LogOut, Crown, UserMinus, X } from 'lucide-react-native'
+import { inviteMessage } from '~/lib/invite'
 import { Muted, Gradient, Button } from '~/components/ui'
 import { StackBar, BarButton } from '~/components/StackBar'
 import { formatClock } from '~/lib/focusPresets'
@@ -26,8 +29,10 @@ import {
   useRoomPresence,
   useUpdateTimer,
   useSendMessage,
+  useRemoveParticipant,
   computeTimerRemaining,
 } from '@/hooks/useStudyRooms'
+import { leaveRoom } from '@/lib/api/studyRooms'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile, profileKeys } from '@/hooks/useProfile'
 import { gardenKeys } from '@/hooks/useGarden'
@@ -69,7 +74,23 @@ export default function RoomDetailScreen() {
   const updateTimer = useUpdateTimer()
   const sendMessage = useSendMessage()
 
-  useRoomPresence(id, user?.id, displayName)
+  const { joinError } = useRoomPresence(id, user?.id, displayName)
+  const removeParticipant = useRemoveParticipant()
+  const [peopleOpen, setPeopleOpen] = useState(false)
+
+  // Removed by the host while here: my row disappears without my leaving.
+  const [removed, setRemoved] = useState(false)
+  const wasPresent = useRef(false)
+  const amPresent = participants.some((p) => p.user_id === user?.id)
+  useEffect(() => {
+    if (amPresent) wasPresent.current = true
+    else if (wasPresent.current) setRemoved(true)
+  }, [amPresent])
+
+  const leave = () => {
+    if (user && id) void leaveRoom(id, user.id).catch(() => undefined)
+    router.back()
+  }
 
   const [remaining, setRemaining] = useState(0)
   const [draft, setDraft] = useState('')
@@ -188,6 +209,25 @@ export default function RoomDetailScreen() {
     )
   }
 
+  // A refused join is a row-level-security error (migration 0009's ban
+  // check); anything else, like a dropped connection, is not a removal.
+  const banned = !!joinError && /row-level security|42501|violates/i.test(joinError.message ?? '')
+  if ((removed || banned) && room.owner_id !== user?.id) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-background">
+        <StackBar title={room.name} />
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <UserMinus size={36} strokeWidth={1.5} color="#8a9793" />
+          <Text className="text-center text-[17px] font-semibold text-foreground">You can't join this room</Text>
+          <Muted className="text-center text-sm">The host removed you from it.</Muted>
+          <Button variant="outline" onPress={() => router.back()}>
+            Back to rooms
+          </Button>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   const stateLabel =
     room.timer_state === 'running'
       ? 'In session'
@@ -207,12 +247,18 @@ export default function RoomDetailScreen() {
           sub={`Code ${room.code} · ${isHost ? 'you are the host' : 'hosted room'}`}
           trailing={
             <View className="flex-row items-center gap-2">
-              <View className="flex-row items-center gap-1">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${participants.length} people in the room. Show them`}
+                onPress={() => setPeopleOpen(true)}
+                hitSlop={6}
+                className="flex-row items-center gap-1 rounded-full bg-muted px-2.5 py-1.5"
+              >
                 <Users size={14} color="#8a9793" />
                 <Muted className="text-xs">
                   {participants.length} / {room.max_participants}
                 </Muted>
-              </View>
+              </Pressable>
               {isHost ? (
                 <BarButton
                   icon={<Settings2 size={17} color="#8a9793" />}
@@ -220,11 +266,7 @@ export default function RoomDetailScreen() {
                   onPress={() => router.push(`/room-settings/${room.id}` as Href)}
                 />
               ) : (
-                <BarButton
-                  icon={<Share2 size={16} color="#8a9793" />}
-                  label="Share room code"
-                  onPress={() => void Share.share({ message: `Join "${room.name}" on Salsabil. Room code: ${room.code}` })}
-                />
+                <BarButton icon={<LogOut size={16} color="#8a9793" />} label="Leave room" onPress={leave} />
               )}
             </View>
           }
@@ -375,6 +417,96 @@ export default function RoomDetailScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Everyone in the room */}
+      <Modal visible={peopleOpen} transparent animationType="slide" onRequestClose={() => setPeopleOpen(false)}>
+        <Pressable className="flex-1 bg-black/40" onPress={() => setPeopleOpen(false)} />
+        <View className="max-h-[70%] rounded-t-[28px] bg-background px-4 pb-8 pt-3">
+          <View className="mb-3 h-1 w-10 self-center rounded-full bg-muted" />
+          <View className="mb-2 flex-row items-center justify-between">
+            <Text className="text-[17px] font-semibold text-foreground">
+              In the room · {participants.length} of {room.max_participants}
+            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setPeopleOpen(false)} className="h-8 w-8 items-center justify-center rounded-full bg-muted">
+              <X size={15} color="#8a9793" />
+            </Pressable>
+          </View>
+          <FlatList
+            data={participants}
+            keyExtractor={(p) => p.user_id}
+            renderItem={({ item: p, index }) => {
+              const me = p.user_id === user?.id
+              const host = p.user_id === room.owner_id
+              return (
+                <View className={cn('flex-row items-center gap-3 py-3', index > 0 && 'border-t border-border')}>
+                  <View className="h-9 w-9 items-center justify-center rounded-full bg-noor-500/15">
+                    <Text className="text-sm font-bold text-noor-700 dark:text-noor-300">{initialsOf(p.display_name)}</Text>
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-[15px] font-medium text-foreground" numberOfLines={1}>
+                      {me ? 'You' : (p.display_name ?? 'Someone')}
+                    </Text>
+                    {p.joined_at && !Number.isNaN(new Date(p.joined_at).getTime()) ? (
+                      <Muted className="text-xs">
+                        Joined {new Date(p.joined_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      </Muted>
+                    ) : null}
+                  </View>
+                  {host ? (
+                    <View className="flex-row items-center gap-1 rounded-full bg-gold-500/10 px-2.5 py-1">
+                      <Crown size={12} color="#d97706" />
+                      <Text className="text-[11px] font-semibold text-warn-600 dark:text-warn-400">Host</Text>
+                    </View>
+                  ) : isHost ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${p.display_name ?? 'this person'}`}
+                      onPress={() =>
+                        Alert.alert(`Remove ${p.display_name ?? 'this person'}?`, 'They leave the room and cannot rejoin it.', [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: () =>
+                              removeParticipant.mutate(
+                                { roomId: room.id, userId: p.user_id },
+                                { onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not remove them.') },
+                              ),
+                          },
+                        ])
+                      }
+                      className="rounded-full border border-danger-500/30 px-3 py-1.5"
+                    >
+                      <Text className="text-xs font-semibold text-danger-500">Remove</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )
+            }}
+          />
+          <View className="mt-3 flex-row gap-2">
+            <View className="flex-1">
+              <Button variant="outline" icon={<Share2 size={15} color="#0d9488" />} onPress={() => void Share.share({ message: inviteMessage(room) })}>
+                Invite
+              </Button>
+            </View>
+            {!isHost ? (
+              <View className="flex-1">
+                <Button
+                  variant="outline"
+                  icon={<LogOut size={15} color="#ef4444" />}
+                  onPress={() => {
+                    setPeopleOpen(false)
+                    leave()
+                  }}
+                >
+                  Leave room
+                </Button>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }

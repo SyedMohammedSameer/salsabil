@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { View, Text, Pressable, ActivityIndicator } from 'react-native'
+import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native'
+import { Avatar } from '~/components/Avatar'
+import { pickAndUploadAvatar } from '~/lib/avatar'
+import { removeAvatarFiles } from '@/lib/api/profile'
+import { toast } from '@/lib/platform/toast'
 import { useRouter, type Href } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useColorScheme } from 'nativewind'
@@ -16,6 +20,7 @@ import {
   Award,
   BellRing,
   ChevronRight,
+  Camera,
 } from 'lucide-react-native'
 import { Screen, Muted, Card, Button, Input, Gradient, FadeIn, SectionHeader } from '~/components/ui'
 import { GROW_HERO } from '~/components/GrowHero'
@@ -74,11 +79,53 @@ export default function ProfileScreen() {
     staleTime: 60_000,
   })
 
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  const changePhoto = async () => {
+    if (!user) return
+    setPhotoBusy(true)
+    try {
+      const url = await pickAndUploadAvatar(user.id)
+      if (url) await updateProfile.mutateAsync({ avatar_url: url })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not update your photo.')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+  const removePhoto = async () => {
+    if (!user) return
+    setPhotoBusy(true)
+    try {
+      await updateProfile.mutateAsync({ avatar_url: null })
+      await removeAvatarFiles(user.id).catch(() => undefined)
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+  const photoMenu = () => {
+    if (!profile?.avatar_url) {
+      void changePhoto()
+      return
+    }
+    Alert.alert('Profile photo', undefined, [
+      { text: 'Choose a new photo', onPress: () => void changePhoto() },
+      { text: 'Remove photo', style: 'destructive', onPress: () => void removePhoto() },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
   const save = () => {
     if (!user) return
     setSaved(false)
+    setUsernameError(null)
+    const handle = username.trim().toLowerCase()
+    if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
+      setUsernameError('3 to 20 characters: lowercase letters, numbers and _.')
+      return
+    }
     updateProfile.mutate(
-      { display_name: displayName.trim() || null, username: username.trim() || null },
+      { display_name: displayName.trim() || null, username: handle },
       { onSuccess: () => setSaved(true) },
     )
   }
@@ -117,9 +164,23 @@ export default function ProfileScreen() {
           >
             <View className="gap-3.5 px-5 pb-4 pt-[18px]">
               <View className="flex-row items-center gap-3.5">
-                <View className="h-14 w-14 items-center justify-center rounded-full border border-white/40 bg-white/20">
-                  <Text className="text-[22px] font-bold text-white">{name.slice(0, 1).toUpperCase()}</Text>
-                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Change profile photo"
+                  onPress={photoMenu}
+                  disabled={photoBusy}
+                >
+                  <Avatar
+                    url={profile?.avatar_url}
+                    name={name}
+                    size={56}
+                    className="border border-white/40 bg-white/20"
+                    textClassName="text-white"
+                  />
+                  <View className="absolute -bottom-0.5 -right-0.5 h-6 w-6 items-center justify-center rounded-full border-2 border-[#0f766e] bg-white">
+                    {photoBusy ? <ActivityIndicator size="small" color="#0f766e" /> : <Camera size={12} color="#0f766e" />}
+                  </View>
+                </Pressable>
                 <View className="min-w-0 flex-1">
                   <Text className="text-[22px] font-bold leading-7 tracking-tight text-white" numberOfLines={1}>
                     {name}
@@ -169,7 +230,7 @@ export default function ProfileScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="unique handle"
-              error={updateProfile.isError ? 'That username may already be taken. Try another.' : null}
+              error={usernameError ?? (updateProfile.isError ? 'That username may already be taken. Try another.' : null)}
             />
             <Button onPress={save} loading={updateProfile.isPending}>
               {saved ? 'Saved' : 'Save changes'}

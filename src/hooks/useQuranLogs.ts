@@ -5,8 +5,12 @@ import {
   getWeeklyQuranPages,
   createQuranLog,
   getTodayQuranPages,
+  updateQuranLog,
+  deleteQuranLog,
+  type QuranLogUpdate,
 } from '@/lib/api/quran'
-import { awardCoinsOnce, awardKeys } from '@/lib/api/coins'
+import { awardCoinsOnce, awardKeys, reverseAward } from '@/lib/api/coins'
+import type { QuranLog } from '@/lib/database.types'
 import { coinsFor } from '@/lib/rewards'
 import { profileKeys } from './useProfile'
 import { gardenKeys } from './useGarden'
@@ -94,6 +98,50 @@ export function useCreateQuranLog() {
         .catch(() => {
           /* the log itself saved; a failed payout must not surface as an error */
         })
+    },
+  })
+}
+
+function invalidateQuran(qc: ReturnType<typeof useQueryClient>, userId: string) {
+  // Every Quran query (lists, per day, weekly, today's pages) starts with one
+  // of these two prefixes.
+  qc.invalidateQueries({ queryKey: ['quran', userId] })
+  qc.invalidateQueries({ queryKey: ['quran-pages', userId] })
+}
+
+/**
+ * Correct a reading. Coins stay as first paid: changing the page count later
+ * does not pay more, or take any back.
+ */
+export function useUpdateQuranLog() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: QuranLogUpdate }) =>
+      updateQuranLog(id, updates),
+    onSuccess: () => invalidateQuran(qc, user!.id),
+  })
+}
+
+/** Delete a reading, and take back the coins it earned. */
+export function useDeleteQuranLog() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (log: QuranLog) => {
+      await deleteQuranLog(log.id)
+      const reward = coinsFor({ kind: 'quran', pages: log.pages_read })
+      await reverseAward(
+        user!.id,
+        awardKeys.quran(log.id),
+        'quran_page',
+        reward.coins,
+        'Removed a Quran log',
+      )
+    },
+    onSuccess: () => {
+      invalidateQuran(qc, user!.id)
+      qc.invalidateQueries({ queryKey: profileKeys.byId(user!.id) })
     },
   })
 }
