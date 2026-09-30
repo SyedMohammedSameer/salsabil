@@ -13,7 +13,6 @@
 ```bash
 git clone https://github.com/SyedMohammedSameer/salsabil.git
 cd salsabil
-git checkout claude/review-project-structure-gMdJd
 npm install
 ```
 
@@ -35,6 +34,11 @@ supabase/migrations/0001_initial_schema.sql
 supabase/migrations/0002_study_rooms.sql
 supabase/migrations/0003_coins_and_garden.sql
 supabase/migrations/0004_push_subscriptions.sql
+supabase/migrations/0005_user_memories.sql
+supabase/migrations/0006_economy_rebuild.sql   (or the three files in 0006_parts/)
+supabase/migrations/0007_account_deletion.sql
+supabase/migrations/0008_private_rooms.sql
+supabase/migrations/0009_room_moderation.sql
 ```
 
 Paste each file's contents and click **Run**.

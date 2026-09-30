@@ -13,14 +13,20 @@ Work top to bottom; each section assumes the previous one is finished.
 These have been outstanding since the economy rebuild, and nothing works
 properly without them.
 
-1. **Run the migrations.** Open the Supabase SQL editor and run, in order:
+1. **Run the migrations.** Open the Supabase SQL editor and run, in order, any
+   of these not yet applied (each is safe to run again):
 
    - `supabase/migrations/0006_economy_rebuild.sql` — until you do, every coin
      award fails silently. The `award_coins_once` RPC does not exist, and the
      client deliberately swallows payout errors so they never break a user's
      action, so nobody earns anything on either platform and nothing looks broken.
+     If the editor truncates the paste, use the three files in `0006_parts/`.
    - `supabase/migrations/0007_account_deletion.sql` — the in-app account
      deletion App Store review requires.
+   - `supabase/migrations/0008_private_rooms.sql` — private study rooms
+     joinable by invite code.
+   - `supabase/migrations/0009_room_moderation.sql` — hosts removing someone
+     from their room.
 
 2. **Register the deep link.** Supabase → Authentication → URL Configuration →
    Redirect URLs, add `salsabil://auth-callback`. Without it OAuth sign-in
@@ -53,36 +59,34 @@ eas login
 eas init            # creates the project and writes its id
 ```
 
-Then store the environment as EAS secrets, so builds do not depend on your local
-`.env`:
+Then store the environment in EAS, so builds do not depend on your local
+`.env` (which is never uploaded). Each build profile reads the EAS environment
+of the same name:
 
 ```bash
-eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL      --value "https://YOUR-PROJECT.supabase.co"
-eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR-ANON-KEY"
-eas secret:create --scope project --name EXPO_PUBLIC_API_BASE_URL      --value "https://YOUR-SITE.netlify.app"
+for e in preview production; do
+  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_URL      --value "https://YOUR-PROJECT.supabase.co"
+  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR-ANON-KEY"
+  eas env:create --environment $e --visibility plaintext --name EXPO_PUBLIC_API_BASE_URL      --value "https://YOUR-SITE.netlify.app"
+done
 ```
 
 The anon key is safe to ship — row-level security is what protects the data, not
 the key's secrecy. **Never** put the service role key here; it bypasses RLS
 entirely and would be readable inside the app bundle.
 
-`EXPO_PUBLIC_API_BASE_URL` in `eas.json` currently points at
-`https://salsabil.netlify.app`. Correct it to your real deployment if it differs
-— a native build has no origin of its own, so a wrong value means the AI chat,
-prayer times and text-to-speech all fail with no obvious cause.
+`EXPO_PUBLIC_API_BASE_URL` must be your real Netlify deployment. A native
+build has no origin of its own, so a wrong value means the AI chat, prayer
+times and text-to-speech all fail with no obvious cause. A preview or
+production build refuses to start if any of the three is missing.
 
 ---
 
-## 3. Put it on a real phone first
+## 3. Beta test on real phones
 
-Four phases of work have never executed on a device. Do this before you think
-about the stores.
-
-```bash
-eas build --profile development --platform android   # fastest route
-```
-
-Install the APK, then `npx expo start --dev-client`.
+Hand an APK to testers before touching the stores. `README.md` → *Beta
+testing* has both routes: the GitHub workflow (repository secrets plus a
+`beta-N` tag, no Expo account) or `npm run build:beta` on EAS.
 
 Check specifically:
 
@@ -170,6 +174,5 @@ Honest list of what is not done, so nothing surprises you in review:
 1. **Voice input and background audio are web-only.** The related capability
    declarations were removed from `app.config.ts` so the build does not claim
    what it cannot do; restore them alongside the features.
-2. **Noor's tool actions are not wired on native** — conversation only.
-3. **No crash reporting.** Consider Sentry before a public launch; without it a
+2. **No crash reporting.** Consider Sentry before a public launch; without it a
    store-only crash is invisible to you.

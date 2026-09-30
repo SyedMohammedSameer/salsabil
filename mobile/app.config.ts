@@ -5,7 +5,8 @@ import type { ExpoConfig } from 'expo/config'
 // `extra` is the bridge between build-time environment variables and the
 // runtime env adapter in ../src/lib/platform/env.native.ts. EXPO_PUBLIC_*
 // variables are inlined at build time, so these must be set wherever the
-// build runs (locally in .env, on EAS via `eas secret:create`).
+// build runs: locally in .env, on EAS via `eas env:create`, and as repository
+// secrets for the GitHub beta workflow.
 
 const SCHEME = 'salsabil'
 
@@ -31,6 +32,28 @@ const BRAND_BG_DARK = '#011f16'
 // real override and resolve the project id to nothing.
 const EAS_PROJECT_ID =
   process.env.EAS_PROJECT_ID || '85744519-5af5-4cda-99a3-325bc0485e10'
+
+// A release build without these installs fine and then fails at sign-in (no
+// Supabase) or in Noor (no API origin), with nothing on screen saying why.
+// EAS builds therefore refuse to start without them. The dev client is exempt:
+// its JavaScript comes from Metro, which reads the local .env.
+const REQUIRED_ENV = [
+  'EXPO_PUBLIC_SUPABASE_URL',
+  'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  'EXPO_PUBLIC_API_BASE_URL',
+] as const
+if (process.env.EAS_BUILD === 'true' && process.env.EAS_BUILD_PROFILE !== 'development') {
+  const missing = REQUIRED_ENV.filter((name) => !process.env[name])
+  if (missing.length) {
+    throw new Error(
+      `Missing ${missing.join(', ')}. Add them with \`eas env:create\` for this build's environment.`,
+    )
+  }
+}
+
+// Set by the GitHub beta workflow so each APK it builds is an update to the
+// last. EAS builds leave it unset and use the remote version counter instead.
+const ANDROID_VERSION_CODE = Number(process.env.ANDROID_VERSION_CODE) || undefined
 
 const config: ExpoConfig = {
   name: 'Salsabil',
@@ -65,6 +88,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'app.salsabil.mobile',
+    versionCode: ANDROID_VERSION_CODE,
     adaptiveIcon: {
       foregroundImage: './assets/android-icon-foreground.png',
       backgroundImage: './assets/android-icon-background.png',

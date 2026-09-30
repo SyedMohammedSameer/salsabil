@@ -1,0 +1,128 @@
+# Builds an installable Android APK for beta testers, with no Expo account and
+# no Play Console needed.
+#
+#   Run it:  Actions → "Android beta APK" → Run workflow (needs this file on the
+#            default branch), or push a tag named beta-<anything> from any branch.
+#   Result:  a GitHub pre-release with the APK attached. The repository is
+#            public, so the release link is what you send testers.
+#
+# The APK is signed with the Expo template's debug key. That is fine for
+# sideloading, and every build from here signs with the same key, so testers
+# can install a newer beta over an older one. It is NOT the Play Store key:
+# testers uninstall the beta before installing from Play.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_API_BASE_URL
+# All three end up inside the app bundle, so they are public values; secrets
+# just keep them out of the repository.
+
+name: Android beta APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a GitHub pre-release testers can download
+        type: boolean
+        default: true
+  push:
+    tags: ['beta-*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
+      # Each run gets a higher versionCode, so Android accepts it as an update.
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Check secrets
+        run: |
+          missing=0
+          for v in EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_API_BASE_URL; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Repository secret $v is not set (Settings → Secrets and variables → Actions)."
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The app imports the shared business logic from ../src, so the web
+      # app's dependencies are installed too. --ignore-scripts skips husky.
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix mobile
+
+      - name: Type-check
+        working-directory: mobile
+        run: npm run type-check
+
+      - name: Generate the Android project
+        working-directory: mobile
+        run: npx expo prebuild --platform android --clean --no-install
+
+      # arm64-v8a and armeabi-v7a cover every real phone; x86 is emulators only.
+      - name: Build the APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      - name: Name the APK
+        id: apk
+        run: |
+          file="salsabil-beta-${{ github.run_number }}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ github.event_name == 'push' && github.ref_name || format('beta-{0}', github.run_number) }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: salsabil-beta-apk
+          path: ${{ steps.apk.outputs.file }}
+          retention-days: 30
+
+      - name: Publish the pre-release
+        if: github.event_name == 'push' || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<NOTES
+          Beta build ${{ github.run_number }} from \`${{ github.ref_name }}\` (${GITHUB_SHA::7}).
+
+          **Install on Android**
+          1. Download \`${{ steps.apk.outputs.file }}\` below on your phone.
+          2. Open it. If Android blocks it, allow "Install unknown apps" for your browser or Files app, then open it again.
+          3. A newer beta installs over this one; your data stays in your account.
+
+          Found a bug or have feedback? Open an issue: ${{ github.server_url }}/${{ github.repository }}/issues/new
+          NOTES
+          gh release create "${{ steps.apk.outputs.tag }}" "${{ steps.apk.outputs.file }}" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Salsabil beta ${{ github.run_number }}" --notes-file notes.md
