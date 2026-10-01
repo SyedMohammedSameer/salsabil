@@ -75,10 +75,18 @@ alter publication supabase_realtime add table
 
 ---
 
-## 6. OpenRouter key
+## 6. AI keys (Noor)
 
-1. Go to [openrouter.ai/keys](https://openrouter.ai/keys)
-2. Create a key → copy it as `OPENROUTER_API_KEY`
+Noor runs on free tiers. Set both keys so that when one provider's rate limit
+is hit, the other takes over:
+
+1. [console.groq.com/keys](https://console.groq.com/keys) → create a key → `GROQ_API_KEY` (also powers voice input)
+2. [openrouter.ai/keys](https://openrouter.ai/keys) → create a key → `OPENROUTER_API_KEY`
+
+Groq is tried first, then OpenRouter, each with a list of free models. To change
+the models without touching code, set `GROQ_MODELS` or `OPENROUTER_MODELS`
+(comma-separated, tried in order). Netlify's function logs show which models
+failed and why when Noor reports it is busy.
 
 ---
 
@@ -105,6 +113,7 @@ VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
+GROQ_API_KEY=gsk_...
 OPENROUTER_API_KEY=sk-or-v1-...
 
 VAPID_PUBLIC_KEY=<from step 7>
@@ -153,7 +162,9 @@ netlify deploy --prod
 | `VITE_SUPABASE_URL` | Your Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `GROQ_API_KEY` | Your Groq key |
 | `OPENROUTER_API_KEY` | Your OpenRouter key |
+| `GROQ_MODELS`, `OPENROUTER_MODELS` | Optional model lists |
 | `VAPID_PUBLIC_KEY` | From step 7 |
 | `VAPID_PRIVATE_KEY` | From step 7 |
 | `VITE_VAPID_PUBLIC_KEY` | Same as `VAPID_PUBLIC_KEY` |

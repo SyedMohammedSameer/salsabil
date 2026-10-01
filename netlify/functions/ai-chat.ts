@@ -1,4 +1,36 @@
-const MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+// ─── Models ───────────────────────────────────────────────────────────────
+// Noor runs on free tiers, which rate-limit hard and retire models without
+// notice, so no single model is trusted. Each reply walks a chain, Groq first
+// (fastest) and then OpenRouter, moving on whenever a model is rate-limited,
+// missing, slow or returns nothing. Either list can be replaced from the
+// Netlify environment without a code change, comma-separated:
+//
+//   GROQ_MODELS        defaults to GROQ_DEFAULT below
+//   OPENROUTER_MODELS  defaults to OPENROUTER_DEFAULT below
+//
+// A provider is used only when its key is set (GROQ_API_KEY,
+// OPENROUTER_API_KEY). If every listed model fails, the provider's live model
+// list is searched for free chat models not yet tried, so a retired default
+// cannot take Noor down on its own.
+//
+// Non-reasoning models come first: they answer in about a second and follow
+// the action-tag format reliably. Reasoning models are a last resort.
+const GROQ_DEFAULT = ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'llama-3.1-8b-instant']
+const OPENROUTER_DEFAULT = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'mistralai/mistral-small-3.2-24b-instruct:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+]
+
+/** How long one model gets to produce its first words before the next is tried. */
+const FIRST_TOKEN_TIMEOUT_MS = 6_000
+/** Stop starting new attempts after this, so the function returns before Netlify cuts it off. */
+const CHAIN_BUDGET_MS = 12_000
+/** Replies are short; a small cap also keeps requests under Groq's per-minute token limits. */
+const MAX_TOKENS = 700
+const HISTORY_TURNS = 12
+const HISTORY_CHARS = 1_500
 
 const SYSTEM_PROMPT = `You are Noor — the user's AI companion inside Salsabil, a productivity + spiritual growth app. Your name means "light" in Arabic.
 
@@ -113,12 +145,14 @@ export default async (req: Request): Promise<Response> => {
     })
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY not set' }), {
-      status: 500,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-    })
+  const providers = configuredProviders()
+  if (providers.length === 0) {
+    return new Response(
+      JSON.stringify({
+        error: 'No AI provider configured: set GROQ_API_KEY or OPENROUTER_API_KEY.',
+      }),
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+    )
   }
 
   let body: RequestBody
@@ -200,54 +234,39 @@ export default async (req: Request): Promise<Response> => {
   const preamble = contextBlocks.join('\n\n')
 
   const userContent = preamble ? `${preamble}\n\nUSER MESSAGE:\n${userText}` : userText
-  const messages = [
+  const messages: ChatTurn[] = [
     { role: 'system', content: SYSTEM_PROMPT },
-    ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
+    ...history
+      .slice(-HISTORY_TURNS)
+      .map((m) => ({ role: m.role, content: m.content.slice(0, HISTORY_CHARS) })),
     { role: 'user', content: userContent },
   ]
 
-  const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://salsabil.app',
-      'X-Title': 'Salsabil',
-    },
-    body: JSON.stringify({ model: MODEL, messages, stream: true, max_tokens: 1500 }),
-  })
-
-  if (!upstream.ok) {
-    const err = await upstream.text()
-    console.error('[ai-chat] OpenRouter HTTP error', upstream.status, err)
-    return new Response(JSON.stringify({ error: `OpenRouter ${upstream.status}: ${err}` }), {
-      status: upstream.status,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-    })
+  const reply = await runChain(providers, messages)
+  if (!reply.ok) {
+    console.error('[ai-chat] every model failed', reply.failures)
+    return new Response(
+      JSON.stringify({
+        error:
+          'Noor is busy right now. Every free AI model is at its limit; try again in a minute.',
+      }),
+      { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } },
+    )
   }
 
-  // If we have a transcription, inject it as the first SSE chunk so the
-  // client's <heard> parser picks it up before the model's reply streams in.
-  if (!heardPrefix) {
-    return new Response(upstream.body, {
-      status: 200,
-      headers: {
-        ...cors,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
-  }
-
+  // A transcription goes out as the first SSE chunk so the client's <heard>
+  // parser picks it up before the model's reply.
   const encoder = new TextEncoder()
-  const stream = new ReadableStream({
+  const prefix = heardPrefix
+    ? encoder.encode(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: heardPrefix } }] })}\n\n`,
+      )
+    : null
+  const { head, reader } = reply
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const prefixChunk = `data: ${JSON.stringify({
-        choices: [{ delta: { content: heardPrefix } }],
-      })}\n\n`
-      controller.enqueue(encoder.encode(prefixChunk))
-      const reader = upstream.body!.getReader()
+      if (prefix) controller.enqueue(prefix)
+      for (const chunk of head) controller.enqueue(chunk)
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -269,6 +288,240 @@ export default async (req: Request): Promise<Response> => {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
+      'X-Noor-Model': `${reply.provider}:${reply.model}`,
     },
+  })
+}
+
+// ─── Provider chain ───────────────────────────────────────────────────────
+
+interface ChatTurn {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+interface Provider {
+  name: 'groq' | 'openrouter'
+  url: string
+  headers: Record<string, string>
+  models: string[]
+  discover: () => Promise<string[]>
+}
+
+type ChainResult =
+  | {
+      ok: true
+      provider: string
+      model: string
+      head: Uint8Array[]
+      reader: ReadableStreamDefaultReader<Uint8Array>
+    }
+  | { ok: false; failures: string[] }
+
+function modelList(env: string | undefined, fallback: string[]): string[] {
+  const listed = (env ?? '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean)
+  return listed.length ? listed : fallback
+}
+
+function configuredProviders(): Provider[] {
+  const out: Provider[] = []
+  const groqKey = process.env.GROQ_API_KEY
+  if (groqKey) {
+    out.push({
+      name: 'groq',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      headers: { Authorization: `Bearer ${groqKey}` },
+      models: modelList(process.env.GROQ_MODELS, GROQ_DEFAULT),
+      discover: () => discoverGroq(groqKey),
+    })
+  }
+  const orKey = process.env.OPENROUTER_API_KEY
+  if (orKey) {
+    out.push({
+      name: 'openrouter',
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      headers: {
+        Authorization: `Bearer ${orKey}`,
+        'HTTP-Referer': 'https://salsabilapp.netlify.app',
+        'X-Title': 'Salsabil',
+      },
+      models: modelList(process.env.OPENROUTER_MODELS, OPENROUTER_DEFAULT),
+      discover: discoverOpenRouter,
+    })
+  }
+  return out
+}
+
+async function runChain(providers: Provider[], messages: ChatTurn[]): Promise<ChainResult> {
+  const started = Date.now()
+  const failures: string[] = []
+  const outOfTime = () => Date.now() - started > CHAIN_BUDGET_MS
+
+  for (const provider of providers) {
+    const tried = new Set<string>()
+    const tryModels = async (models: string[]) => {
+      for (const model of models) {
+        if (tried.has(model) || outOfTime()) continue
+        tried.add(model)
+        const result = await attempt(provider, model, messages)
+        if (result.ok) return { ...result, provider: provider.name, model }
+        failures.push(`${provider.name}:${model} ${result.reason}`)
+      }
+      return null
+    }
+    const listed = await tryModels(provider.models)
+    if (listed) return listed
+    if (outOfTime()) break
+    const found = await tryModels(await provider.discover().catch(() => []))
+    if (found) return found
+  }
+  return { ok: false, failures }
+}
+
+/**
+ * One model, streamed. Succeeds only once the model has produced its first
+ * words: free endpoints sometimes answer 200 and then send an error event,
+ * or think silently past any useful wait, and either should fall through to
+ * the next model rather than reach the user as an empty bubble.
+ */
+async function attempt(
+  provider: Provider,
+  model: string,
+  messages: ChatTurn[],
+): Promise<
+  | { ok: true; head: Uint8Array[]; reader: ReadableStreamDefaultReader<Uint8Array> }
+  | { ok: false; reason: string }
+> {
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), FIRST_TOKEN_TIMEOUT_MS)
+  try {
+    const res = await fetch(provider.url, {
+      method: 'POST',
+      headers: { ...provider.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        max_tokens: MAX_TOKENS,
+        temperature: 0.7,
+      }),
+      signal: abort.signal,
+    })
+    if (!res.ok || !res.body) {
+      const detail = await res.text().catch(() => '')
+      return { ok: false, reason: `HTTP ${res.status} ${errorMessage(detail)}` }
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    const head: Uint8Array[] = []
+    let text = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) return { ok: false, reason: 'ended without a reply' }
+      head.push(value)
+      text += decoder.decode(value, { stream: true })
+      const verdict = firstVerdict(text)
+      if (verdict === 'content') {
+        clearTimeout(timer)
+        return { ok: true, head, reader }
+      }
+      if (verdict) {
+        void reader.cancel().catch(() => {})
+        return { ok: false, reason: verdict }
+      }
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      reason: abort.signal.aborted ? 'timed out' : e instanceof Error ? e.message : 'failed',
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Scan the SSE received so far: 'content' once words arrive, an error string, or null to keep reading. */
+function firstVerdict(sse: string): 'content' | string | null {
+  for (const line of sse.split('\n')) {
+    if (!line.startsWith('data:')) continue
+    const data = line.slice(5).trim()
+    if (data === '[DONE]') return 'ended without a reply'
+    try {
+      const parsed = JSON.parse(data) as {
+        error?: { message?: string } | string
+        choices?: { delta?: { content?: string | null } }[]
+      }
+      if (parsed.error) return `stream error ${errorMessage(JSON.stringify(parsed))}`
+      if (parsed.choices?.[0]?.delta?.content) return 'content'
+    } catch {
+      // A partial line; the next chunk completes it.
+    }
+  }
+  return null
+}
+
+function errorMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } | string }
+    const err = parsed.error
+    return (typeof err === 'string' ? err : (err?.message ?? body)).slice(0, 160)
+  } catch {
+    return body.slice(0, 160)
+  }
+}
+
+// ─── Discovery, for when every listed model has failed ────────────────────
+
+const DISCOVERY_TTL_MS = 30 * 60_000
+const discovered: Record<string, { at: number; models: string[] }> = {}
+
+async function cached(name: string, load: () => Promise<string[]>): Promise<string[]> {
+  const hit = discovered[name]
+  if (hit && Date.now() - hit.at < DISCOVERY_TTL_MS) return hit.models
+  const models = await load()
+  discovered[name] = { at: Date.now(), models }
+  return models
+}
+
+// Speech, moderation and agentic models are not chat models; qwen and r1
+// put their reasoning inline in the reply.
+const NOT_CHAT = /whisper|tts|guard|playai|orpheus|compound|distil|qwen|deepseek-r1|vision|embed/i
+
+function discoverGroq(key: string): Promise<string[]> {
+  return cached('groq', async () => {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(4_000),
+    })
+    if (!res.ok) return []
+    const { data } = (await res.json()) as { data?: { id: string; active?: boolean }[] }
+    return (data ?? [])
+      .filter((m) => m.active !== false && !NOT_CHAT.test(m.id))
+      .map((m) => m.id)
+      .slice(0, 3)
+  })
+}
+
+function discoverOpenRouter(): Promise<string[]> {
+  return cached('openrouter', async () => {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      signal: AbortSignal.timeout(4_000),
+    })
+    if (!res.ok) return []
+    const { data } = (await res.json()) as {
+      data?: { id: string; architecture?: { output_modalities?: string[] } }[]
+    }
+    return (data ?? [])
+      .filter((m) => m.id.endsWith(':free') && !NOT_CHAT.test(m.id))
+      .filter(
+        (m) =>
+          !m.architecture?.output_modalities || m.architecture.output_modalities.includes('text'),
+      )
+      .map((m) => m.id)
+      .slice(0, 4)
   })
 }

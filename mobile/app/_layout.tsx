@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Stack, useRouter, useSegments, type Href } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
@@ -13,6 +13,8 @@ import { bindAuthRefreshToAppState, createSessionFromUrl } from '~/lib/auth'
 import { useTheme } from '~/lib/theme'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
+import { queryClient } from '@/lib/query'
+import * as Notifications from 'expo-notifications'
 
 void SplashScreen.preventAutoHideAsync()
 
@@ -36,6 +38,19 @@ function AuthGate() {
     Amiri: require('../assets/fonts/Amiri_400Regular.ttf'),
     'Amiri-Bold': require('../assets/fonts/Amiri_700Bold.ttf'),
   })
+
+  // Signing out leaves nothing behind for whoever signs in next on this phone:
+  // no cached data from the last account, and none of its task or prayer
+  // reminders. The next account's reminders are scheduled when it signs in.
+  const lastUserId = useRef<string | null>(null)
+  useEffect(() => {
+    const id = session?.user.id ?? null
+    if (lastUserId.current && !id) {
+      queryClient.clear()
+      void Notifications.cancelAllScheduledNotificationsAsync().catch(() => {})
+    }
+    lastUserId.current = id
+  }, [session])
 
   useEffect(() => {
     if (loading) return

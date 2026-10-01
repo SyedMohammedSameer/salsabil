@@ -21,6 +21,8 @@ import {
   BellRing,
   ChevronRight,
   Camera,
+  Settings,
+  LogOut,
 } from 'lucide-react-native'
 import { Screen, Muted, Card, Button, Input, Gradient, FadeIn, SectionHeader } from '~/components/ui'
 import { GROW_HERO } from '~/components/GrowHero'
@@ -54,7 +56,7 @@ export default function ProfileScreen() {
   const router = useRouter()
   const { colorScheme } = useColorScheme()
   const dark = colorScheme === 'dark'
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const { data: profile, isLoading } = useProfile()
   const updateProfile = useUpdateProfile()
   const today = localDateString()
@@ -239,20 +241,36 @@ export default function ProfileScreen() {
         </FadeIn>
 
         <FadeIn index={2}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/notification-settings' as Href)}
-            className="flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5"
-          >
-            <View className="h-9 w-9 items-center justify-center rounded-xl bg-warn-500/10">
-              <BellRing size={18} color={dark ? '#fbbf24' : '#f59e0b'} />
-            </View>
-            <View className="min-w-0 flex-1">
-              <Text className="text-[14px] font-semibold text-foreground">Reminders</Text>
-              <Muted className="text-xs">Choose which notifications you get</Muted>
-            </View>
-            <ChevronRight size={18} color="#8a9793" />
-          </Pressable>
+          <Card className="p-0">
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/notification-settings' as Href)}
+              className="flex-row items-center gap-3 px-4 py-3.5"
+            >
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-warn-500/10">
+                <BellRing size={18} color={dark ? '#fbbf24' : '#f59e0b'} />
+              </View>
+              <View className="min-w-0 flex-1">
+                <Text className="text-[14px] font-semibold text-foreground">Reminders</Text>
+                <Muted className="text-xs">Choose which notifications you get</Muted>
+              </View>
+              <ChevronRight size={18} color="#8a9793" />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/settings' as Href)}
+              className="flex-row items-center gap-3 border-t border-border px-4 py-3.5"
+            >
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-muted">
+                <Settings size={18} color="#8a9793" />
+              </View>
+              <View className="min-w-0 flex-1">
+                <Text className="text-[14px] font-semibold text-foreground">Settings</Text>
+                <Muted className="text-xs">Appearance, prayer times, privacy, account</Muted>
+              </View>
+              <ChevronRight size={18} color="#8a9793" />
+            </Pressable>
+          </Card>
         </FadeIn>
 
         <FadeIn index={3}>
@@ -294,6 +312,22 @@ export default function ProfileScreen() {
               </Card>
             )}
           </View>
+        </FadeIn>
+
+        <FadeIn index={4}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              Alert.alert('Sign out?', 'Your data stays in your account.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+              ])
+            }
+            className="flex-row items-center justify-center gap-2 rounded-2xl border border-border py-3.5"
+          >
+            <LogOut size={16} color="#ef4444" />
+            <Text className="text-sm font-semibold text-danger-500">Sign out</Text>
+          </Pressable>
         </FadeIn>
       </View>
     </Screen>

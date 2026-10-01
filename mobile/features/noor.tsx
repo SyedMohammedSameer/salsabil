@@ -250,6 +250,8 @@ export default function NoorScreen() {
           // Saved raw, tags included, as the web does; the chips re-read them.
           await saveChatMessage(user.id, 'assistant', full)
           await runActions(full)
+        } else if (!controller.signal.aborted) {
+          toast.error("Noor didn't answer that time. Try again.")
         }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Noor is unavailable right now.')

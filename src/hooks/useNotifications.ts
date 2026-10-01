@@ -27,11 +27,17 @@ export function useNotifications() {
     staleTime: 60_000,
   })
 
-  // Realtime: prepend new notifications without full refetch
+  // Realtime: prepend new notifications without full refetch.
+  //
+  // The channel name must be unique per subscriber. supabase-js returns the
+  // existing channel for a name already in use, and adding a listener to a
+  // channel that has already subscribed throws, so a second screen using this
+  // hook (the bell's badge on Home and the notifications screen above it)
+  // crashed the app.
   useEffect(() => {
     if (!user?.id) return
     const ch = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(`notifications:${user.id}:${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
